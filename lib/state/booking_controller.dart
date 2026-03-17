@@ -1,0 +1,46 @@
+import 'dart:collection';
+
+import 'package:flutter/foundation.dart';
+
+import '../models/booking_item.dart';
+
+class BookingController extends ChangeNotifier {
+  BookingController({List<BookingItem>? seed}) {
+    if (seed != null && seed.isNotEmpty) {
+      _bookings.addAll(seed);
+    }
+  }
+
+  final List<BookingItem> _bookings = <BookingItem>[];
+
+  UnmodifiableListView<BookingItem> get bookings =>
+      UnmodifiableListView<BookingItem>(_bookings);
+
+  int get totalBookings => _bookings.length;
+
+  int get upcomingBookings => _bookings
+      .where((BookingItem item) => item.status == BookingStatus.upcoming)
+      .length;
+
+  void addBooking(BookingItem booking) {
+    _bookings.insert(0, booking);
+    notifyListeners();
+  }
+
+  bool cancelBooking(String bookingId) {
+    final int index =
+        _bookings.indexWhere((BookingItem item) => item.id == bookingId);
+    if (index == -1) {
+      return false;
+    }
+
+    final BookingItem current = _bookings[index];
+    if (current.status == BookingStatus.cancelled) {
+      return false;
+    }
+
+    _bookings[index] = current.copyWith(status: BookingStatus.cancelled);
+    notifyListeners();
+    return true;
+  }
+}
