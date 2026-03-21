@@ -18,6 +18,7 @@ class WorkshopProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get query => _query;
   int get totalCount => _workshops.length;
+  List<Salon> get allWorkshops => List<Salon>.unmodifiable(_workshops);
 
   List<Salon> get workshops {
     if (_query.isEmpty) {

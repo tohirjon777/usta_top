@@ -14,6 +14,8 @@ Future<void> main() async {
       Platform.environment['WORKSHOPS_FILE'] ?? 'data/workshops.json';
   final String usersFilePath =
       Platform.environment['USERS_FILE'] ?? 'data/users.json';
+  final String bookingsFilePath =
+      Platform.environment['BOOKINGS_FILE'] ?? 'data/bookings.json';
   final String adminUsername =
       Platform.environment['ADMIN_USERNAME'] ?? 'admin';
   final String adminPassword =
@@ -23,6 +25,7 @@ Future<void> main() async {
   await store.loadUsers(usersFilePath);
   await store.loadWorkshops(workshopsFilePath);
   await store.loadWorkshopLocations(workshopLocationsFilePath);
+  await store.loadBookings(bookingsFilePath);
 
   final server = await io.serve(
     buildHandler(
@@ -30,6 +33,7 @@ Future<void> main() async {
       workshopLocationsFilePath: workshopLocationsFilePath,
       workshopsFilePath: workshopsFilePath,
       usersFilePath: usersFilePath,
+      bookingsFilePath: bookingsFilePath,
       adminUsername: adminUsername,
       adminPassword: adminPassword,
     ),
@@ -46,4 +50,8 @@ Future<void> main() async {
   stdout.writeln(
       'Admin login: http://${server.address.host}:${server.port}/admin/login');
   stdout.writeln('Admin username: $adminUsername');
+  stdout.writeln(
+    'Owner portal: http://${server.address.host}:${server.port}/owner/login',
+  );
+  stdout.writeln('Seed owner access codes: w-1=0001, w-2=0002, w-3=0003');
 }

@@ -55,6 +55,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       authProvider.currentUser?.fullName,
       l10n.profileUnknownName,
     );
+    final String rawFullName = authProvider.currentUser?.fullName.trim() ?? '';
+    final String rawPhone = authProvider.currentUser?.phone.trim() ?? '';
     final String phone = _displayValue(
       authProvider.currentUser?.phone,
       l10n.profileUnknownPhone,
@@ -94,6 +96,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: AppColors.secondaryTextOf(context),
                           ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: <Widget>[
+                        TextButton.icon(
+                          onPressed: isLoadingProfile ||
+                                  authProvider.currentUser == null
+                              ? null
+                              : () => _showEditProfileSheet(
+                                    initialName: rawFullName,
+                                    initialPhone: rawPhone,
+                                  ),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 32),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: Text(l10n.editProfile),
+                        ),
+                        TextButton.icon(
+                          onPressed: isLoadingProfile ||
+                                  authProvider.currentUser == null
+                              ? null
+                              : _showChangePasswordSheet,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 32),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          icon: const Icon(Icons.lock_outline, size: 18),
+                          label: Text(l10n.changePassword),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -234,6 +274,363 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _showEditProfileSheet({
+    required String initialName,
+    required String initialPhone,
+  }) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final TextEditingController nameController =
+        TextEditingController(text: initialName);
+    final TextEditingController phoneController =
+        TextEditingController(text: initialPhone);
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    final BuildContext parentContext = context;
+    final AuthProvider authProvider = parentContext.read<AuthProvider>();
+    final ScaffoldMessengerState messenger =
+        ScaffoldMessenger.of(parentContext);
+    bool isSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Future<void> submit() async {
+              if (isSaving || !(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+
+              final String nextName = nameController.text.trim();
+              final String nextPhone = phoneController.text.trim();
+              if (nextName == initialName.trim() &&
+                  _normalizePhone(nextPhone) == _normalizePhone(initialPhone)) {
+                Navigator.of(context).pop();
+                return;
+              }
+
+              setModalState(() {
+                isSaving = true;
+              });
+
+              final bool success = await authProvider.updateCurrentUserProfile(
+                fullName: nextName,
+                phone: nextPhone,
+              );
+              if (!mounted) {
+                return;
+              }
+
+              final String? providerError = authProvider.errorMessage;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success
+                        ? l10n.profileUpdated
+                        : (providerError?.trim().isNotEmpty ?? false)
+                            ? providerError!
+                            : l10n.profileUpdateFailed,
+                  ),
+                ),
+              );
+
+              if (success) {
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+                return;
+              }
+
+              if (context.mounted) {
+                setModalState(() {
+                  isSaving = false;
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      l10n.editProfile,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: nameController,
+                      enabled: !isSaving,
+                      textInputAction: TextInputAction.next,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: l10n.profileNameField,
+                        hintText: l10n.profileNameHint,
+                      ),
+                      validator: (String? value) {
+                        final String normalized = value?.trim() ?? '';
+                        if (normalized.isEmpty) {
+                          return l10n.profileNameRequired;
+                        }
+                        if (normalized.length < 2) {
+                          return l10n.profileNameTooShort;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneController,
+                      enabled: !isSaving,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      decoration: InputDecoration(
+                        labelText: l10n.phoneNumber,
+                        hintText: l10n.phoneHint,
+                      ),
+                      validator: (String? value) {
+                        final String normalized = _normalizePhone(value ?? '');
+                        if (normalized.isEmpty) {
+                          return l10n.phoneRequired;
+                        }
+                        if (normalized.length < 7) {
+                          return l10n.phoneInvalid;
+                        }
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => submit(),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: isSaving
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            child: Text(l10n.cancel),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: isSaving ? null : submit,
+                            child: isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(l10n.saveChanges),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+    phoneController.dispose();
+  }
+
+  Future<void> _showChangePasswordSheet() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final TextEditingController currentPasswordController =
+        TextEditingController();
+    final TextEditingController newPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController =
+        TextEditingController();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    final BuildContext parentContext = context;
+    final AuthProvider authProvider = parentContext.read<AuthProvider>();
+    final ScaffoldMessengerState messenger =
+        ScaffoldMessenger.of(parentContext);
+    bool isSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Future<void> submit() async {
+              if (isSaving || !(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+
+              setModalState(() {
+                isSaving = true;
+              });
+
+              final bool success = await authProvider.changePassword(
+                currentPassword: currentPasswordController.text,
+                newPassword: newPasswordController.text,
+              );
+              if (!mounted) {
+                return;
+              }
+
+              final String? providerError = authProvider.errorMessage;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success
+                        ? l10n.passwordUpdated
+                        : (providerError?.trim().isNotEmpty ?? false)
+                            ? providerError!
+                            : l10n.passwordUpdateFailed,
+                  ),
+                ),
+              );
+
+              if (success) {
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+                return;
+              }
+
+              if (context.mounted) {
+                setModalState(() {
+                  isSaving = false;
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      l10n.changePassword,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: currentPasswordController,
+                      enabled: !isSaving,
+                      obscureText: true,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: l10n.currentPassword,
+                      ),
+                      validator: (String? value) {
+                        if ((value ?? '').isEmpty) {
+                          return l10n.passwordRequired;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: newPasswordController,
+                      enabled: !isSaving,
+                      obscureText: true,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: l10n.newPassword,
+                      ),
+                      validator: (String? value) {
+                        final String normalized = value ?? '';
+                        if (normalized.isEmpty) {
+                          return l10n.passwordRequired;
+                        }
+                        if (normalized.length < 6) {
+                          return l10n.passwordLength;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: confirmPasswordController,
+                      enabled: !isSaving,
+                      obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      decoration: InputDecoration(
+                        labelText: l10n.confirmPassword,
+                      ),
+                      validator: (String? value) {
+                        final String normalized = value ?? '';
+                        if (normalized.isEmpty) {
+                          return l10n.confirmPasswordRequired;
+                        }
+                        if (normalized != newPasswordController.text) {
+                          return l10n.passwordsDoNotMatch;
+                        }
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => submit(),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: isSaving
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            child: Text(l10n.cancel),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: isSaving ? null : submit,
+                            child: isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(l10n.saveChanges),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+  }
+
   Future<void> _confirmSignOut() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool? confirmed = await showDialog<bool>(
@@ -273,6 +670,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return fallback;
     }
     return normalized;
+  }
+
+  String _normalizePhone(String value) {
+    return value.replaceAll(RegExp(r'\s+'), '').trim();
   }
 }
 

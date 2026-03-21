@@ -5,6 +5,7 @@ import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/salon.dart';
+import '../providers/saved_workshops_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../ui/app_loading_view.dart';
 
@@ -33,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final WorkshopProvider workshopProvider = context.watch<WorkshopProvider>();
+    final SavedWorkshopsProvider savedProvider =
+        context.watch<SavedWorkshopsProvider>();
     final List<Salon> salons = workshopProvider.workshops;
     final bool isLoading = workshopProvider.isLoading;
     final String query = workshopProvider.query;
@@ -107,13 +110,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _SalonCard(
                   l10n: l10n,
                   salon: salon,
+                  isSaved: savedProvider.isSaved(salon.id),
                   onTap: () => widget.onOpenSalon(salon),
+                  onToggleSaved: () => _toggleSaved(salon),
                 ),
               ),
             ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleSaved(Salon salon) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final SavedWorkshopsProvider savedProvider =
+        context.read<SavedWorkshopsProvider>();
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final bool saved = await savedProvider.toggleSaved(salon.id);
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            saved
+                ? l10n.savedWorkshopAdded(salon.name)
+                : l10n.savedWorkshopRemoved(salon.name),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.savedWorkshopUpdateFailed)),
+      );
+    }
   }
 }
 
@@ -145,12 +180,16 @@ class _SalonCard extends StatelessWidget {
   const _SalonCard({
     required this.l10n,
     required this.salon,
+    required this.isSaved,
     required this.onTap,
+    required this.onToggleSaved,
   });
 
   final AppLocalizations l10n;
   final Salon salon;
+  final bool isSaved;
   final VoidCallback onTap;
+  final VoidCallback onToggleSaved;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +235,17 @@ class _SalonCard extends StatelessWidget {
                                   ),
                         ),
                       ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onToggleSaved,
+                    tooltip:
+                        isSaved ? l10n.removeSavedWorkshop : l10n.saveWorkshop,
+                    icon: Icon(
+                      isSaved ? Icons.favorite : Icons.favorite_border,
+                      color: isSaved
+                          ? Colors.redAccent
+                          : AppColors.secondaryTextOf(context),
                     ),
                   ),
                   const Icon(Icons.arrow_forward_ios, size: 16),

@@ -422,6 +422,7 @@ class AdminController {
       status: status,
       lang: 'en',
     );
+    final Uri bookingsUri = _adminBookingsPageUri(lang: lang);
 
     final List<WorkshopModel> allWorkshops = _store.workshops();
     final List<WorkshopModel> searchResults = _store.workshops(query: query);
@@ -1256,6 +1257,8 @@ class AdminController {
         </div>
       </div>
       <div class="top-actions">
+        <a class="pill-link hero-primary" href="${_escapeHtml(refreshUri.toString())}">${_escapeHtml(_text(lang, 'workshopsTab'))}</a>
+        <a class="pill-link" href="${_escapeHtml(bookingsUri.toString())}">${_escapeHtml(_text(lang, 'bookingsTab'))}</a>
         <span class="chip">${_escapeHtml(_text(lang, 'language'))}</span>
         <a class="pill-link${lang == 'uz' ? ' hero-primary' : ''}" href="${_escapeHtml(langUzUri.toString())}">UZ</a>
         <a class="pill-link${lang == 'ru' ? ' hero-primary' : ''}" href="${_escapeHtml(langRuUri.toString())}">RU</a>
@@ -1985,6 +1988,10 @@ class AdminController {
     );
     final String badge =
         _requiredText(form['badge'], _text(lang, 'fieldBadge'), lang);
+    final String ownerAccessCode = _optionalText(
+      form['ownerAccessCode'],
+      fallback: WorkshopModel.defaultOwnerAccessCode(workshopId),
+    );
     final double rating = _parseDoubleField(
       form['rating'],
       fieldLabel: _text(lang, 'fieldRating'),
@@ -2042,6 +2049,7 @@ class AdminController {
       longitude: longitude,
       isOpen: isOpen,
       badge: badge,
+      ownerAccessCode: ownerAccessCode,
       services: services,
     );
   }
@@ -2121,6 +2129,17 @@ class AdminController {
           <String, Object>{'field': fieldLabel},
         ),
       );
+    }
+    return value;
+  }
+
+  String _optionalText(
+    String? raw, {
+    required String fallback,
+  }) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return fallback;
     }
     return value;
   }
@@ -2337,6 +2356,58 @@ class AdminController {
     );
   }
 
+  Uri _adminBookingsPageUri({
+    String? lang,
+    String? workshopId,
+    String? status,
+    String? query,
+  }) {
+    final Map<String, String> params = <String, String>{
+      'lang': _normalizeLang(lang),
+    };
+
+    final String normalizedWorkshopId = (workshopId ?? '').trim();
+    if (normalizedWorkshopId.isNotEmpty) {
+      params['workshop'] = normalizedWorkshopId;
+    }
+
+    final String normalizedStatus = (status ?? '').trim().toLowerCase();
+    if (normalizedStatus == 'upcoming' ||
+        normalizedStatus == 'completed' ||
+        normalizedStatus == 'cancelled') {
+      params['status'] = normalizedStatus;
+    }
+
+    final String normalizedQuery = (query ?? '').trim();
+    if (normalizedQuery.isNotEmpty) {
+      params['q'] = normalizedQuery;
+    }
+
+    return Uri(
+      path: '/admin/bookings',
+      queryParameters: params,
+    );
+  }
+
+  Uri _ownerLoginUri({
+    String? lang,
+    String? workshopId,
+  }) {
+    final Map<String, String> params = <String, String>{
+      'lang': _normalizeLang(lang),
+    };
+
+    final String normalizedWorkshopId = (workshopId ?? '').trim();
+    if (normalizedWorkshopId.isNotEmpty) {
+      params['workshop'] = normalizedWorkshopId;
+    }
+
+    return Uri(
+      path: '/owner/login',
+      queryParameters: params,
+    );
+  }
+
   List<WorkshopModel> _applyStatusFilter(
     List<WorkshopModel> workshops, {
     required String status,
@@ -2473,6 +2544,7 @@ class AdminController {
       address: '',
       description: '',
       badge: '',
+      ownerAccessCode: '',
       rating: '4.8',
       reviewCount: '0',
       distanceKm: '1.0',
@@ -2506,6 +2578,15 @@ class AdminController {
 <input type="hidden" name="returnStatus" value="${_escapeHtml(returnStatus)}">
 <input type="hidden" name="lang" value="${_escapeHtml(lang)}">
 ''';
+    final Uri ordersUri = _adminBookingsPageUri(
+      lang: lang,
+      workshopId: workshop.id,
+      status: 'upcoming',
+    );
+    final Uri ownerPortalUri = _ownerLoginUri(
+      lang: lang,
+      workshopId: workshop.id,
+    );
 
     return '''
 <section class="card workshop-card">
@@ -2538,6 +2619,10 @@ class AdminController {
       <span>${_escapeHtml(_text(lang, 'infoDistance'))}</span>
       <strong>${workshop.distanceKm.toStringAsFixed(1)} km</strong>
     </div>
+    <div class="info-item">
+      <span>${_escapeHtml(_text(lang, 'fieldOwnerAccessCode'))}</span>
+      <strong>${_escapeHtml(workshop.ownerAccessCode)}</strong>
+    </div>
   </div>
 
   <div class="service-row">$servicesSummary</div>
@@ -2557,6 +2642,7 @@ class AdminController {
       address: workshop.address,
       description: workshop.description,
       badge: workshop.badge,
+      ownerAccessCode: workshop.ownerAccessCode,
       rating: workshop.rating.toStringAsFixed(1),
       reviewCount: '${workshop.reviewCount}',
       distanceKm: workshop.distanceKm.toStringAsFixed(1),
@@ -2567,6 +2653,8 @@ class AdminController {
             .toList(growable: false),
       )),
       extraActionsHtml: '''
+<a class="ghost-btn" href="${_escapeHtml(ownerPortalUri.toString())}" target="_blank" rel="noreferrer">${_escapeHtml(_text(lang, 'fieldOwnerPortal'))}</a>
+<a class="ghost-btn" href="${_escapeHtml(ordersUri.toString())}">${_escapeHtml(_text(lang, 'ordersButton'))}</a>
 <form method="post" action="/admin/workshops/${Uri.encodeComponent(workshop.id)}/delete?lang=${Uri.encodeQueryComponent(lang)}" onsubmit="return confirm('${_escapeHtml(_text(lang, 'deleteConfirm'))}')">
   $hiddenContextHtml
   <button class="danger-btn" type="submit">${_escapeHtml(_text(lang, 'deleteButton'))}</button>
@@ -2592,6 +2680,7 @@ class AdminController {
     required String address,
     required String description,
     required String badge,
+    required String ownerAccessCode,
     required String rating,
     required String reviewCount,
     required String distanceKm,
@@ -2659,6 +2748,17 @@ class AdminController {
         <div class="field">
           <label>${_escapeHtml(_text(lang, 'fieldAddress'))}</label>
           <input type="text" name="address" value="${_escapeHtml(address)}" placeholder="${_escapeHtml(_text(lang, 'placeholderAddress'))}">
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldOwnerAccessCode'))}</label>
+          <input type="text" name="ownerAccessCode" value="${_escapeHtml(ownerAccessCode)}" placeholder="${_escapeHtml(_text(lang, 'placeholderOwnerAccessCode'))}">
+        </div>
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldOwnerPortal'))}</label>
+          <input type="text" value="/owner/login" readonly>
         </div>
       </div>
 
@@ -2772,6 +2872,9 @@ class AdminController {
       'brandEyebrow': 'Service Desk',
       'brandTitle': 'Usta Top Avtoservis Admini',
       'language': 'Til',
+      'workshopsTab': 'Avtoservislar',
+      'bookingsTab': 'Zakazlar',
+      'ordersButton': 'Zakazlarni ko‘rish',
       'logout': 'Chiqish',
       'adminLoginTitle': 'Admin kirish',
       'adminLoginEyebrow': 'Himoyalangan Kirish',
@@ -2883,6 +2986,8 @@ class AdminController {
       'fieldAddress': 'Manzil',
       'fieldDescription': 'Tavsif',
       'fieldBadge': 'Afzallik yorlig‘i',
+      'fieldOwnerAccessCode': 'Usta kirish kodi',
+      'fieldOwnerPortal': 'Usta kabineti',
       'fieldRating': 'Reyting',
       'fieldReviewCount': 'Sharhlar soni',
       'fieldDistance': 'Masofa',
@@ -2937,6 +3042,7 @@ class AdminController {
       'placeholderWorkshopName': 'Masalan: Turbo Usta Servis',
       'placeholderMaster': 'Masalan: Aziz Usta',
       'placeholderBadge': 'Masalan: Tez qabul',
+      'placeholderOwnerAccessCode': 'Bo‘sh qoldiring yoki masalan: 0001',
       'placeholderAddress': 'Masalan: Chilonzor, Toshkent',
       'placeholderDescription': 'Avtoservis haqida qisqa tavsif kiriting',
       'openCheckbox': 'Avtoservis hozir ochiq',
@@ -2953,6 +3059,9 @@ class AdminController {
       'brandEyebrow': 'Service Desk',
       'brandTitle': 'Админ автосервиса Usta Top',
       'language': 'Язык',
+      'workshopsTab': 'Автосервисы',
+      'bookingsTab': 'Заказы',
+      'ordersButton': 'Открыть заказы',
       'logout': 'Выйти',
       'adminLoginTitle': 'Вход администратора',
       'adminLoginEyebrow': 'Защищенный Вход',
@@ -3065,6 +3174,8 @@ class AdminController {
       'fieldAddress': 'Адрес',
       'fieldDescription': 'Описание',
       'fieldBadge': 'Ярлык преимущества',
+      'fieldOwnerAccessCode': 'Код доступа владельца',
+      'fieldOwnerPortal': 'Кабинет владельца',
       'fieldRating': 'Рейтинг',
       'fieldReviewCount': 'Количество отзывов',
       'fieldDistance': 'Расстояние',
@@ -3116,6 +3227,7 @@ class AdminController {
       'placeholderWorkshopName': 'Например: Turbo Usta Service',
       'placeholderMaster': 'Например: Азиз Уста',
       'placeholderBadge': 'Например: Быстрый прием',
+      'placeholderOwnerAccessCode': 'Оставьте пустым или, например: 0001',
       'placeholderAddress': 'Например: Чиланзар, Ташкент',
       'placeholderDescription': 'Коротко опишите автосервис',
       'openCheckbox': 'Автосервис сейчас открыт',
@@ -3132,6 +3244,9 @@ class AdminController {
       'brandEyebrow': 'Service Desk',
       'brandTitle': 'Usta Top Auto Service Admin',
       'language': 'Language',
+      'workshopsTab': 'Workshops',
+      'bookingsTab': 'Orders',
+      'ordersButton': 'Open orders',
       'logout': 'Log out',
       'adminLoginTitle': 'Admin sign in',
       'adminLoginEyebrow': 'Protected Access',
@@ -3244,6 +3359,8 @@ class AdminController {
       'fieldAddress': 'Address',
       'fieldDescription': 'Description',
       'fieldBadge': 'Highlight tag',
+      'fieldOwnerAccessCode': 'Owner access code',
+      'fieldOwnerPortal': 'Owner portal',
       'fieldRating': 'Rating',
       'fieldReviewCount': 'Review count',
       'fieldDistance': 'Distance',
@@ -3298,6 +3415,7 @@ class AdminController {
       'placeholderWorkshopName': 'For example: Turbo Usta Service',
       'placeholderMaster': 'For example: Aziz Usta',
       'placeholderBadge': 'For example: Fast intake',
+      'placeholderOwnerAccessCode': 'Leave blank or use 0001',
       'placeholderAddress': 'For example: Chilanzar, Tashkent',
       'placeholderDescription': 'Enter a short description of the garage',
       'openCheckbox': 'Garage is currently open',

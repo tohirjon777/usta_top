@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
+import '../providers/saved_workshops_provider.dart';
 import 'booking_screen.dart';
 
 class SalonDetailScreen extends StatelessWidget {
@@ -37,9 +39,24 @@ class SalonDetailScreen extends StatelessWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final Color heroStart = AppColors.primarySoftOf(context);
     final Color heroEnd = AppColors.accentSoftOf(context);
+    final SavedWorkshopsProvider savedProvider =
+        context.watch<SavedWorkshopsProvider>();
+    final bool isSaved = savedProvider.isSaved(salon.id);
 
     return Scaffold(
-      appBar: AppBar(title: Text(salon.name)),
+      appBar: AppBar(
+        title: Text(salon.name),
+        actions: <Widget>[
+          IconButton(
+            tooltip: isSaved ? l10n.removeSavedWorkshop : l10n.saveWorkshop,
+            onPressed: () => _toggleSaved(context, salon),
+            icon: Icon(
+              isSaved ? Icons.favorite : Icons.favorite_border,
+              color: isSaved ? Colors.redAccent : null,
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
         children: <Widget>[
@@ -138,8 +155,12 @@ class SalonDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       OutlinedButton(
-                        onPressed: () =>
-                            _openBooking(context, preselected: service),
+                        onPressed: salon.isOpen
+                            ? () => _openBooking(
+                                  context,
+                                  preselected: service,
+                                )
+                            : null,
                         child: Text(l10n.book),
                       ),
                     ],
@@ -162,6 +183,35 @@ class SalonDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleSaved(BuildContext context, Salon salon) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final SavedWorkshopsProvider savedProvider =
+        context.read<SavedWorkshopsProvider>();
+
+    try {
+      final bool saved = await savedProvider.toggleSaved(salon.id);
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saved
+                ? l10n.savedWorkshopAdded(salon.name)
+                : l10n.savedWorkshopRemoved(salon.name),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.savedWorkshopUpdateFailed)),
+      );
+    }
   }
 }
 

@@ -16,7 +16,9 @@ const Set<String> _publicPaths = <String>{
 bool _isPublicPath(String path) {
   return _publicPaths.contains(path) ||
       path == 'admin' ||
-      path.startsWith('admin/');
+      path.startsWith('admin/') ||
+      path == 'owner' ||
+      path.startsWith('owner/');
 }
 
 Middleware authMiddleware(InMemoryStore store) {

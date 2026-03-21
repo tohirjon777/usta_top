@@ -42,6 +42,7 @@ class InMemoryStore {
         longitude: 69.2034,
         isOpen: true,
         badge: 'Eng ishonchli',
+        ownerAccessCode: '0001',
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-1',
@@ -77,6 +78,7 @@ class InMemoryStore {
         longitude: 69.2897,
         isOpen: true,
         badge: 'Tez qabul',
+        ownerAccessCode: '0002',
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-4',
@@ -112,6 +114,7 @@ class InMemoryStore {
         longitude: 69.3382,
         isOpen: false,
         badge: 'Yuqori toifa',
+        ownerAccessCode: '0003',
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-7',
@@ -140,6 +143,8 @@ class InMemoryStore {
       BookingModel(
         id: 'b-seed-1',
         userId: 'u-1',
+        customerName: 'Tokhirjon',
+        customerPhone: '+998901234567',
         workshopId: 'w-1',
         workshopName: 'Turbo Usta Servis',
         masterName: 'Aziz Usta',
@@ -187,6 +192,8 @@ class InMemoryStore {
     }
     return _usersById[userId];
   }
+
+  UserModel? userById(String userId) => _usersById[userId];
 
   String newUserId() => _newId('u');
 
@@ -314,6 +321,42 @@ class InMemoryStore {
     await file.writeAsString('${encoder.convert(data)}\n');
   }
 
+  Future<void> loadBookings(String filePath) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    final String trimmed = raw.trim();
+    _bookings.clear();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(trimmed);
+    if (decoded is! List) {
+      throw const FormatException('Bookings file list bo\'lishi kerak');
+    }
+
+    final List<BookingModel> bookings = decoded
+        .whereType<Map<String, dynamic>>()
+        .map(BookingModel.fromJson)
+        .toList(growable: false);
+    _bookings.addAll(bookings);
+  }
+
+  Future<void> saveBookings(String filePath) async {
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final List<Map<String, Object>> data = _bookings
+        .map((BookingModel item) => item.toStorageJson())
+        .toList(growable: false);
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
+  }
+
   List<WorkshopModel> workshops({String? query}) {
     final String q = (query ?? '').trim();
     if (q.isEmpty) {
@@ -333,6 +376,21 @@ class InMemoryStore {
       }
     }
     return null;
+  }
+
+  WorkshopModel? workshopByOwnerAccess({
+    required String workshopId,
+    required String accessCode,
+  }) {
+    final WorkshopModel? workshop = workshopById(workshopId);
+    if (workshop == null) {
+      return null;
+    }
+
+    if (workshop.ownerAccessCode.trim() != accessCode.trim()) {
+      return null;
+    }
+    return workshop;
   }
 
   String newWorkshopId() => _newId('w');
@@ -500,12 +558,38 @@ class InMemoryStore {
     return List<BookingModel>.unmodifiable(items);
   }
 
+  List<BookingModel> bookings({
+    String? workshopId,
+    BookingStatus? status,
+  }) {
+    final List<BookingModel> items = _bookings.where((BookingModel item) {
+      if (workshopId != null &&
+          workshopId.trim().isNotEmpty &&
+          item.workshopId != workshopId.trim()) {
+        return false;
+      }
+      if (status != null && item.status != status) {
+        return false;
+      }
+      return true;
+    }).toList(growable: false)
+      ..sort((BookingModel a, BookingModel b) {
+        return b.createdAt.compareTo(a.createdAt);
+      });
+    return List<BookingModel>.unmodifiable(items);
+  }
+
   BookingModel createBooking({
     required String userId,
     required String workshopId,
     required String serviceId,
     required DateTime dateTime,
   }) {
+    final UserModel? user = _usersById[userId];
+    if (user == null) {
+      throw StateError('Foydalanuvchi topilmadi');
+    }
+
     final WorkshopModel? workshop = workshopById(workshopId);
     if (workshop == null) {
       throw StateError('Servis topilmadi');
@@ -524,6 +608,8 @@ class InMemoryStore {
     final BookingModel booking = BookingModel(
       id: _newId('b'),
       userId: userId,
+      customerName: user.fullName,
+      customerPhone: user.phone,
       workshopId: workshop.id,
       workshopName: workshop.name,
       masterName: workshop.master,
@@ -556,6 +642,39 @@ class InMemoryStore {
 
     final BookingModel updated =
         current.copyWith(status: BookingStatus.cancelled);
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  BookingModel updateBookingStatus({
+    required String bookingId,
+    required BookingStatus status,
+  }) {
+    final int index =
+        _bookings.indexWhere((BookingModel item) => item.id == bookingId);
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel updated = _bookings[index].copyWith(status: status);
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  BookingModel updateWorkshopBookingStatus({
+    required String workshopId,
+    required String bookingId,
+    required BookingStatus status,
+  }) {
+    final int index = _bookings.indexWhere(
+      (BookingModel item) =>
+          item.id == bookingId && item.workshopId == workshopId,
+    );
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel updated = _bookings[index].copyWith(status: status);
     _bookings[index] = updated;
     return updated;
   }

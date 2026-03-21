@@ -6,9 +6,13 @@ import '../models.dart';
 import '../store.dart';
 
 class BookingController {
-  const BookingController(this._store);
+  const BookingController(
+    this._store, {
+    required this.bookingsFilePath,
+  });
 
   final InMemoryStore _store;
+  final String bookingsFilePath;
 
   Response list(Request request) {
     final UserModel? user = userFromRequest(request);
@@ -49,6 +53,7 @@ class BookingController {
         serviceId: serviceId,
         dateTime: dateTime,
       );
+      await _store.saveBookings(bookingsFilePath);
       return jsonResponse(<String, Object>{'data': booking.toJson()},
           statusCode: 201);
     } on FormatException catch (error) {
@@ -58,7 +63,7 @@ class BookingController {
     }
   }
 
-  Response cancel(Request request, String id) {
+  Future<Response> cancel(Request request, String id) async {
     final UserModel? user = userFromRequest(request);
     if (user == null) {
       return errorResponse('Unauthorized', statusCode: 401);
@@ -69,6 +74,7 @@ class BookingController {
         userId: user.id,
         bookingId: id,
       );
+      await _store.saveBookings(bookingsFilePath);
       return jsonResponse(<String, Object>{'data': booking.toJson()});
     } on StateError catch (error) {
       return errorResponse(error.message, statusCode: 404);

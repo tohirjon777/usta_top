@@ -18,6 +18,8 @@ abstract final class ApiEndpoints {
   //   "error": "Telefon yoki parol noto'g'ri"
   // }
   static const String authLogin = '/auth/login';
+  static const String authRegister = '/auth/register';
+  static const String authForgotPassword = '/auth/forgot-password';
 
   // TODO(API): GET /auth/me
   // Header: Authorization: Bearer <accessToken>
@@ -30,6 +32,22 @@ abstract final class ApiEndpoints {
   //   }
   // }
   static const String authMe = '/auth/me';
+  // TODO(API): PATCH /auth/me
+  // Header: Authorization: Bearer <accessToken>
+  // Request sample:
+  // {
+  //   "fullName": "Ali Valiyev",
+  //   "phone": "+998901234567"
+  // }
+  // Success response sample:
+  // {
+  //   "data": {
+  //     "id": "u-1",
+  //     "fullName": "Ali Valiyev",
+  //     "phone": "+998901234567"
+  //   }
+  // }
+  static const String authMePassword = '/auth/me/password';
 
   // TODO(API): GET /workshops
   // Header: Authorization: Bearer <accessToken>

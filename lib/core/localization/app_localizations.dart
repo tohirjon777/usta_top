@@ -37,6 +37,15 @@ class AppLocalizations {
       'bookingCancelled': 'Request cancelled',
       'savedSalonsConnectedHome':
           'Saved workshops are currently linked to Home list',
+      'savedWorkshopsTitle': 'Saved workshops',
+      'savedWorkshopsEmptyTitle': 'No saved workshops yet',
+      'savedWorkshopsEmptyHint':
+          'Tap the heart on a workshop card to save it here.',
+      'saveWorkshop': 'Save workshop',
+      'removeSavedWorkshop': 'Remove from saved',
+      'savedWorkshopAdded': '{workshop} was added to saved',
+      'savedWorkshopRemoved': '{workshop} was removed from saved',
+      'savedWorkshopUpdateFailed': 'Saved workshops could not be updated',
       'notificationsEnabled': 'Notifications enabled',
       'notificationsDisabled': 'Notifications disabled',
       'languageSwitched': 'Language switched to {language}',
@@ -101,6 +110,25 @@ class AppLocalizations {
       'language': 'Language',
       'profileUnknownName': 'User',
       'profileUnknownPhone': 'Phone not available',
+      'editProfile': 'Edit profile',
+      'editProfileName': 'Edit name',
+      'profileNameField': 'Full name',
+      'profileNameHint': 'Enter your full name',
+      'profileNameRequired': 'Full name is required',
+      'profileNameTooShort': 'Full name must be at least 2 characters',
+      'profileUpdated': 'Profile updated successfully',
+      'profileUpdateFailed': 'Profile could not be updated',
+      'profileNameUpdated': 'Name updated successfully',
+      'profileNameUpdateFailed': 'Name could not be updated',
+      'changePassword': 'Change password',
+      'currentPassword': 'Current password',
+      'newPassword': 'New password',
+      'confirmPassword': 'Confirm password',
+      'confirmPasswordRequired': 'Please confirm the new password',
+      'passwordsDoNotMatch': 'Passwords do not match',
+      'passwordUpdated': 'Password updated successfully',
+      'passwordUpdateFailed': 'Password could not be updated',
+      'saveChanges': 'Save changes',
       'refresh': 'Refresh',
       'signOut': 'Sign out',
       'signOutTitle': 'Sign out',
@@ -110,6 +138,19 @@ class AppLocalizations {
       'welcomeBack': 'Welcome back',
       'signInDescription':
           'Sign in to manage your service requests and profile.',
+      'fullName': 'Full name',
+      'signUp': 'Sign up',
+      'signUpDescription': 'Create a new account with your phone number.',
+      'noAccountYet': 'Do not have an account yet?',
+      'createAccount': 'Create account',
+      'forgotPassword': 'Forgot password?',
+      'forgotPasswordDescription':
+          'Enter your phone number and set a new password.',
+      'resetPassword': 'Reset password',
+      'passwordResetSuccess':
+          'Password updated. You can now sign in with the new password.',
+      'passwordResetFailed': 'Password could not be reset',
+      'signUpFailed': 'Account could not be created',
       'phoneNumber': 'Phone number',
       'phoneHint': '+998 90 123 45 67',
       'phoneRequired': 'Phone number is required',
@@ -135,6 +176,15 @@ class AppLocalizations {
       'bookingCancelled': 'Buyurtma bekor qilindi',
       'savedSalonsConnectedHome':
           'Saqlangan servislar bo\'limi hozircha Asosiy ro\'yxatga ulangan',
+      'savedWorkshopsTitle': 'Saqlangan servislar',
+      'savedWorkshopsEmptyTitle': 'Hali saqlangan servis yo\'q',
+      'savedWorkshopsEmptyHint':
+          'Servis kartasidagi yurakcha tugmasi orqali bu ro\'yxatni to\'ldiring.',
+      'saveWorkshop': 'Servisni saqlash',
+      'removeSavedWorkshop': 'Saqlangandan olib tashlash',
+      'savedWorkshopAdded': '{workshop} saqlandi',
+      'savedWorkshopRemoved': '{workshop} saqlangandan olib tashlandi',
+      'savedWorkshopUpdateFailed': 'Saqlangan servislarni yangilab bo\'lmadi',
       'notificationsEnabled': 'Bildirishnomalar yoqildi',
       'notificationsDisabled': 'Bildirishnomalar o\'chirildi',
       'languageSwitched': 'Til {language} ga o\'zgartirildi',
@@ -200,6 +250,25 @@ class AppLocalizations {
       'language': 'Til',
       'profileUnknownName': 'Foydalanuvchi',
       'profileUnknownPhone': 'Telefon ko\'rsatilmagan',
+      'editProfile': 'Profilni tahrirlash',
+      'editProfileName': 'Ismni o\'zgartirish',
+      'profileNameField': 'To\'liq ism',
+      'profileNameHint': 'To\'liq ismingizni kiriting',
+      'profileNameRequired': 'Ism majburiy',
+      'profileNameTooShort': 'Ism kamida 2 ta belgidan iborat bo\'lsin',
+      'profileUpdated': 'Profil muvaffaqiyatli yangilandi',
+      'profileUpdateFailed': 'Profilni yangilab bo\'lmadi',
+      'profileNameUpdated': 'Ism muvaffaqiyatli yangilandi',
+      'profileNameUpdateFailed': 'Ismni yangilab bo\'lmadi',
+      'changePassword': 'Parolni o\'zgartirish',
+      'currentPassword': 'Joriy parol',
+      'newPassword': 'Yangi parol',
+      'confirmPassword': 'Yangi parolni tasdiqlang',
+      'confirmPasswordRequired': 'Yangi parolni tasdiqlang',
+      'passwordsDoNotMatch': 'Parollar mos kelmadi',
+      'passwordUpdated': 'Parol muvaffaqiyatli yangilandi',
+      'passwordUpdateFailed': 'Parolni yangilab bo\'lmadi',
+      'saveChanges': 'Saqlash',
       'refresh': 'Yangilash',
       'signOut': 'Chiqish',
       'signOutTitle': 'Chiqish',
@@ -209,6 +278,19 @@ class AppLocalizations {
       'welcomeBack': 'Xush kelibsiz',
       'signInDescription':
           'Buyurtmalar va profilingizni boshqarish uchun tizimga kiring.',
+      'fullName': 'To\'liq ism',
+      'signUp': 'Ro\'yxatdan o\'tish',
+      'signUpDescription': 'Telefon raqamingiz orqali yangi akkaunt yarating.',
+      'noAccountYet': 'Akkauntingiz yo\'qmi?',
+      'createAccount': 'Akkaunt yaratish',
+      'forgotPassword': 'Parolni unutdingizmi?',
+      'forgotPasswordDescription':
+          'Telefon raqamingizni kiriting va yangi parol o\'rnating.',
+      'resetPassword': 'Parolni tiklash',
+      'passwordResetSuccess':
+          'Parol yangilandi. Endi yangi parol bilan kirishingiz mumkin.',
+      'passwordResetFailed': 'Parolni tiklab bo\'lmadi',
+      'signUpFailed': 'Ro\'yxatdan o\'tib bo\'lmadi',
       'phoneNumber': 'Telefon raqam',
       'phoneHint': '+998 90 123 45 67',
       'phoneRequired': 'Telefon raqam majburiy',
@@ -234,6 +316,15 @@ class AppLocalizations {
       'bookingCancelled': 'Заявка отменена',
       'savedSalonsConnectedHome':
           'Раздел сохраненных сервисов пока связан со списком на Главной',
+      'savedWorkshopsTitle': 'Сохраненные сервисы',
+      'savedWorkshopsEmptyTitle': 'Пока нет сохраненных сервисов',
+      'savedWorkshopsEmptyHint':
+          'Нажмите на сердечко в карточке сервиса, чтобы сохранить его здесь.',
+      'saveWorkshop': 'Сохранить сервис',
+      'removeSavedWorkshop': 'Убрать из сохраненных',
+      'savedWorkshopAdded': '{workshop} добавлен в сохраненные',
+      'savedWorkshopRemoved': '{workshop} удален из сохраненных',
+      'savedWorkshopUpdateFailed': 'Не удалось обновить сохраненные сервисы',
       'notificationsEnabled': 'Уведомления включены',
       'notificationsDisabled': 'Уведомления отключены',
       'languageSwitched': 'Язык переключен на {language}',
@@ -298,6 +389,25 @@ class AppLocalizations {
       'language': 'Язык',
       'profileUnknownName': 'Пользователь',
       'profileUnknownPhone': 'Телефон не указан',
+      'editProfile': 'Редактировать профиль',
+      'editProfileName': 'Изменить имя',
+      'profileNameField': 'Полное имя',
+      'profileNameHint': 'Введите полное имя',
+      'profileNameRequired': 'Введите имя',
+      'profileNameTooShort': 'Имя должно быть не короче 2 символов',
+      'profileUpdated': 'Профиль успешно обновлен',
+      'profileUpdateFailed': 'Не удалось обновить профиль',
+      'profileNameUpdated': 'Имя успешно обновлено',
+      'profileNameUpdateFailed': 'Не удалось обновить имя',
+      'changePassword': 'Изменить пароль',
+      'currentPassword': 'Текущий пароль',
+      'newPassword': 'Новый пароль',
+      'confirmPassword': 'Подтвердите пароль',
+      'confirmPasswordRequired': 'Подтвердите новый пароль',
+      'passwordsDoNotMatch': 'Пароли не совпадают',
+      'passwordUpdated': 'Пароль успешно обновлен',
+      'passwordUpdateFailed': 'Не удалось обновить пароль',
+      'saveChanges': 'Сохранить',
       'refresh': 'Обновить',
       'signOut': 'Выйти',
       'signOutTitle': 'Выход',
@@ -306,6 +416,19 @@ class AppLocalizations {
       'login': 'Вход',
       'welcomeBack': 'С возвращением',
       'signInDescription': 'Войдите, чтобы управлять заявками и профилем.',
+      'fullName': 'Полное имя',
+      'signUp': 'Регистрация',
+      'signUpDescription': 'Создайте новый аккаунт с помощью номера телефона.',
+      'noAccountYet': 'Еще нет аккаунта?',
+      'createAccount': 'Создать аккаунт',
+      'forgotPassword': 'Забыли пароль?',
+      'forgotPasswordDescription':
+          'Введите номер телефона и задайте новый пароль.',
+      'resetPassword': 'Сбросить пароль',
+      'passwordResetSuccess':
+          'Пароль обновлен. Теперь можно войти с новым паролем.',
+      'passwordResetFailed': 'Не удалось сбросить пароль',
+      'signUpFailed': 'Не удалось создать аккаунт',
       'phoneNumber': 'Номер телефона',
       'phoneHint': '+998 90 123 45 67',
       'phoneRequired': 'Введите номер телефона',
@@ -347,6 +470,16 @@ class AppLocalizations {
 
   String get bookingCancelled => _text('bookingCancelled');
   String get savedSalonsConnectedHome => _text('savedSalonsConnectedHome');
+  String get savedWorkshopsTitle => _text('savedWorkshopsTitle');
+  String get savedWorkshopsEmptyTitle => _text('savedWorkshopsEmptyTitle');
+  String get savedWorkshopsEmptyHint => _text('savedWorkshopsEmptyHint');
+  String get saveWorkshop => _text('saveWorkshop');
+  String get removeSavedWorkshop => _text('removeSavedWorkshop');
+  String savedWorkshopAdded(String workshop) =>
+      _fmt('savedWorkshopAdded', <String, Object>{'workshop': workshop});
+  String savedWorkshopRemoved(String workshop) =>
+      _fmt('savedWorkshopRemoved', <String, Object>{'workshop': workshop});
+  String get savedWorkshopUpdateFailed => _text('savedWorkshopUpdateFailed');
   String get notificationsEnabled => _text('notificationsEnabled');
   String get notificationsDisabled => _text('notificationsDisabled');
 
@@ -427,6 +560,25 @@ class AppLocalizations {
   String get language => _text('language');
   String get profileUnknownName => _text('profileUnknownName');
   String get profileUnknownPhone => _text('profileUnknownPhone');
+  String get editProfile => _text('editProfile');
+  String get editProfileName => _text('editProfileName');
+  String get profileNameField => _text('profileNameField');
+  String get profileNameHint => _text('profileNameHint');
+  String get profileNameRequired => _text('profileNameRequired');
+  String get profileNameTooShort => _text('profileNameTooShort');
+  String get profileUpdated => _text('profileUpdated');
+  String get profileUpdateFailed => _text('profileUpdateFailed');
+  String get profileNameUpdated => _text('profileNameUpdated');
+  String get profileNameUpdateFailed => _text('profileNameUpdateFailed');
+  String get changePassword => _text('changePassword');
+  String get currentPassword => _text('currentPassword');
+  String get newPassword => _text('newPassword');
+  String get confirmPassword => _text('confirmPassword');
+  String get confirmPasswordRequired => _text('confirmPasswordRequired');
+  String get passwordsDoNotMatch => _text('passwordsDoNotMatch');
+  String get passwordUpdated => _text('passwordUpdated');
+  String get passwordUpdateFailed => _text('passwordUpdateFailed');
+  String get saveChanges => _text('saveChanges');
   String get refresh => _text('refresh');
   String get signOut => _text('signOut');
   String get signOutTitle => _text('signOutTitle');
@@ -436,6 +588,17 @@ class AppLocalizations {
   String get login => _text('login');
   String get welcomeBack => _text('welcomeBack');
   String get signInDescription => _text('signInDescription');
+  String get fullName => _text('fullName');
+  String get signUp => _text('signUp');
+  String get signUpDescription => _text('signUpDescription');
+  String get noAccountYet => _text('noAccountYet');
+  String get createAccount => _text('createAccount');
+  String get forgotPassword => _text('forgotPassword');
+  String get forgotPasswordDescription => _text('forgotPasswordDescription');
+  String get resetPassword => _text('resetPassword');
+  String get passwordResetSuccess => _text('passwordResetSuccess');
+  String get passwordResetFailed => _text('passwordResetFailed');
+  String get signUpFailed => _text('signUpFailed');
   String get phoneNumber => _text('phoneNumber');
   String get phoneHint => _text('phoneHint');
   String get phoneRequired => _text('phoneRequired');

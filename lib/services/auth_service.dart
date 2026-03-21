@@ -9,6 +9,17 @@ class AuthUser {
   final String fullName;
   final String phone;
 
+  AuthUser copyWith({
+    String? fullName,
+    String? phone,
+  }) {
+    return AuthUser(
+      id: id,
+      fullName: fullName ?? this.fullName,
+      phone: phone ?? this.phone,
+    );
+  }
+
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     // TODO(API): /auth/me javobidagi data object kalitlari:
     // id, fullName, phone
@@ -48,7 +59,30 @@ abstract interface class AuthService {
     required String password,
   });
 
+  Future<AuthSession> signUp({
+    required String fullName,
+    required String phone,
+    required String password,
+  });
+
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  });
+
   Future<AuthUser> getCurrentUser({
     required String accessToken,
+  });
+
+  Future<AuthUser> updateCurrentUserProfile({
+    required String accessToken,
+    required String fullName,
+    required String phone,
+  });
+
+  Future<void> changePassword({
+    required String accessToken,
+    required String currentPassword,
+    required String newPassword,
   });
 }

@@ -96,6 +96,77 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> signUp({
+    required String fullName,
+    required String phone,
+    required String password,
+  }) async {
+    try {
+      _errorMessage = null;
+      final AuthSession session = await _authService.signUp(
+        fullName: fullName,
+        phone: phone,
+        password: password,
+      );
+
+      await _tokenStorage.saveSession(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        expiresAt: session.expiresAt,
+      );
+
+      _isLoggedIn = true;
+      _accessToken = session.accessToken;
+      notifyListeners();
+      await _fetchCurrentUser(
+        accessToken: session.accessToken,
+        setProfileLoading: false,
+      );
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      _isLoggedIn = false;
+      _accessToken = null;
+      _currentUser = null;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Ro\'yxatdan o\'tishda xatolik yuz berdi';
+      _isLoggedIn = false;
+      _accessToken = null;
+      _currentUser = null;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.resetPassword(
+        phone: phone,
+        newPassword: newPassword,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      return false;
+    } catch (_) {
+      _errorMessage = 'Parolni tiklashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> loadCurrentUser() async {
     final String? token = _accessToken;
     if (!_isLoggedIn || token == null || token.isEmpty) {
@@ -106,6 +177,84 @@ class AuthProvider extends ChangeNotifier {
       accessToken: token,
       setProfileLoading: true,
     );
+  }
+
+  Future<bool> updateCurrentUserProfile({
+    required String fullName,
+    required String phone,
+  }) async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authService.updateCurrentUserProfile(
+        accessToken: token,
+        fullName: fullName,
+        phone: phone,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _isLoggedIn = false;
+        _accessToken = null;
+        _currentUser = null;
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Profil ma\'lumotini yangilashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.changePassword(
+        accessToken: token,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _isLoggedIn = false;
+        _accessToken = null;
+        _currentUser = null;
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Parolni yangilashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
   }
 
   Future<void> signOut() async {

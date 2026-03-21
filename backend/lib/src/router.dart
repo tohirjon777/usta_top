@@ -3,12 +3,15 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'admin_auth.dart';
 import 'auth_middleware.dart';
+import 'controllers/admin_bookings_controller.dart';
 import 'controllers/admin_controller.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/booking_controller.dart';
 import 'controllers/health_controller.dart';
+import 'controllers/owner_controller.dart';
 import 'controllers/workshop_controller.dart';
 import 'http_helpers.dart';
+import 'owner_auth.dart';
 import 'store.dart';
 
 Handler buildHandler(
@@ -16,6 +19,7 @@ Handler buildHandler(
   required String workshopLocationsFilePath,
   required String workshopsFilePath,
   required String usersFilePath,
+  required String bookingsFilePath,
   required String adminUsername,
   required String adminPassword,
 }) {
@@ -25,7 +29,10 @@ Handler buildHandler(
     usersFilePath: usersFilePath,
   );
   final WorkshopController workshopController = WorkshopController(store);
-  final BookingController bookingController = BookingController(store);
+  final BookingController bookingController = BookingController(
+    store,
+    bookingsFilePath: bookingsFilePath,
+  );
   final AdminAuthService adminAuthService = AdminAuthService(
     username: adminUsername,
     password: adminPassword,
@@ -36,6 +43,18 @@ Handler buildHandler(
     locationsFilePath: workshopLocationsFilePath,
     workshopsFilePath: workshopsFilePath,
   );
+  final AdminBookingsController adminBookingsController =
+      AdminBookingsController(
+    store,
+    adminAuthService: adminAuthService,
+    bookingsFilePath: bookingsFilePath,
+  );
+  final OwnerAuthService ownerAuthService = OwnerAuthService();
+  final OwnerController ownerController = OwnerController(
+    store,
+    ownerAuthService: ownerAuthService,
+    bookingsFilePath: bookingsFilePath,
+  );
 
   final Router router = Router()
     ..options('/<ignored|.*>', optionsHandler)
@@ -45,6 +64,14 @@ Handler buildHandler(
     ..post('/admin/login', adminController.login)
     ..post('/admin/logout', adminController.logout)
     ..get('/admin/workshops', adminController.workshopsPage)
+    ..get('/admin/bookings', adminBookingsController.bookingsPage)
+    ..post('/admin/bookings/<id>/status', adminBookingsController.updateStatus)
+    ..get('/owner', ownerController.entry)
+    ..get('/owner/login', ownerController.loginPage)
+    ..post('/owner/login', ownerController.login)
+    ..post('/owner/logout', ownerController.logout)
+    ..get('/owner/bookings', ownerController.bookingsPage)
+    ..post('/owner/bookings/<id>/status', ownerController.updateStatus)
     ..post('/admin/workshops', adminController.createWorkshop)
     ..post('/admin/workshops/<id>/update', adminController.updateWorkshop)
     ..post('/admin/workshops/<id>/delete', adminController.deleteWorkshop)

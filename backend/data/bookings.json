@@ -1,0 +1,17 @@
+[
+  {
+    "id": "b-seed-1",
+    "userId": "u-1",
+    "customerName": "Tokhirjon",
+    "customerPhone": "+998901234567",
+    "workshopId": "w-1",
+    "workshopName": "Turbo Usta Servis",
+    "masterName": "Aziz Usta",
+    "serviceId": "srv-1",
+    "serviceName": "Kompyuter diagnostika",
+    "dateTime": "2026-03-22T12:00:00.000Z",
+    "price": 120,
+    "status": "upcoming",
+    "createdAt": "2026-03-21T09:00:00.000Z"
+  }
+]

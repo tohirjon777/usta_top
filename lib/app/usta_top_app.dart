@@ -39,14 +39,7 @@ class UstaTopApp extends StatelessWidget {
           ? const Scaffold(body: AppLoadingView())
           : authProvider.isLoggedIn
               ? const MainNavigationShell()
-              : LoginScreen(
-                  onLogin: (String phone, String password) {
-                    return authProvider.signIn(
-                      phone: phone,
-                      password: password,
-                    );
-                  },
-                ),
+              : const LoginScreen(),
     );
   }
 }

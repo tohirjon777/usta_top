@@ -10,6 +10,7 @@ import '../screens/home_screen.dart';
 import '../screens/map_screen.dart';
 import '../screens/my_bookings_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/saved_salons_screen.dart';
 import '../screens/salon_detail_screen.dart';
 
 class MainNavigationShell extends StatefulWidget {
@@ -65,14 +66,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     });
   }
 
-  void _openSavedSalons() {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    setState(() {
-      _currentIndex = 0;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.savedSalonsConnectedHome)),
+  Future<void> _openSavedSalons() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SavedSalonsScreen(onOpenSalon: _openSalonDetail),
+      ),
     );
   }
 

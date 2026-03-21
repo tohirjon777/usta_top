@@ -70,6 +70,7 @@ class WorkshopModel {
     required this.longitude,
     required this.isOpen,
     required this.badge,
+    required this.ownerAccessCode,
     required this.services,
   });
 
@@ -85,6 +86,7 @@ class WorkshopModel {
   final double longitude;
   final bool isOpen;
   final String badge;
+  final String ownerAccessCode;
   final List<ServiceModel> services;
 
   WorkshopModel copyWith({
@@ -100,6 +102,7 @@ class WorkshopModel {
     double? longitude,
     bool? isOpen,
     String? badge,
+    String? ownerAccessCode,
     List<ServiceModel>? services,
   }) {
     return WorkshopModel(
@@ -115,6 +118,7 @@ class WorkshopModel {
       longitude: longitude ?? this.longitude,
       isOpen: isOpen ?? this.isOpen,
       badge: badge ?? this.badge,
+      ownerAccessCode: ownerAccessCode ?? this.ownerAccessCode,
       services: services ?? this.services,
     );
   }
@@ -141,6 +145,10 @@ class WorkshopModel {
       longitude: _toDouble(json['longitude'] ?? json['lng']),
       isOpen: json['isOpen'] == true,
       badge: (json['badge'] ?? '').toString(),
+      ownerAccessCode: _normalizeOwnerAccessCode(
+        rawCode: (json['ownerAccessCode'] ?? '').toString(),
+        workshopId: (json['id'] ?? '').toString(),
+      ),
       services: services,
     );
   }
@@ -195,6 +203,7 @@ class WorkshopModel {
       'longitude': longitude,
       'isOpen': isOpen,
       'badge': badge,
+      'ownerAccessCode': ownerAccessCode,
       'startingPrice': startingPrice,
       'services': services.map((ServiceModel item) => item.toJson()).toList(),
     };
@@ -219,12 +228,36 @@ class WorkshopModel {
     }
     return double.tryParse('$value') ?? 0;
   }
+
+  static String defaultOwnerAccessCode(String workshopId) {
+    final String digits = workshopId.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return '0000';
+    }
+    if (digits.length >= 4) {
+      return digits.substring(digits.length - 4);
+    }
+    return digits.padLeft(4, '0');
+  }
+
+  static String _normalizeOwnerAccessCode({
+    required String rawCode,
+    required String workshopId,
+  }) {
+    final String code = rawCode.trim();
+    if (code.isNotEmpty) {
+      return code;
+    }
+    return defaultOwnerAccessCode(workshopId);
+  }
 }
 
 class BookingModel {
   const BookingModel({
     required this.id,
     required this.userId,
+    required this.customerName,
+    required this.customerPhone,
     required this.workshopId,
     required this.workshopName,
     required this.masterName,
@@ -238,6 +271,8 @@ class BookingModel {
 
   final String id;
   final String userId;
+  final String customerName;
+  final String customerPhone;
   final String workshopId;
   final String workshopName;
   final String masterName;
@@ -254,6 +289,8 @@ class BookingModel {
     return BookingModel(
       id: id,
       userId: userId,
+      customerName: customerName,
+      customerPhone: customerPhone,
       workshopId: workshopId,
       workshopName: workshopName,
       masterName: masterName,
@@ -266,10 +303,32 @@ class BookingModel {
     );
   }
 
+  factory BookingModel.fromJson(Map<String, dynamic> json) {
+    return BookingModel(
+      id: (json['id'] ?? '').toString(),
+      userId: (json['userId'] ?? '').toString(),
+      customerName: (json['customerName'] ?? '').toString(),
+      customerPhone: (json['customerPhone'] ?? '').toString(),
+      workshopId: (json['workshopId'] ?? '').toString(),
+      workshopName: (json['workshopName'] ?? '').toString(),
+      masterName: (json['masterName'] ?? '').toString(),
+      serviceId: (json['serviceId'] ?? '').toString(),
+      serviceName: (json['serviceName'] ?? '').toString(),
+      dateTime: DateTime.tryParse((json['dateTime'] ?? '').toString()) ??
+          DateTime.now(),
+      price: _toInt(json['price']),
+      status: _bookingStatusFromString((json['status'] ?? '').toString()),
+      createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
+          DateTime.now(),
+    );
+  }
+
   Map<String, Object> toJson() {
     return <String, Object>{
       'id': id,
       'userId': userId,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
       'workshopId': workshopId,
       'workshopName': workshopName,
       'masterName': masterName,
@@ -280,6 +339,30 @@ class BookingModel {
       'status': status.name,
       'createdAt': createdAt.toUtc().toIso8601String(),
     };
+  }
+
+  Map<String, Object> toStorageJson() => toJson();
+
+  static int _toInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse('$value') ?? 0;
+  }
+
+  static BookingStatus _bookingStatusFromString(String raw) {
+    switch (raw.toLowerCase()) {
+      case 'completed':
+        return BookingStatus.completed;
+      case 'cancelled':
+        return BookingStatus.cancelled;
+      case 'upcoming':
+      default:
+        return BookingStatus.upcoming;
+    }
   }
 }
 

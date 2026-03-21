@@ -91,6 +91,130 @@ class RemoteAuthService implements AuthService {
   }
 
   @override
+  Future<AuthSession> signUp({
+    required String fullName,
+    required String phone,
+    required String password,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authRegister}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'fullName': fullName,
+              'phone': phone,
+              'password': password,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic data = body['data'];
+        if (data is! Map<String, dynamic>) {
+          throw const AuthException('Server javobi noto\'g\'ri formatda');
+        }
+
+        final String token =
+            (data['token'] ?? data['accessToken'] ?? '').toString();
+        if (token.isEmpty) {
+          throw const AuthException('Server token qaytarmadi');
+        }
+
+        final String refreshToken = (data['refreshToken'] ?? '').toString();
+        final DateTime? expiresAt =
+            DateTime.tryParse((data['expiresAt'] ?? '').toString());
+        return AuthSession(
+          accessToken: token,
+          refreshToken: refreshToken.isEmpty ? null : refreshToken,
+          expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 30)),
+        );
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Ro\'yxatdan o\'tib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Serverga ulanish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authForgotPassword}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'phone': phone,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Parolni tiklab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Serverga ulanish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
   Future<AuthUser> getCurrentUser({
     required String accessToken,
   }) async {
@@ -125,6 +249,118 @@ class RemoteAuthService implements AuthService {
     } on TimeoutException {
       throw const AuthException(
         'Profilni yuklash vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<AuthUser> updateCurrentUserProfile({
+    required String accessToken,
+    required String fullName,
+    required String phone,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMe}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .patch(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $accessToken',
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'fullName': fullName,
+              'phone': phone,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic data = body['data'];
+        if (data is! Map<String, dynamic>) {
+          throw const AuthException('Foydalanuvchi ma\'lumoti formatida xato');
+        }
+        return AuthUser.fromJson(data);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Profil ma\'lumotini yangilab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Profilni saqlash vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String accessToken,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMePassword}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .patch(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $accessToken',
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'currentPassword': currentPassword,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Parolni yangilab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Parolni saqlash vaqti tugadi. Qayta urinib ko\'ring.',
       );
     } on SocketException {
       throw const AuthException(

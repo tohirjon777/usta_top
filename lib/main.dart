@@ -5,11 +5,13 @@ import 'app/usta_top_app.dart';
 import 'core/config/backend_config.dart';
 import 'core/localization/app_language.dart';
 import 'core/storage/auth_token_storage.dart';
+import 'core/storage/saved_workshops_storage.dart';
 import 'data/repositories/mock_salon_repository.dart';
 import 'models/booking_item.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/language_provider.dart';
+import 'providers/saved_workshops_provider.dart';
 import 'providers/workshop_provider.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
@@ -54,15 +56,17 @@ class MyApp extends StatelessWidget {
     // TODO(API): Server manzilini `--dart-define=API_BASE_URL=https://...` bilan bering.
     final String backendBaseUrl = BackendConfig.resolveBaseUrl();
     const AuthTokenStorage tokenStorage = AuthTokenStorage();
+    const SavedWorkshopsStorage savedWorkshopsStorage = SavedWorkshopsStorage();
 
     return MultiProvider(
       providers: [
         Provider<AuthTokenStorage>.value(value: tokenStorage),
+        Provider<SavedWorkshopsStorage>.value(value: savedWorkshopsStorage),
         Provider<AuthService>(
           // TODO(API): Login va /auth/me shu servisedan keladi.
           create: (_) => useBackend
               ? RemoteAuthService(baseUrl: backendBaseUrl)
-              : const LocalAuthService(),
+              : LocalAuthService(),
         ),
         Provider<WorkshopService>(
           // TODO(API): Workshop/salonlar ro'yxati shu servisedan olinadi.
@@ -87,6 +91,11 @@ class MyApp extends StatelessWidget {
             authService: context.read<AuthService>(),
             tokenStorage: context.read<AuthTokenStorage>(),
           )..restoreSession(),
+        ),
+        ChangeNotifierProvider<SavedWorkshopsProvider>(
+          create: (BuildContext context) => SavedWorkshopsProvider(
+            storage: context.read<SavedWorkshopsStorage>(),
+          )..restoreSaved(),
         ),
         ChangeNotifierProvider<LanguageProvider>(
           create: (_) => LanguageProvider(initialLanguage: AppLanguage.uzbek),
