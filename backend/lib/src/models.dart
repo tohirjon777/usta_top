@@ -33,6 +33,8 @@ class WorkshopModel {
     required this.address,
     required this.description,
     required this.distanceKm,
+    required this.latitude,
+    required this.longitude,
     required this.isOpen,
     required this.badge,
     required this.services,
@@ -46,6 +48,8 @@ class WorkshopModel {
   final String address;
   final String description;
   final double distanceKm;
+  final double latitude;
+  final double longitude;
   final bool isOpen;
   final String badge;
   final List<ServiceModel> services;
@@ -96,6 +100,8 @@ class WorkshopModel {
       'address': address,
       'description': description,
       'distanceKm': distanceKm,
+      'latitude': latitude,
+      'longitude': longitude,
       'isOpen': isOpen,
       'badge': badge,
       'startingPrice': startingPrice,

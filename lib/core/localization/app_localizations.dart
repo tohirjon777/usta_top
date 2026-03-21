@@ -30,6 +30,7 @@ class AppLocalizations {
     'en': <String, String>{
       'appTitle': 'Usta Top',
       'navHome': 'Home',
+      'navMap': 'Map',
       'navBookings': 'Requests',
       'navProfile': 'Profile',
       'bookingAdded': 'Request created for {salon}',
@@ -41,6 +42,14 @@ class AppLocalizations {
       'languageSwitched': 'Language switched to {language}',
       'findTrustedMasters':
           'Find trusted auto masters and book service in minutes',
+      'mapTitle': 'Workshops on map',
+      'mapHint': 'Tap a marker to open workshop details',
+      'mapNoCoordinates': 'Workshop coordinates are not available yet.',
+      'openOnMap': 'Open workshop',
+      'mapMyLocation': 'My location',
+      'mapLocationDisabled': 'Turn on location service to continue.',
+      'mapLocationDenied': 'Location permission was denied.',
+      'mapLocationError': 'Current location could not be determined.',
       'searchHint': 'Search workshop, district, or auto service',
       'salonsNearby': '{count} workshops nearby',
       'fastConfirmation': 'Quick approval',
@@ -115,6 +124,7 @@ class AppLocalizations {
     'uz': <String, String>{
       'appTitle': 'Usta Top',
       'navHome': 'Asosiy',
+      'navMap': 'Xarita',
       'navBookings': 'Buyurtmalar',
       'navProfile': 'Kabinet',
       'bookingAdded': '{salon} uchun buyurtma qo\'shildi',
@@ -125,6 +135,15 @@ class AppLocalizations {
       'notificationsDisabled': 'Bildirishnomalar o\'chirildi',
       'languageSwitched': 'Til {language} ga o\'zgartirildi',
       'findTrustedMasters': 'Ishonchli avto ustalarni toping va tez yoziling',
+      'mapTitle': 'Servislar xaritada',
+      'mapHint': 'Servis tafsilotini ochish uchun markerga bosing',
+      'mapNoCoordinates': 'Servislar uchun koordinatalar hali kiritilmagan.',
+      'openOnMap': 'Servisni ochish',
+      'mapMyLocation': 'Mening joylashuvim',
+      'mapLocationDisabled':
+          'Davom etish uchun qurilma joylashuv xizmatini yoqing.',
+      'mapLocationDenied': 'Joylashuv ruxsati berilmadi.',
+      'mapLocationError': 'Joriy joylashuvni aniqlab bo\'lmadi.',
       'searchHint': 'Servis markazi, tuman yoki xizmatni qidiring',
       'salonsNearby': 'Yaqin atrofda {count} ta servis',
       'fastConfirmation': 'Tez tasdiq',
@@ -200,6 +219,7 @@ class AppLocalizations {
     'ru': <String, String>{
       'appTitle': 'Usta Top',
       'navHome': 'Главная',
+      'navMap': 'Карта',
       'navBookings': 'Заявки',
       'navProfile': 'Профиль',
       'bookingAdded': 'Заявка создана для {salon}',
@@ -211,6 +231,14 @@ class AppLocalizations {
       'languageSwitched': 'Язык переключен на {language}',
       'findTrustedMasters':
           'Найдите надежных авто-мастеров и запишитесь за пару минут',
+      'mapTitle': 'Сервисы на карте',
+      'mapHint': 'Нажмите на маркер, чтобы открыть детали сервиса',
+      'mapNoCoordinates': 'Координаты сервисов пока не заполнены.',
+      'openOnMap': 'Открыть сервис',
+      'mapMyLocation': 'Моё местоположение',
+      'mapLocationDisabled': 'Включите службу геолокации для продолжения.',
+      'mapLocationDenied': 'Доступ к геолокации не предоставлен.',
+      'mapLocationError': 'Не удалось определить текущее местоположение.',
       'searchHint': 'Поиск сервиса, района или услуги',
       'salonsNearby': 'Сервисов рядом: {count}',
       'fastConfirmation': 'Быстрое подтверждение',
@@ -298,6 +326,7 @@ class AppLocalizations {
 
   String get appTitle => _text('appTitle');
   String get navHome => _text('navHome');
+  String get navMap => _text('navMap');
   String get navBookings => _text('navBookings');
   String get navProfile => _text('navProfile');
 
@@ -313,6 +342,14 @@ class AppLocalizations {
       _fmt('languageSwitched', <String, Object>{'language': language});
 
   String get findTrustedMasters => _text('findTrustedMasters');
+  String get mapTitle => _text('mapTitle');
+  String get mapHint => _text('mapHint');
+  String get mapNoCoordinates => _text('mapNoCoordinates');
+  String get openOnMap => _text('openOnMap');
+  String get mapMyLocation => _text('mapMyLocation');
+  String get mapLocationDisabled => _text('mapLocationDisabled');
+  String get mapLocationDenied => _text('mapLocationDenied');
+  String get mapLocationError => _text('mapLocationError');
   String get searchHint => _text('searchHint');
   String salonsNearby(int count) =>
       _fmt('salonsNearby', <String, Object>{'count': count});

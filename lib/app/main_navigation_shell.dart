@@ -7,6 +7,7 @@ import '../models/salon.dart';
 import '../providers/booking_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../screens/home_screen.dart';
+import '../screens/map_screen.dart';
 import '../screens/my_bookings_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/salon_detail_screen.dart';
@@ -50,7 +51,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     }
 
     setState(() {
-      _currentIndex = 1;
+      _currentIndex = 2;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -60,7 +61,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   void _openBookingHistory() {
     setState(() {
-      _currentIndex = 1;
+      _currentIndex = 2;
     });
   }
 
@@ -81,6 +82,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
     final List<Widget> pages = <Widget>[
       HomeScreen(onOpenSalon: _openSalonDetail),
+      MapScreen(onOpenSalon: _openSalonDetail),
       const MyBookingsScreen(),
       ProfileScreen(
         onOpenBookingHistory: _openBookingHistory,
@@ -102,6 +104,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             icon: const Icon(Icons.home_outlined),
             selectedIcon: const Icon(Icons.home),
             label: l10n.navHome,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.map_outlined),
+            selectedIcon: const Icon(Icons.map),
+            label: l10n.navMap,
           ),
           NavigationDestination(
             icon: const Icon(Icons.calendar_month_outlined),

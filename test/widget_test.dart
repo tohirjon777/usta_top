@@ -12,10 +12,11 @@ void main() {
     });
 
     await tester.pumpWidget(const MyApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.text('Usta Top'), findsOneWidget);
     expect(find.text('Asosiy'), findsOneWidget);
+    expect(find.text('Xarita'), findsOneWidget);
     expect(find.text('Buyurtmalar'), findsOneWidget);
     expect(find.text('Kabinet'), findsOneWidget);
   });

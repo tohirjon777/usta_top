@@ -14,6 +14,8 @@ class MockSalonRepository implements SalonRepository {
       address: 'Chilonzor, Toshkent',
       description: 'Tez diagnostika va sifatli ta\'mirlash ishlari bir joyda.',
       distanceKm: 1.2,
+      latitude: 41.2756,
+      longitude: 69.2034,
       isOpen: true,
       badge: 'Eng ishonchli',
       services: <SalonService>[
@@ -47,6 +49,8 @@ class MockSalonRepository implements SalonRepository {
       description:
           'Dvigatel va yurish qismini puxta tekshiruv va kafolatli ta\'mirlash.',
       distanceKm: 2.4,
+      latitude: 41.3631,
+      longitude: 69.2897,
       isOpen: true,
       badge: 'Tez qabul',
       services: <SalonService>[
@@ -80,6 +84,8 @@ class MockSalonRepository implements SalonRepository {
       description:
           'Murakkab nosozliklarni tajribali ustalar bilan aniq bartaraf etish.',
       distanceKm: 3.1,
+      latitude: 41.3301,
+      longitude: 69.3382,
       isOpen: false,
       badge: 'Yuqori toifa',
       services: <SalonService>[

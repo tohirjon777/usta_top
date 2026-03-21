@@ -45,6 +45,8 @@ abstract final class ApiEndpoints {
   //       "address": "Toshkent, Chilonzor 12-kvartal",
   //       "description": "Yengil va tijorat mashinalariga xizmat",
   //       "distanceKm": 2.4,
+  //       "latitude": 41.2756,
+  //       "longitude": 69.2034,
   //       "isOpen": true,
   //       "badge": "Top tanlov",
   //       "services": [

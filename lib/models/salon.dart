@@ -43,6 +43,8 @@ class Salon {
     required this.address,
     required this.description,
     required this.distanceKm,
+    this.latitude,
+    this.longitude,
     required this.isOpen,
     required this.badge,
     required this.services,
@@ -56,6 +58,8 @@ class Salon {
   final String address;
   final String description;
   final double distanceKm;
+  final double? latitude;
+  final double? longitude;
   final bool isOpen;
   final String badge;
   final List<SalonService> services;
@@ -81,6 +85,8 @@ class Salon {
       address: (json['address'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       distanceKm: _toDouble(json['distanceKm']),
+      latitude: _toNullableDouble(json['latitude'] ?? json['lat']),
+      longitude: _toNullableDouble(json['longitude'] ?? json['lng']),
       isOpen: json['isOpen'] == true,
       badge: (json['badge'] ?? '').toString(),
       services: parsedServices,
@@ -126,5 +132,18 @@ class Salon {
       return value.toDouble();
     }
     return double.tryParse('$value') ?? 0;
+  }
+
+  static double? _toNullableDouble(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is double) {
+      return value;
+    }
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse('$value');
   }
 }
