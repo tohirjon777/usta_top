@@ -47,11 +47,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TODO(API): Real backendga ulash uchun ishga tushirishda
-    // `--dart-define=USE_BACKEND=true` bering.
+    const bool isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
+    // Odatdagi ishga tushirishda backend default bo'ladi.
+    // Zarurat bo'lsa `--dart-define=USE_BACKEND=false` bilan local rejimga o'tish mumkin.
     const bool useBackend = bool.fromEnvironment(
       'USE_BACKEND',
-      defaultValue: false,
+      defaultValue: !isFlutterTest,
     );
     // TODO(API): Server manzilini `--dart-define=API_BASE_URL=https://...` bilan bering.
     final String backendBaseUrl = BackendConfig.resolveBaseUrl();

@@ -314,38 +314,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 isSaving = true;
               });
 
-              final bool success = await authProvider.updateCurrentUserProfile(
-                fullName: nextName,
-                phone: nextPhone,
-              );
-              if (!mounted) {
-                return;
-              }
+              bool shouldResetSaving = true;
+              try {
+                final bool success =
+                    await authProvider.updateCurrentUserProfile(
+                  fullName: nextName,
+                  phone: nextPhone,
+                );
+                final String? providerError = authProvider.errorMessage;
+                final String message = success
+                    ? l10n.profileUpdated
+                    : (providerError?.trim().isNotEmpty ?? false)
+                        ? providerError!
+                        : l10n.profileUpdateFailed;
 
-              final String? providerError = authProvider.errorMessage;
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    success
-                        ? l10n.profileUpdated
-                        : (providerError?.trim().isNotEmpty ?? false)
-                            ? providerError!
-                            : l10n.profileUpdateFailed,
-                  ),
-                ),
-              );
-
-              if (success) {
-                if (context.mounted) {
+                if (success && context.mounted) {
                   Navigator.of(context).pop();
+                  shouldResetSaving = false;
                 }
-                return;
-              }
 
-              if (context.mounted) {
-                setModalState(() {
-                  isSaving = false;
-                });
+                if (parentContext.mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(message)),
+                  );
+                }
+              } finally {
+                if (shouldResetSaving && context.mounted) {
+                  setModalState(() {
+                    isSaving = false;
+                  });
+                }
               }
             }
 
@@ -356,88 +354,91 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 16,
                 MediaQuery.of(context).viewInsets.bottom + 20,
               ),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      l10n.editProfile,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: nameController,
-                      enabled: !isSaving,
-                      textInputAction: TextInputAction.next,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: l10n.profileNameField,
-                        hintText: l10n.profileNameHint,
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        l10n.editProfile,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      validator: (String? value) {
-                        final String normalized = value?.trim() ?? '';
-                        if (normalized.isEmpty) {
-                          return l10n.profileNameRequired;
-                        }
-                        if (normalized.length < 2) {
-                          return l10n.profileNameTooShort;
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: phoneController,
-                      enabled: !isSaving,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: l10n.phoneNumber,
-                        hintText: l10n.phoneHint,
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: nameController,
+                        enabled: !isSaving,
+                        textInputAction: TextInputAction.next,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          labelText: l10n.profileNameField,
+                          hintText: l10n.profileNameHint,
+                        ),
+                        validator: (String? value) {
+                          final String normalized = value?.trim() ?? '';
+                          if (normalized.isEmpty) {
+                            return l10n.profileNameRequired;
+                          }
+                          if (normalized.length < 2) {
+                            return l10n.profileNameTooShort;
+                          }
+                          return null;
+                        },
                       ),
-                      validator: (String? value) {
-                        final String normalized = _normalizePhone(value ?? '');
-                        if (normalized.isEmpty) {
-                          return l10n.phoneRequired;
-                        }
-                        if (normalized.length < 7) {
-                          return l10n.phoneInvalid;
-                        }
-                        return null;
-                      },
-                      onFieldSubmitted: (_) => submit(),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: isSaving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: Text(l10n.cancel),
-                          ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: phoneController,
+                        enabled: !isSaving,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: l10n.phoneNumber,
+                          hintText: l10n.phoneHint,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: isSaving ? null : submit,
-                            child: isSaving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(l10n.saveChanges),
+                        validator: (String? value) {
+                          final String normalized =
+                              _normalizePhone(value ?? '');
+                          if (normalized.isEmpty) {
+                            return l10n.phoneRequired;
+                          }
+                          if (normalized.length < 7) {
+                            return l10n.phoneInvalid;
+                          }
+                          return null;
+                        },
+                        onFieldSubmitted: (_) => submit(),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              child: Text(l10n.cancel),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: isSaving ? null : submit,
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(l10n.saveChanges),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -445,9 +446,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-
-    nameController.dispose();
-    phoneController.dispose();
   }
 
   Future<void> _showChangePasswordSheet() async {
@@ -480,38 +478,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 isSaving = true;
               });
 
-              final bool success = await authProvider.changePassword(
-                currentPassword: currentPasswordController.text,
-                newPassword: newPasswordController.text,
-              );
-              if (!mounted) {
-                return;
-              }
+              bool shouldResetSaving = true;
+              try {
+                final bool success = await authProvider.changePassword(
+                  currentPassword: currentPasswordController.text,
+                  newPassword: newPasswordController.text,
+                );
+                final String? providerError = authProvider.errorMessage;
+                final String message = success
+                    ? l10n.passwordUpdated
+                    : (providerError?.trim().isNotEmpty ?? false)
+                        ? providerError!
+                        : l10n.passwordUpdateFailed;
 
-              final String? providerError = authProvider.errorMessage;
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    success
-                        ? l10n.passwordUpdated
-                        : (providerError?.trim().isNotEmpty ?? false)
-                            ? providerError!
-                            : l10n.passwordUpdateFailed,
-                  ),
-                ),
-              );
-
-              if (success) {
-                if (context.mounted) {
+                if (success && context.mounted) {
                   Navigator.of(context).pop();
+                  shouldResetSaving = false;
                 }
-                return;
-              }
 
-              if (context.mounted) {
-                setModalState(() {
-                  isSaving = false;
-                });
+                if (parentContext.mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(message)),
+                  );
+                }
+              } finally {
+                if (shouldResetSaving && context.mounted) {
+                  setModalState(() {
+                    isSaving = false;
+                  });
+                }
               }
             }
 
@@ -522,102 +517,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 16,
                 MediaQuery.of(context).viewInsets.bottom + 20,
               ),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      l10n.changePassword,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: currentPasswordController,
-                      enabled: !isSaving,
-                      obscureText: true,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: l10n.currentPassword,
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        l10n.changePassword,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      validator: (String? value) {
-                        if ((value ?? '').isEmpty) {
-                          return l10n.passwordRequired;
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: newPasswordController,
-                      enabled: !isSaving,
-                      obscureText: true,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: l10n.newPassword,
-                      ),
-                      validator: (String? value) {
-                        final String normalized = value ?? '';
-                        if (normalized.isEmpty) {
-                          return l10n.passwordRequired;
-                        }
-                        if (normalized.length < 6) {
-                          return l10n.passwordLength;
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: confirmPasswordController,
-                      enabled: !isSaving,
-                      obscureText: true,
-                      textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: l10n.confirmPassword,
-                      ),
-                      validator: (String? value) {
-                        final String normalized = value ?? '';
-                        if (normalized.isEmpty) {
-                          return l10n.confirmPasswordRequired;
-                        }
-                        if (normalized != newPasswordController.text) {
-                          return l10n.passwordsDoNotMatch;
-                        }
-                        return null;
-                      },
-                      onFieldSubmitted: (_) => submit(),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: isSaving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: Text(l10n.cancel),
-                          ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: currentPasswordController,
+                        enabled: !isSaving,
+                        obscureText: true,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: l10n.currentPassword,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: isSaving ? null : submit,
-                            child: isSaving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(l10n.saveChanges),
-                          ),
+                        validator: (String? value) {
+                          if ((value ?? '').isEmpty) {
+                            return l10n.passwordRequired;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: newPasswordController,
+                        enabled: !isSaving,
+                        obscureText: true,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: l10n.newPassword,
                         ),
-                      ],
-                    ),
-                  ],
+                        validator: (String? value) {
+                          final String normalized = value ?? '';
+                          if (normalized.isEmpty) {
+                            return l10n.passwordRequired;
+                          }
+                          if (normalized.length < 6) {
+                            return l10n.passwordLength;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: confirmPasswordController,
+                        enabled: !isSaving,
+                        obscureText: true,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: l10n.confirmPassword,
+                        ),
+                        validator: (String? value) {
+                          final String normalized = value ?? '';
+                          if (normalized.isEmpty) {
+                            return l10n.confirmPasswordRequired;
+                          }
+                          if (normalized != newPasswordController.text) {
+                            return l10n.passwordsDoNotMatch;
+                          }
+                          return null;
+                        },
+                        onFieldSubmitted: (_) => submit(),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              child: Text(l10n.cancel),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: isSaving ? null : submit,
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(l10n.saveChanges),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -625,10 +622,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-
-    currentPasswordController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
   }
 
   Future<void> _confirmSignOut() async {

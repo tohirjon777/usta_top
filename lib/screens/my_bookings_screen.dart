@@ -23,51 +23,77 @@ class MyBookingsScreen extends StatelessWidget {
       return const SafeArea(child: AppLoadingView());
     }
 
-    if (bookings.isEmpty) {
-      return SafeArea(
-        child: _EmptyBookingsState(
-          l10n: l10n,
-          subtitle: errorMessage ?? l10n.bookingsEmptyHint,
-          isError: errorMessage != null,
-        ),
-      );
-    }
-
     return SafeArea(
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        itemCount: bookings.length,
-        itemBuilder: (BuildContext context, int index) {
-          final BookingItem booking = bookings[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _BookingCard(
-              l10n: l10n,
-              booking: booking,
-              onCancel: () async {
-                final bool changed =
-                    await bookingProvider.cancelBookingRequest(booking.id);
-                if (!changed) {
-                  if (!context.mounted) {
-                    return;
-                  }
-                  final String message = bookingProvider.errorMessage ??
-                      'Buyurtmani bekor qilib bo\'lmadi';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(message)),
-                  );
-                  return;
-                }
-                if (!context.mounted) {
-                  return;
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.bookingCancelled)),
-                );
-              },
+      child: RefreshIndicator(
+        onRefresh: bookingProvider.loadBookings,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    l10n.navBookings,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  onPressed: isLoading ? null : bookingProvider.loadBookings,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: l10n.refresh,
+                ),
+              ],
             ),
-          );
-        },
+            if (errorMessage != null && bookings.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                errorMessage,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.warning,
+                    ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            if (bookings.isEmpty)
+              _EmptyBookingsState(
+                l10n: l10n,
+                subtitle: errorMessage ?? l10n.bookingsEmptyHint,
+                isError: errorMessage != null,
+              )
+            else
+              ...bookings.map((BookingItem booking) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _BookingCard(
+                    l10n: l10n,
+                    booking: booking,
+                    onCancel: () async {
+                      final bool changed = await bookingProvider
+                          .cancelBookingRequest(booking.id);
+                      if (!changed) {
+                        if (!context.mounted) {
+                          return;
+                        }
+                        final String message = bookingProvider.errorMessage ??
+                            'Buyurtmani bekor qilib bo\'lmadi';
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(message)),
+                        );
+                        return;
+                      }
+                      if (!context.mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.bookingCancelled)),
+                      );
+                    },
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }
