@@ -1,16 +1,36 @@
-# usta_top
+# Usta Top
 
-A new Flutter project.
+Flutter frontend va alohida Dart backend bilan avto-servis ilovasi.
 
-## Getting Started
+## Frontend
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+Backend bilan ishlatish:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+flutter run --dart-define=USE_BACKEND=true
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Kerak bo'lsa backend manzilini ham berish mumkin:
+
+```bash
+flutter run --dart-define=USE_BACKEND=true --dart-define=API_BASE_URL=http://127.0.0.1:8080
+```
+
+## Backend
+
+Backend alohida papkada:
+
+```bash
+cd backend
+dart pub get
+dart run bin/server.dart
+```
+
+Batafsil API va `curl` misollari:
+
+- [`backend/README.md`](backend/README.md)

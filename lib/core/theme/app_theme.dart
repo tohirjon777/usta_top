@@ -3,72 +3,101 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 abstract final class AppTheme {
-  static ThemeData get light {
+  static ThemeData get light => _build(Brightness.light);
+
+  static ThemeData get dark => _build(Brightness.dark);
+
+  static ThemeData _build(Brightness brightness) {
+    final Color primary = AppColors.primaryTone(brightness);
+    final Color primarySoft = AppColors.primarySoft(brightness);
+    final Color border = AppColors.border(brightness);
+    final Color card = AppColors.card(brightness);
+    final Color text = AppColors.text(brightness);
+    final Color secondaryText = AppColors.secondaryText(brightness);
+    final Color accent = AppColors.accent(brightness);
+    final Color accentSoft = AppColors.accentSoft(brightness);
+
     final ColorScheme scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      brightness: Brightness.light,
+      seedColor: primary,
+      brightness: brightness,
+    ).copyWith(
+      primary: primary,
+      onPrimary: Colors.white,
+      secondary: accent,
+      secondaryContainer: accentSoft,
+      surface: card,
+      onSurface: text,
+      error: AppColors.warning,
     );
 
     return ThemeData(
       useMaterial3: true,
+      brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.surface,
-      textTheme: const TextTheme(
+      scaffoldBackgroundColor: AppColors.surface(brightness),
+      iconTheme: IconThemeData(color: text),
+      primaryIconTheme: IconThemeData(color: text),
+      textTheme: TextTheme(
         headlineSmall: TextStyle(
           fontWeight: FontWeight.w800,
-          color: AppColors.text,
+          color: text,
         ),
         titleLarge: TextStyle(
           fontWeight: FontWeight.w700,
-          color: AppColors.text,
+          color: text,
         ),
         titleMedium: TextStyle(
           fontWeight: FontWeight.w600,
-          color: AppColors.text,
+          color: text,
         ),
-        bodyMedium: TextStyle(color: AppColors.text),
+        bodyMedium: TextStyle(color: text),
+        bodySmall: TextStyle(color: secondaryText),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: AppColors.text,
+        foregroundColor: text,
+        iconTheme: IconThemeData(color: text),
+        actionsIconTheme: IconThemeData(color: text),
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.card,
+        color: card,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(16)),
-          side: BorderSide(color: AppColors.border),
+          side: BorderSide(color: border),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.card,
+        fillColor: card,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+          borderSide: BorderSide(color: primary, width: 1.3),
         ),
+        prefixIconColor: secondaryText,
+        suffixIconColor: secondaryText,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: Colors.white,
-        side: const BorderSide(color: AppColors.border),
-        selectedColor: AppColors.primarySoft,
+        backgroundColor: AppColors.chipBackground(brightness),
+        side: BorderSide(color: border),
+        selectedColor: primarySoft,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: primary,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
@@ -76,13 +105,47 @@ abstract final class AppTheme {
           ),
         ),
       ),
-      navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.primarySoft,
-        labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(fontWeight: FontWeight.w600),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          side: BorderSide(color: border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: card,
+        indicatorColor: primarySoft,
+        iconTheme: WidgetStateProperty.resolveWith<IconThemeData>(
+          (Set<WidgetState> states) {
+            if (states.contains(WidgetState.selected)) {
+              return IconThemeData(color: primary);
+            }
+            return IconThemeData(color: secondaryText);
+          },
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>(
+          (Set<WidgetState> states) {
+            final Color labelColor =
+                states.contains(WidgetState.selected) ? primary : secondaryText;
+            return TextStyle(
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            );
+          },
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: text,
+        textColor: text,
+      ),
+      dividerColor: border,
     );
   }
 }

@@ -3,18 +3,18 @@ abstract final class AppFormatters {
 
   static String shortDate(DateTime date) {
     const List<String> months = <String>[
-      'Jan',
-      'Feb',
+      'Yan',
+      'Fev',
       'Mar',
       'Apr',
       'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Iyn',
+      'Iyl',
+      'Avg',
+      'Sen',
+      'Okt',
+      'Noy',
+      'Dek',
     ];
     return '${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]}';
   }

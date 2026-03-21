@@ -35,6 +35,8 @@ class SalonDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final Color heroStart = AppColors.primarySoftOf(context);
+    final Color heroEnd = AppColors.accentSoftOf(context);
 
     return Scaffold(
       appBar: AppBar(title: Text(salon.name)),
@@ -44,16 +46,19 @@ class SalonDetailScreen extends StatelessWidget {
           Container(
             height: 190,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: <Color>[Color(0xFFE2F6F5), Color(0xFFCCEDED)],
+                colors: <Color>[heroStart, heroEnd],
               ),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Center(
-              child:
-                  Icon(Icons.content_cut, size: 80, color: AppColors.primary),
+            child: Center(
+              child: Icon(
+                Icons.car_repair,
+                size: 80,
+                color: AppColors.primaryToneOf(context),
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -62,7 +67,7 @@ class SalonDetailScreen extends StatelessWidget {
           Text(
             salon.description,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.secondaryText,
+                  color: AppColors.secondaryTextOf(context),
                 ),
           ),
           const SizedBox(height: 12),
@@ -78,7 +83,9 @@ class SalonDetailScreen extends StatelessWidget {
               _MetaPill(
                 icon: Icons.circle,
                 text: salon.isOpen ? l10n.openNow : l10n.closedNow,
-                color: salon.isOpen ? AppColors.primary : AppColors.warning,
+                color: salon.isOpen
+                    ? AppColors.primaryToneOf(context)
+                    : AppColors.warning,
               ),
             ],
           ),
@@ -116,7 +123,7 @@ class SalonDetailScreen extends StatelessWidget {
                                   .textTheme
                                   .bodyMedium
                                   ?.copyWith(
-                                    color: AppColors.secondaryText,
+                                    color: AppColors.secondaryTextOf(context),
                                   ),
                             ),
                           ],
@@ -124,8 +131,8 @@ class SalonDetailScreen extends StatelessWidget {
                       ),
                       Text(
                         AppFormatters.moneyK(service.price),
-                        style: const TextStyle(
-                          color: AppColors.primary,
+                        style: TextStyle(
+                          color: AppColors.primaryToneOf(context),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -170,18 +177,18 @@ class _MetaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FC),
+        color: AppColors.chipBackgroundOf(context),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: color ?? const Color(0xFFF5A623)),
+          Icon(icon, size: 14, color: color ?? AppColors.starOf(context)),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
-              color: color ?? AppColors.secondaryText,
+              color: color ?? AppColors.secondaryTextOf(context),
               fontWeight: FontWeight.w500,
             ),
           ),

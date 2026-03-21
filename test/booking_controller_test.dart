@@ -8,9 +8,11 @@ void main() {
 
     final BookingItem booking = BookingItem(
       id: 'b-1',
-      salonName: 'Prime Barber House',
-      masterName: 'Aziz',
-      serviceName: 'Haircut',
+      workshopId: 'w-1',
+      salonName: 'Turbo Usta Servis',
+      masterName: 'Aziz Usta',
+      serviceId: 'srv-1',
+      serviceName: 'Kompyuter diagnostika',
       dateTime: DateTime(2026, 3, 20, 11, 0),
       price: 120,
     );

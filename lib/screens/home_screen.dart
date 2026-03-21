@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/salon.dart';
+import '../providers/workshop_provider.dart';
+import '../ui/app_loading_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
-    required this.salons,
     required this.onOpenSalon,
   });
 
-  final List<Salon> salons;
   final ValueChanged<Salon> onOpenSalon;
 
   @override
@@ -21,7 +22,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _query = '';
 
   @override
   void dispose() {
@@ -29,26 +29,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  List<Salon> get _filteredSalons {
-    if (_query.isEmpty) {
-      return widget.salons;
-    }
-
-    final String query = _query.toLowerCase();
-    return widget.salons.where((Salon salon) {
-      final bool matchName = salon.name.toLowerCase().contains(query);
-      final bool matchAddress = salon.address.toLowerCase().contains(query);
-      final bool matchServices = salon.services.any(
-        (SalonService service) => service.name.toLowerCase().contains(query),
-      );
-      return matchName || matchAddress || matchServices;
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final List<Salon> salons = _filteredSalons;
+    final WorkshopProvider workshopProvider = context.watch<WorkshopProvider>();
+    final List<Salon> salons = workshopProvider.workshops;
+    final bool isLoading = workshopProvider.isLoading;
+    final String query = workshopProvider.query;
+    final String? errorMessage = workshopProvider.errorMessage;
 
     return SafeArea(
       child: ListView(
@@ -62,28 +50,24 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             l10n.findTrustedMasters,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.secondaryText,
+                  color: AppColors.secondaryTextOf(context),
                 ),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _searchController,
             onChanged: (String value) {
-              setState(() {
-                _query = value.trim();
-              });
+              context.read<WorkshopProvider>().setQuery(value.trim());
             },
             decoration: InputDecoration(
               hintText: l10n.searchHint,
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _query.isEmpty
+              suffixIcon: query.isEmpty
                   ? null
                   : IconButton(
                       onPressed: () {
                         _searchController.clear();
-                        setState(() {
-                          _query = '';
-                        });
+                        context.read<WorkshopProvider>().setQuery('');
                       },
                       icon: const Icon(Icons.close),
                     ),
@@ -94,7 +78,8 @@ class _HomeScreenState extends State<HomeScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: <Widget>[
-                _QuickBadge(text: l10n.salonsNearby(widget.salons.length)),
+                _QuickBadge(
+                    text: l10n.salonsNearby(workshopProvider.totalCount)),
                 const SizedBox(width: 8),
                 _QuickBadge(text: l10n.fastConfirmation),
                 const SizedBox(width: 8),
@@ -103,7 +88,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          if (salons.isEmpty)
+          if (isLoading && salons.isEmpty)
+            const SizedBox(height: 220, child: AppLoadingView())
+          else if (errorMessage != null && salons.isEmpty)
+            _EmptySearchState(
+              title: l10n.noSalonsFound,
+              subtitle: errorMessage,
+            )
+          else if (salons.isEmpty)
             _EmptySearchState(
               title: l10n.noSalonsFound,
               subtitle: l10n.tryDifferentSearch,
@@ -135,13 +127,13 @@ class _QuickBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.primarySoft,
+        color: AppColors.primarySoftOf(context),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          color: AppColors.primary,
+        style: TextStyle(
+          color: AppColors.primaryToneOf(context),
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -163,7 +155,7 @@ class _SalonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color openColor =
-        salon.isOpen ? AppColors.primary : AppColors.warning;
+        salon.isOpen ? AppColors.primaryToneOf(context) : AppColors.warning;
 
     return Card(
       child: InkWell(
@@ -180,11 +172,13 @@ class _SalonCard extends StatelessWidget {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: AppColors.primarySoft,
+                      color: AppColors.primarySoftOf(context),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child:
-                        const Icon(Icons.storefront, color: AppColors.primary),
+                    child: Icon(
+                      Icons.car_repair,
+                      color: AppColors.primaryToneOf(context),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -198,7 +192,7 @@ class _SalonCard extends StatelessWidget {
                           l10n.masterPrefix(salon.master),
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.secondaryText,
+                                    color: AppColors.secondaryTextOf(context),
                                   ),
                         ),
                       ],
@@ -237,8 +231,8 @@ class _SalonCard extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     l10n.fromPrice(AppFormatters.moneyK(salon.startingPrice)),
-                    style: const TextStyle(
-                      color: AppColors.primary,
+                    style: TextStyle(
+                      color: AppColors.primaryToneOf(context),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -247,13 +241,13 @@ class _SalonCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF3FF),
+                      color: AppColors.accentSoftOf(context),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       salon.badge,
-                      style: const TextStyle(
-                        color: Color(0xFF334E9F),
+                      style: TextStyle(
+                        color: AppColors.accentOf(context),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -286,18 +280,18 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FC),
+        color: AppColors.chipBackgroundOf(context),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: iconColor ?? const Color(0xFFF5A623)),
+          Icon(icon, size: 14, color: iconColor ?? AppColors.starOf(context)),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
-              color: textColor ?? AppColors.secondaryText,
+              color: textColor ?? AppColors.secondaryTextOf(context),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -320,8 +314,11 @@ class _EmptySearchState extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: <Widget>[
-            const Icon(Icons.search_off,
-                size: 48, color: AppColors.secondaryText),
+            Icon(
+              Icons.search_off,
+              size: 48,
+              color: AppColors.secondaryTextOf(context),
+            ),
             const SizedBox(height: 8),
             Text(
               title,
@@ -331,7 +328,7 @@ class _EmptySearchState extends StatelessWidget {
             Text(
               subtitle,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.secondaryText,
+                    color: AppColors.secondaryTextOf(context),
                   ),
             ),
           ],

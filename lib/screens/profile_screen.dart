@@ -1,30 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/localization/app_language.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
+import '../providers/auth_provider.dart';
+import '../providers/booking_provider.dart';
+import '../providers/language_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
-    required this.totalBookings,
-    required this.upcomingBookings,
     required this.onOpenBookingHistory,
     required this.onOpenSavedSalons,
-    required this.onNotificationsChanged,
-    required this.onLanguageChanged,
-    required this.initialLanguage,
-    required this.onSignOut,
   });
 
-  final int totalBookings;
-  final int upcomingBookings;
   final VoidCallback onOpenBookingHistory;
   final VoidCallback onOpenSavedSalons;
-  final ValueChanged<bool> onNotificationsChanged;
-  final ValueChanged<AppLanguage> onLanguageChanged;
-  final AppLanguage initialLanguage;
-  final VoidCallback onSignOut;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -32,25 +24,41 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationsEnabled = true;
-  late AppLanguage _language;
 
   @override
   void initState() {
     super.initState();
-    _language = widget.initialLanguage;
-  }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
 
-  @override
-  void didUpdateWidget(covariant ProfileScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialLanguage != widget.initialLanguage) {
-      _language = widget.initialLanguage;
-    }
+      final AuthProvider authProvider = context.read<AuthProvider>();
+      if (authProvider.isLoggedIn &&
+          authProvider.currentUser == null &&
+          !authProvider.isLoadingProfile) {
+        authProvider.loadCurrentUser();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final BookingProvider bookingProvider = context.watch<BookingProvider>();
+    final LanguageProvider languageProvider = context.watch<LanguageProvider>();
+    final AuthProvider authProvider = context.watch<AuthProvider>();
+    final AppLanguage language = languageProvider.language;
+    final bool isLoadingProfile = authProvider.isLoadingProfile;
+    final String? profileError = authProvider.errorMessage;
+    final String fullName = _displayValue(
+      authProvider.currentUser?.fullName,
+      l10n.profileUnknownName,
+    );
+    final String phone = _displayValue(
+      authProvider.currentUser?.phone,
+      l10n.profileUnknownPhone,
+    );
 
     return SafeArea(
       child: ListView(
@@ -62,11 +70,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
+                  color: AppColors.primarySoftOf(context),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: const Icon(Icons.person,
-                    size: 40, color: AppColors.primary),
+                child: Icon(
+                  Icons.person,
+                  size: 40,
+                  color: AppColors.primaryToneOf(context),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -74,28 +85,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Tokhirjon',
+                      fullName,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '+998 90 123 45 67',
+                      phone,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.secondaryText,
+                            color: AppColors.secondaryTextOf(context),
                           ),
                     ),
                   ],
                 ),
               ),
+              IconButton(
+                onPressed: isLoadingProfile
+                    ? null
+                    : () => context.read<AuthProvider>().loadCurrentUser(),
+                icon: const Icon(Icons.refresh),
+                tooltip: l10n.refresh,
+              ),
             ],
           ),
+          if (isLoadingProfile) ...<Widget>[
+            const SizedBox(height: 10),
+            const LinearProgressIndicator(minHeight: 3),
+          ] else if (profileError != null &&
+              authProvider.currentUser == null) ...<Widget>[
+            const SizedBox(height: 10),
+            Text(
+              profileError,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.warning,
+                  ),
+            ),
+          ],
           const SizedBox(height: 18),
           Row(
             children: <Widget>[
               Expanded(
                 child: _StatCard(
                   label: l10n.totalBookings,
-                  value: '${widget.totalBookings}',
+                  value: '${bookingProvider.totalBookings}',
                   icon: Icons.bar_chart,
                 ),
               ),
@@ -103,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: _StatCard(
                   label: l10n.upcoming,
-                  value: '${widget.upcomingBookings}',
+                  value: '${bookingProvider.upcomingBookings}',
                   icon: Icons.upcoming,
                 ),
               ),
@@ -134,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _MenuTile(
             icon: Icons.language,
             title: l10n.language,
-            subtitle: l10n.languageName(_language),
+            subtitle: l10n.languageName(language),
             onTap: _showLanguagePicker,
           ),
           const SizedBox(height: 12),
@@ -152,11 +183,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _notificationsEnabled = !_notificationsEnabled;
     });
-    widget.onNotificationsChanged(_notificationsEnabled);
+
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _notificationsEnabled
+              ? l10n.notificationsEnabled
+              : l10n.notificationsDisabled,
+        ),
+      ),
+    );
   }
 
   Future<void> _showLanguagePicker() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final LanguageProvider languageProvider = context.read<LanguageProvider>();
+    final AppLanguage currentLanguage = languageProvider.language;
     final AppLanguage? selected = await showModalBottomSheet<AppLanguage>(
       context: context,
       showDragHandle: true,
@@ -168,8 +211,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ...AppLanguage.values.map(
                 (AppLanguage language) => ListTile(
                   title: Text(l10n.languageName(language)),
-                  trailing:
-                      _language == language ? const Icon(Icons.check) : null,
+                  trailing: currentLanguage == language
+                      ? const Icon(Icons.check)
+                      : null,
                   onTap: () => Navigator.of(context).pop(language),
                 ),
               ),
@@ -179,14 +223,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
-    if (!mounted || selected == null || selected == _language) {
+    if (!mounted || selected == null || selected == currentLanguage) {
       return;
     }
 
-    setState(() {
-      _language = selected;
-    });
-    widget.onLanguageChanged(selected);
+    languageProvider.setLanguage(selected);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(l10n.languageSwitched(l10n.languageName(selected)))),
+    );
   }
 
   Future<void> _confirmSignOut() async {
@@ -215,7 +260,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    widget.onSignOut();
+    await context.read<AuthProvider>().signOut();
+  }
+
+  String _displayValue(String? value, String fallback) {
+    if (value == null) {
+      return fallback;
+    }
+
+    final String normalized = value.trim();
+    if (normalized.isEmpty) {
+      return fallback;
+    }
+    return normalized;
   }
 }
 
@@ -238,14 +295,14 @@ class _StatCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Icon(icon, color: AppColors.primary),
+            Icon(icon, color: AppColors.primaryToneOf(context)),
             const SizedBox(height: 8),
             Text(value, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 2),
             Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.secondaryText,
+                    color: AppColors.secondaryTextOf(context),
                   ),
             ),
           ],
@@ -273,7 +330,7 @@ class _MenuTile extends StatelessWidget {
     return Card(
       child: ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: AppColors.primary),
+        leading: Icon(icon, color: AppColors.primaryToneOf(context)),
         title: Text(title),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),

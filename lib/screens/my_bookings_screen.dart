@@ -1,26 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
+import '../providers/booking_provider.dart';
+import '../ui/app_loading_view.dart';
 
 class MyBookingsScreen extends StatelessWidget {
-  const MyBookingsScreen({
-    super.key,
-    required this.bookings,
-    required this.onCancel,
-  });
-
-  final List<BookingItem> bookings;
-  final ValueChanged<String> onCancel;
+  const MyBookingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final BookingProvider bookingProvider = context.watch<BookingProvider>();
+    final List<BookingItem> bookings = bookingProvider.bookings.toList();
+    final bool isLoading = bookingProvider.isLoading;
+    final String? errorMessage = bookingProvider.errorMessage;
+
+    if (isLoading && bookings.isEmpty) {
+      return const SafeArea(child: AppLoadingView());
+    }
 
     if (bookings.isEmpty) {
-      return SafeArea(child: _EmptyBookingsState(l10n: l10n));
+      return SafeArea(
+        child: _EmptyBookingsState(
+          l10n: l10n,
+          subtitle: errorMessage ?? l10n.bookingsEmptyHint,
+          isError: errorMessage != null,
+        ),
+      );
     }
 
     return SafeArea(
@@ -34,7 +44,27 @@ class MyBookingsScreen extends StatelessWidget {
             child: _BookingCard(
               l10n: l10n,
               booking: booking,
-              onCancel: () => onCancel(booking.id),
+              onCancel: () async {
+                final bool changed =
+                    await bookingProvider.cancelBookingRequest(booking.id);
+                if (!changed) {
+                  if (!context.mounted) {
+                    return;
+                  }
+                  final String message = bookingProvider.errorMessage ??
+                      'Buyurtmani bekor qilib bo\'lmadi';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(message)),
+                  );
+                  return;
+                }
+                if (!context.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.bookingCancelled)),
+                );
+              },
             ),
           );
         },
@@ -80,8 +110,8 @@ class _BookingCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               l10n.priceLabel(AppFormatters.moneyK(booking.price)),
-              style: const TextStyle(
-                color: AppColors.primary,
+              style: TextStyle(
+                color: AppColors.primaryToneOf(context),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -113,14 +143,14 @@ class _StatusBadge extends StatelessWidget {
 
     switch (status) {
       case BookingStatus.upcoming:
-        foreground = AppColors.primary;
-        background = AppColors.primarySoft;
+        foreground = AppColors.primaryToneOf(context);
+        background = AppColors.primarySoftOf(context);
       case BookingStatus.completed:
-        foreground = const Color(0xFF2E7D32);
-        background = const Color(0xFFE8F5E9);
+        foreground = AppColors.successForegroundOf(context);
+        background = AppColors.successBackgroundOf(context);
       case BookingStatus.cancelled:
         foreground = AppColors.warning;
-        background = const Color(0xFFFFEBEE);
+        background = AppColors.warningBackgroundOf(context);
     }
 
     return Container(
@@ -152,9 +182,15 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _EmptyBookingsState extends StatelessWidget {
-  const _EmptyBookingsState({required this.l10n});
+  const _EmptyBookingsState({
+    required this.l10n,
+    required this.subtitle,
+    this.isError = false,
+  });
 
   final AppLocalizations l10n;
+  final String subtitle;
+  final bool isError;
 
   @override
   Widget build(BuildContext context) {
@@ -164,20 +200,24 @@ class _EmptyBookingsState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(
-              Icons.calendar_month_outlined,
+            Icon(
+              isError ? Icons.error_outline : Icons.calendar_month_outlined,
               size: 64,
-              color: AppColors.secondaryText,
+              color: isError
+                  ? AppColors.warning
+                  : AppColors.secondaryTextOf(context),
             ),
             const SizedBox(height: 10),
             Text(l10n.noBookingsYet,
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(
-              l10n.bookingsEmptyHint,
+              subtitle,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.secondaryText,
+                    color: isError
+                        ? AppColors.warning
+                        : AppColors.secondaryTextOf(context),
                   ),
             ),
           ],

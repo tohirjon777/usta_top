@@ -43,4 +43,24 @@ class BookingController extends ChangeNotifier {
     notifyListeners();
     return true;
   }
+
+  @protected
+  void replaceBookings(Iterable<BookingItem> items) {
+    _bookings
+      ..clear()
+      ..addAll(items);
+    notifyListeners();
+  }
+
+  @protected
+  void upsertBooking(BookingItem booking) {
+    final int index =
+        _bookings.indexWhere((BookingItem item) => item.id == booking.id);
+    if (index == -1) {
+      _bookings.insert(0, booking);
+    } else {
+      _bookings[index] = booking;
+    }
+    notifyListeners();
+  }
 }

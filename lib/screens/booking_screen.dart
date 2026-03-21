@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
+import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
+import '../providers/booking_provider.dart';
+import '../services/api_exception.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({
@@ -23,6 +27,7 @@ class _BookingScreenState extends State<BookingScreen> {
   late String _selectedServiceId;
   late DateTime _selectedDate;
   String _selectedTime = _timeSlots.first;
+  bool _isSubmitting = false;
 
   static const List<String> _timeSlots = <String>[
     '10:00',
@@ -81,7 +86,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   (SalonService service) => DropdownMenuItem<String>(
                     value: service.id,
                     child: Text(
-                      '${service.name}  •  ${service.durationMinutes} min  •  ${AppFormatters.moneyK(service.price)}',
+                      '${service.name}  •  ${l10n.durationMinutes(service.durationMinutes)}  •  ${AppFormatters.moneyK(service.price)}',
                     ),
                   ),
                 )
@@ -162,9 +167,9 @@ class _BookingScreenState extends State<BookingScreen> {
                     l10n.totalLabel(
                       AppFormatters.moneyK(_selectedService.price),
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0B8E8C),
+                      color: AppColors.primaryToneOf(context),
                     ),
                   ),
                 ],
@@ -173,31 +178,71 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: () {
-              final List<String> parts = _selectedTime.split(':');
-              final DateTime bookingDateTime = DateTime(
-                _selectedDate.year,
-                _selectedDate.month,
-                _selectedDate.day,
-                int.parse(parts.first),
-                int.parse(parts.last),
-              );
+            onPressed: _isSubmitting ? null : _submitBooking,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(l10n.confirmBooking),
+          ),
+        ],
+      ),
+    );
+  }
 
-              final BookingItem booking = BookingItem(
-                id: 'b-${DateTime.now().microsecondsSinceEpoch}',
-                salonName: widget.salon.name,
+  Future<void> _submitBooking() async {
+    final List<String> parts = _selectedTime.split(':');
+    final DateTime bookingDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      int.parse(parts.first),
+      int.parse(parts.last),
+    );
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final BookingItem booking =
+          await context.read<BookingProvider>().createBooking(
+                workshopId: widget.salon.id,
+                workshopName: widget.salon.name,
                 masterName: widget.salon.master,
+                serviceId: _selectedService.id,
                 serviceName: _selectedService.name,
                 dateTime: bookingDateTime,
                 price: _selectedService.price,
               );
 
-              Navigator.of(context).pop(booking);
-            },
-            child: Text(l10n.confirmBooking),
-          ),
-        ],
-      ),
-    );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(booking);
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.bookingCreateFailed)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 }
