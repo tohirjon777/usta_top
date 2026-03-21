@@ -188,6 +188,132 @@ class InMemoryStore {
     return _usersById[userId];
   }
 
+  String newUserId() => _newId('u');
+
+  UserModel createUser({
+    required String fullName,
+    required String phone,
+    required String password,
+  }) {
+    final String normalizedPhone = _normalizePhone(phone);
+    if (_usersByPhone.containsKey(normalizedPhone)) {
+      throw StateError('Bu telefon raqam allaqachon ishlatilgan');
+    }
+
+    final UserModel user = UserModel(
+      id: newUserId(),
+      fullName: fullName,
+      phone: phone,
+      password: password,
+    );
+    _usersById[user.id] = user;
+    _usersByPhone[normalizedPhone] = user;
+    return user;
+  }
+
+  UserModel? resetUserPasswordByPhone({
+    required String phone,
+    required String newPassword,
+  }) {
+    final UserModel? current = _usersByPhone[_normalizePhone(phone)];
+    if (current == null) {
+      return null;
+    }
+
+    final UserModel updated = current.copyWith(password: newPassword);
+    _usersById[current.id] = updated;
+    _usersByPhone[_normalizePhone(updated.phone)] = updated;
+    return updated;
+  }
+
+  UserModel? updateUserProfile({
+    required String userId,
+    required String fullName,
+    required String phone,
+  }) {
+    final UserModel? current = _usersById[userId];
+    if (current == null) {
+      return null;
+    }
+
+    final String normalizedPhone = _normalizePhone(phone);
+    final UserModel? existing = _usersByPhone[normalizedPhone];
+    if (existing != null && existing.id != userId) {
+      throw StateError('Bu telefon raqam allaqachon ishlatilgan');
+    }
+
+    final UserModel updated = current.copyWith(
+      fullName: fullName,
+      phone: phone,
+    );
+    _usersByPhone.remove(_normalizePhone(current.phone));
+    _usersById[userId] = updated;
+    _usersByPhone[normalizedPhone] = updated;
+    return updated;
+  }
+
+  UserModel? updateUserPassword({
+    required String userId,
+    required String currentPassword,
+    required String newPassword,
+  }) {
+    final UserModel? current = _usersById[userId];
+    if (current == null) {
+      return null;
+    }
+    if (current.password != currentPassword) {
+      throw StateError('Joriy parol noto\'g\'ri');
+    }
+
+    final UserModel updated = current.copyWith(password: newPassword);
+    _usersById[userId] = updated;
+    _usersByPhone[_normalizePhone(updated.phone)] = updated;
+    return updated;
+  }
+
+  Future<void> loadUsers(String filePath) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    if (raw.trim().isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      throw const FormatException('Users file list bo\'lishi kerak');
+    }
+
+    final List<UserModel> users = decoded
+        .whereType<Map<String, dynamic>>()
+        .map(UserModel.fromJson)
+        .toList(growable: false);
+    if (users.isEmpty) {
+      return;
+    }
+
+    _usersById.clear();
+    _usersByPhone.clear();
+    for (final UserModel user in users) {
+      _usersById[user.id] = user;
+      _usersByPhone[_normalizePhone(user.phone)] = user;
+    }
+  }
+
+  Future<void> saveUsers(String filePath) async {
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final List<Map<String, Object>> data = _usersById.values
+        .map((UserModel item) => item.toStorageJson())
+        .toList(growable: false);
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
+  }
+
   List<WorkshopModel> workshops({String? query}) {
     final String q = (query ?? '').trim();
     if (q.isEmpty) {
@@ -207,6 +333,47 @@ class InMemoryStore {
       }
     }
     return null;
+  }
+
+  String newWorkshopId() => _newId('w');
+
+  String newServiceId() => _newId('srv');
+
+  WorkshopModel createWorkshop({
+    required WorkshopModel workshop,
+  }) {
+    if (workshopById(workshop.id) != null) {
+      throw StateError('Workshop ID allaqachon mavjud');
+    }
+    _workshops.insert(0, workshop);
+    return workshop;
+  }
+
+  WorkshopModel? updateWorkshop({
+    required String workshopId,
+    required WorkshopModel workshop,
+  }) {
+    final int index = _workshops.indexWhere(
+      (WorkshopModel item) => item.id == workshopId,
+    );
+    if (index < 0) {
+      return null;
+    }
+
+    final WorkshopModel updated = workshop.copyWith(id: workshopId);
+    _workshops[index] = updated;
+    return updated;
+  }
+
+  bool deleteWorkshop(String workshopId) {
+    final int index = _workshops.indexWhere(
+      (WorkshopModel item) => item.id == workshopId,
+    );
+    if (index < 0) {
+      return false;
+    }
+    _workshops.removeAt(index);
+    return true;
   }
 
   bool updateWorkshopLocation({
@@ -264,6 +431,47 @@ class InMemoryStore {
         longitude: longitude,
       );
     }
+  }
+
+  Future<void> loadWorkshops(String filePath) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    if (raw.trim().isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      throw const FormatException('Workshops file list bo\'lishi kerak');
+    }
+
+    final List<WorkshopModel> workshops = decoded
+        .whereType<Map<String, dynamic>>()
+        .map(WorkshopModel.fromJson)
+        .toList(growable: false);
+    if (workshops.isEmpty) {
+      return;
+    }
+
+    _workshops
+      ..clear()
+      ..addAll(workshops);
+  }
+
+  Future<void> saveWorkshops(String filePath) async {
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final List<Map<String, Object>> data = _workshops
+        .map((WorkshopModel item) => item.toJson())
+        .toList(growable: false);
+
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
   }
 
   Future<void> saveWorkshopLocations(String filePath) async {

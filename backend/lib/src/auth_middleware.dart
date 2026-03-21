@@ -9,6 +9,8 @@ const String authUserContextKey = 'auth_user';
 const Set<String> _publicPaths = <String>{
   'health',
   'auth/login',
+  'auth/register',
+  'auth/forgot-password',
 };
 
 bool _isPublicPath(String path) {

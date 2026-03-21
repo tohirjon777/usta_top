@@ -10,14 +10,28 @@ Future<void> main() async {
   final String workshopLocationsFilePath =
       Platform.environment['WORKSHOP_LOCATIONS_FILE'] ??
           'data/workshop_locations.json';
+  final String workshopsFilePath =
+      Platform.environment['WORKSHOPS_FILE'] ?? 'data/workshops.json';
+  final String usersFilePath =
+      Platform.environment['USERS_FILE'] ?? 'data/users.json';
+  final String adminUsername =
+      Platform.environment['ADMIN_USERNAME'] ?? 'admin';
+  final String adminPassword =
+      Platform.environment['ADMIN_PASSWORD'] ?? 'admin123';
 
   final InMemoryStore store = InMemoryStore.withSeedData();
+  await store.loadUsers(usersFilePath);
+  await store.loadWorkshops(workshopsFilePath);
   await store.loadWorkshopLocations(workshopLocationsFilePath);
 
   final server = await io.serve(
     buildHandler(
       store,
       workshopLocationsFilePath: workshopLocationsFilePath,
+      workshopsFilePath: workshopsFilePath,
+      usersFilePath: usersFilePath,
+      adminUsername: adminUsername,
+      adminPassword: adminPassword,
     ),
     host,
     port,
@@ -29,4 +43,7 @@ Future<void> main() async {
   stdout.writeln(
     'Admin sahifa: http://${server.address.host}:${server.port}/admin/workshops',
   );
+  stdout.writeln(
+      'Admin login: http://${server.address.host}:${server.port}/admin/login');
+  stdout.writeln('Admin username: $adminUsername');
 }
