@@ -34,6 +34,19 @@ HOST=127.0.0.1 PORT=9090 dart run bin/server.dart
 - `POST /bookings` (Bearer token kerak)
 - `PATCH /bookings/:id/cancel` (Bearer token kerak)
 
+## Arxitektura (Controller Skeleton)
+
+Backend kodi controller/middleware ko'rinishida ajratilgan:
+
+- `lib/src/controllers/auth_controller.dart`
+- `lib/src/controllers/workshop_controller.dart`
+- `lib/src/controllers/booking_controller.dart`
+- `lib/src/controllers/health_controller.dart`
+- `lib/src/auth_middleware.dart`
+- `lib/src/http_helpers.dart`
+
+`router.dart` faqat route ulash bilan shug'ullanadi.
+
 ## Tezkor sinov (curl)
 
 ```bash
