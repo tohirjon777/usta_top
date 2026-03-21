@@ -46,6 +46,8 @@ class AppLocalizations {
       'mapHint': 'Tap a marker to open workshop details',
       'mapNoCoordinates': 'Workshop coordinates are not available yet.',
       'openOnMap': 'Open workshop',
+      'mapOpenInYandex': 'Open in Yandex Maps',
+      'mapOpenYandexFailed': 'Yandex Maps could not be opened.',
       'mapMyLocation': 'My location',
       'mapLocationDisabled': 'Turn on location service to continue.',
       'mapLocationDenied': 'Location permission was denied.',
@@ -139,6 +141,8 @@ class AppLocalizations {
       'mapHint': 'Servis tafsilotini ochish uchun markerga bosing',
       'mapNoCoordinates': 'Servislar uchun koordinatalar hali kiritilmagan.',
       'openOnMap': 'Servisni ochish',
+      'mapOpenInYandex': 'Yandex Mapsda ochish',
+      'mapOpenYandexFailed': 'Yandex Mapsni ochib bo\'lmadi.',
       'mapMyLocation': 'Mening joylashuvim',
       'mapLocationDisabled':
           'Davom etish uchun qurilma joylashuv xizmatini yoqing.',
@@ -235,6 +239,8 @@ class AppLocalizations {
       'mapHint': 'Нажмите на маркер, чтобы открыть детали сервиса',
       'mapNoCoordinates': 'Координаты сервисов пока не заполнены.',
       'openOnMap': 'Открыть сервис',
+      'mapOpenInYandex': 'Открыть в Yandex Maps',
+      'mapOpenYandexFailed': 'Не удалось открыть Yandex Maps.',
       'mapMyLocation': 'Моё местоположение',
       'mapLocationDisabled': 'Включите службу геолокации для продолжения.',
       'mapLocationDenied': 'Доступ к геолокации не предоставлен.',
@@ -346,6 +352,8 @@ class AppLocalizations {
   String get mapHint => _text('mapHint');
   String get mapNoCoordinates => _text('mapNoCoordinates');
   String get openOnMap => _text('openOnMap');
+  String get mapOpenInYandex => _text('mapOpenInYandex');
+  String get mapOpenYandexFailed => _text('mapOpenYandexFailed');
   String get mapMyLocation => _text('mapMyLocation');
   String get mapLocationDisabled => _text('mapLocationDisabled');
   String get mapLocationDenied => _text('mapLocationDenied');

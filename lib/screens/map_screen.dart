@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
@@ -278,6 +279,15 @@ class _MapScreenState extends State<MapScreen> {
                     ),
               ),
               const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _openInYandexMaps(salon, l10n);
+                },
+                icon: const Icon(Icons.navigation_outlined),
+                label: Text(l10n.mapOpenInYandex),
+              ),
+              const SizedBox(height: 8),
               FilledButton(
                 onPressed: () {
                   Navigator.of(context).pop();
@@ -290,6 +300,67 @@ class _MapScreenState extends State<MapScreen> {
         );
       },
     );
+  }
+
+  Future<void> _openInYandexMaps(
+    Salon salon,
+    AppLocalizations l10n,
+  ) async {
+    final double? lat = salon.latitude;
+    final double? lon = salon.longitude;
+    if (lat == null || lon == null) {
+      _showMessage(l10n.mapNoCoordinates);
+      return;
+    }
+
+    final String latText = lat.toStringAsFixed(6);
+    final String lonText = lon.toStringAsFixed(6);
+    final String destination = '$latText,$lonText';
+
+    final String? from = _userLocation == null
+        ? null
+        : '${_userLocation!.latitude.toStringAsFixed(6)},${_userLocation!.longitude.toStringAsFixed(6)}';
+
+    final Uri appUri = from == null
+        ? Uri.parse(
+            'yandexmaps://maps.yandex.com/?pt=$lonText,$latText&z=16&l=map',
+          )
+        : Uri.parse(
+            'yandexmaps://maps.yandex.com/?rtext=$from~$destination&rtt=auto');
+
+    final Uri webUri = from == null
+        ? Uri.https(
+            'yandex.com',
+            '/maps/',
+            <String, String>{
+              'pt': '$lonText,$latText',
+              'z': '16',
+              'l': 'map',
+            },
+          )
+        : Uri.https(
+            'yandex.com',
+            '/maps/',
+            <String, String>{
+              'rtext': '$from~$destination',
+              'rtt': 'auto',
+            },
+          );
+
+    bool opened = false;
+    try {
+      opened = await launchUrl(appUri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      opened = false;
+    }
+
+    if (!opened) {
+      opened = await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
+
+    if (!opened) {
+      _showMessage(l10n.mapOpenYandexFailed);
+    }
   }
 }
 

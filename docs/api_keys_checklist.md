@@ -95,5 +95,6 @@ Muhim:
 1. To'lov integratsiyasi yo'q
 2. Xarita ekrani `flutter_map` + OpenStreetMap (keysiz) bilan ulangan
 3. Joriy joylashuv (`geolocator`) qo'shilgan, API key emas permission kerak
-4. Push notification paketi hali ulanmagan
-5. SMS OTP hali ulanmagan
+4. Servis carddan `Yandex Maps`ga o'tish qo'shilgan (API key kerak emas)
+5. Push notification paketi hali ulanmagan
+6. SMS OTP hali ulanmagan
