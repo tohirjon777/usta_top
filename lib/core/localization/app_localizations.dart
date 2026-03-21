@@ -48,6 +48,8 @@ class AppLocalizations {
       'openOnMap': 'Open workshop',
       'mapOpenInYandex': 'Open in Yandex Maps',
       'mapOpenYandexFailed': 'Yandex Maps could not be opened.',
+      'mapZoomIn': 'Zoom in',
+      'mapZoomOut': 'Zoom out',
       'mapMyLocation': 'My location',
       'mapLocationDisabled': 'Turn on location service to continue.',
       'mapLocationDenied': 'Location permission was denied.',
@@ -143,6 +145,8 @@ class AppLocalizations {
       'openOnMap': 'Servisni ochish',
       'mapOpenInYandex': 'Yandex Mapsda ochish',
       'mapOpenYandexFailed': 'Yandex Mapsni ochib bo\'lmadi.',
+      'mapZoomIn': 'Yaqinlashtirish',
+      'mapZoomOut': 'Uzoqlashtirish',
       'mapMyLocation': 'Mening joylashuvim',
       'mapLocationDisabled':
           'Davom etish uchun qurilma joylashuv xizmatini yoqing.',
@@ -241,6 +245,8 @@ class AppLocalizations {
       'openOnMap': 'Открыть сервис',
       'mapOpenInYandex': 'Открыть в Yandex Maps',
       'mapOpenYandexFailed': 'Не удалось открыть Yandex Maps.',
+      'mapZoomIn': 'Приблизить',
+      'mapZoomOut': 'Отдалить',
       'mapMyLocation': 'Моё местоположение',
       'mapLocationDisabled': 'Включите службу геолокации для продолжения.',
       'mapLocationDenied': 'Доступ к геолокации не предоставлен.',
@@ -354,6 +360,8 @@ class AppLocalizations {
   String get openOnMap => _text('openOnMap');
   String get mapOpenInYandex => _text('mapOpenInYandex');
   String get mapOpenYandexFailed => _text('mapOpenYandexFailed');
+  String get mapZoomIn => _text('mapZoomIn');
+  String get mapZoomOut => _text('mapZoomOut');
   String get mapMyLocation => _text('mapMyLocation');
   String get mapLocationDisabled => _text('mapLocationDisabled');
   String get mapLocationDenied => _text('mapLocationDenied');

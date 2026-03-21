@@ -11,11 +11,16 @@ const Set<String> _publicPaths = <String>{
   'auth/login',
 };
 
+bool _isPublicPath(String path) {
+  return _publicPaths.contains(path) ||
+      path == 'admin' ||
+      path.startsWith('admin/');
+}
+
 Middleware authMiddleware(InMemoryStore store) {
   return (Handler innerHandler) {
     return (Request request) {
-      if (request.method == 'OPTIONS' ||
-          _publicPaths.contains(request.url.path)) {
+      if (request.method == 'OPTIONS' || _isPublicPath(request.url.path)) {
         return innerHandler(request);
       }
 

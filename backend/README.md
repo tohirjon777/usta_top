@@ -18,14 +18,34 @@ Server default holatda `http://0.0.0.0:8080` da ishga tushadi.
 HOST=127.0.0.1 PORT=9090 dart run bin/server.dart
 ```
 
+Workshop lokatsiyalarini alohida faylga saqlash uchun:
+
+```bash
+WORKSHOP_LOCATIONS_FILE=data/workshop_locations.json dart run bin/server.dart
+```
+
 ## Login ma'lumotlari (seed)
 
 - Telefon: `+998901234567`
 - Parol: `123456`
 
+## Admin sahifa
+
+Brauzerda quyidagi sahifani ochib workshop lokatsiyasini taxminiy koordinata bilan kiriting:
+
+```text
+http://127.0.0.1:8080/admin/workshops
+```
+
+Bu sahifa `latitude` va `longitude` qiymatlarini yangilaydi va ularni
+`data/workshop_locations.json` fayliga saqlab qo'yadi. Backend qayta ishga
+tushganda ham shu qiymatlar qayta yuklanadi.
+
 ## Endpointlar
 
 - `GET /health`
+- `GET /admin/workshops`
+- `POST /admin/workshops/:id/location`
 - `POST /auth/login`
 - `GET /auth/me` (Bearer token kerak)
 - `GET /workshops` (Bearer token kerak)

@@ -54,6 +54,27 @@ class WorkshopModel {
   final String badge;
   final List<ServiceModel> services;
 
+  WorkshopModel copyWith({
+    double? latitude,
+    double? longitude,
+  }) {
+    return WorkshopModel(
+      id: id,
+      name: name,
+      master: master,
+      rating: rating,
+      reviewCount: reviewCount,
+      address: address,
+      description: description,
+      distanceKm: distanceKm,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isOpen: isOpen,
+      badge: badge,
+      services: services,
+    );
+  }
+
   ServiceModel? getServiceById(String serviceId) {
     for (final ServiceModel service in services) {
       if (service.id == serviceId) {

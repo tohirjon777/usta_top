@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'models.dart';
@@ -207,6 +209,79 @@ class InMemoryStore {
     return null;
   }
 
+  bool updateWorkshopLocation({
+    required String workshopId,
+    required double latitude,
+    required double longitude,
+  }) {
+    final int index = _workshops.indexWhere(
+      (WorkshopModel item) => item.id == workshopId,
+    );
+    if (index < 0) {
+      return false;
+    }
+
+    _workshops[index] = _workshops[index].copyWith(
+      latitude: latitude,
+      longitude: longitude,
+    );
+    return true;
+  }
+
+  Future<void> loadWorkshopLocations(String filePath) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    if (raw.trim().isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Workshop locations file object bo\'lishi kerak',
+      );
+    }
+
+    for (int i = 0; i < _workshops.length; i++) {
+      final WorkshopModel workshop = _workshops[i];
+      final dynamic item = decoded[workshop.id];
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final double? latitude = _toNullableDouble(item['latitude']);
+      final double? longitude = _toNullableDouble(item['longitude']);
+      if (latitude == null || longitude == null) {
+        continue;
+      }
+
+      _workshops[i] = workshop.copyWith(
+        latitude: latitude,
+        longitude: longitude,
+      );
+    }
+  }
+
+  Future<void> saveWorkshopLocations(String filePath) async {
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final Map<String, Object> data = <String, Object>{
+      for (final WorkshopModel workshop in _workshops)
+        workshop.id: <String, double>{
+          'latitude': workshop.latitude,
+          'longitude': workshop.longitude,
+        },
+    };
+
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
+  }
+
   List<BookingModel> bookingsForUser(String userId) {
     final List<BookingModel> items = _bookings
         .where((BookingModel item) => item.userId == userId)
@@ -279,6 +354,16 @@ class InMemoryStore {
 
   String _normalizePhone(String raw) {
     return raw.replaceAll(RegExp(r'\s+'), '');
+  }
+
+  double? _toNullableDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value == null) {
+      return null;
+    }
+    return double.tryParse(value.toString());
   }
 
   String _newId(String prefix) {

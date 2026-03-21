@@ -26,6 +26,8 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   static const LatLng _tashkentCenter = LatLng(41.3111, 69.2797);
+  static const double _initialMapZoom = 12.4;
+  static const double _zoomStep = 1;
 
   final MapController _mapController = MapController();
   LatLng? _userLocation;
@@ -90,7 +92,7 @@ class _MapScreenState extends State<MapScreen> {
                       mapController: _mapController,
                       options: MapOptions(
                         initialCenter: center,
-                        initialZoom: 12.4,
+                        initialZoom: _initialMapZoom,
                       ),
                       children: <Widget>[
                         // OSM tile qatlami API key talab qilmaydi.
@@ -128,26 +130,34 @@ class _MapScreenState extends State<MapScreen> {
                     Positioned(
                       top: 10,
                       right: 10,
-                      child: Material(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        child: IconButton(
-                          onPressed: _isLocating
-                              ? null
-                              : () => _focusUserLocation(l10n),
-                          tooltip: l10n.mapMyLocation,
-                          icon: _isLocating
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Icon(
-                                  Icons.my_location,
-                                  color: AppColors.primaryToneOf(context),
-                                ),
-                        ),
+                      child: Column(
+                        children: <Widget>[
+                          _MapZoomControls(
+                            zoomInTooltip: l10n.mapZoomIn,
+                            zoomOutTooltip: l10n.mapZoomOut,
+                            onZoomIn: _zoomIn,
+                            onZoomOut: _zoomOut,
+                          ),
+                          const SizedBox(height: 8),
+                          _MapActionButton(
+                            tooltip: l10n.mapMyLocation,
+                            onPressed: _isLocating
+                                ? null
+                                : () => _focusUserLocation(l10n),
+                            child: _isLocating
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.my_location,
+                                    color: AppColors.primaryToneOf(context),
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
                     if (salonsWithCoords.isEmpty)
@@ -244,6 +254,19 @@ class _MapScreenState extends State<MapScreen> {
         });
       }
     }
+  }
+
+  void _zoomIn() => _changeZoom(_zoomStep);
+
+  void _zoomOut() => _changeZoom(-_zoomStep);
+
+  void _changeZoom(double delta) {
+    final MapCamera camera = _mapController.camera;
+    final double nextZoom = camera.clampZoom(camera.zoom + delta);
+    if (nextZoom == camera.zoom) {
+      return;
+    }
+    _mapController.move(camera.center, nextZoom);
   }
 
   void _showMessage(String message) {
@@ -393,6 +416,77 @@ class _MapPin extends StatelessWidget {
           ],
         ),
         child: const Icon(Icons.build_rounded, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _MapActionButton extends StatelessWidget {
+  const _MapActionButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.child,
+  });
+
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        icon: child,
+      ),
+    );
+  }
+}
+
+class _MapZoomControls extends StatelessWidget {
+  const _MapZoomControls({
+    required this.zoomInTooltip,
+    required this.zoomOutTooltip,
+    required this.onZoomIn,
+    required this.onZoomOut,
+  });
+
+  final String zoomInTooltip;
+  final String zoomOutTooltip;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color dividerColor =
+        Theme.of(context).dividerColor.withValues(alpha: 0.35);
+
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          IconButton(
+            onPressed: onZoomIn,
+            tooltip: zoomInTooltip,
+            icon: Icon(Icons.add, color: AppColors.primaryToneOf(context)),
+          ),
+          Container(
+            width: 34,
+            height: 1,
+            color: dividerColor,
+          ),
+          IconButton(
+            onPressed: onZoomOut,
+            tooltip: zoomOutTooltip,
+            icon: Icon(Icons.remove, color: AppColors.primaryToneOf(context)),
+          ),
+        ],
       ),
     );
   }
