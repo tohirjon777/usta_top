@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_language.dart';
+import '../theme/app_theme_preference.dart';
 
 class AppLocalizations {
   AppLocalizations(this.locale);
@@ -108,6 +109,11 @@ class AppLocalizations {
       'enabled': 'Enabled',
       'disabled': 'Disabled',
       'language': 'Language',
+      'theme': 'Theme',
+      'systemTheme': 'System',
+      'lightTheme': 'Light',
+      'darkTheme': 'Dark',
+      'themeChanged': 'Theme switched to {theme}',
       'profileUnknownName': 'User',
       'profileUnknownPhone': 'Phone not available',
       'editProfile': 'Edit profile',
@@ -248,6 +254,11 @@ class AppLocalizations {
       'enabled': 'Yoqilgan',
       'disabled': 'O\'chirilgan',
       'language': 'Til',
+      'theme': 'Mavzu',
+      'systemTheme': 'Qurilma bo\'yicha',
+      'lightTheme': 'Yorug\' rejim',
+      'darkTheme': 'Qorong\'u rejim',
+      'themeChanged': 'Mavzu {theme} ga o\'zgartirildi',
       'profileUnknownName': 'Foydalanuvchi',
       'profileUnknownPhone': 'Telefon ko\'rsatilmagan',
       'editProfile': 'Profilni tahrirlash',
@@ -387,6 +398,11 @@ class AppLocalizations {
       'enabled': 'Включено',
       'disabled': 'Выключено',
       'language': 'Язык',
+      'theme': 'Тема',
+      'systemTheme': 'Как в системе',
+      'lightTheme': 'Светлая',
+      'darkTheme': 'Темная',
+      'themeChanged': 'Тема переключена на {theme}',
       'profileUnknownName': 'Пользователь',
       'profileUnknownPhone': 'Телефон не указан',
       'editProfile': 'Редактировать профиль',
@@ -558,6 +574,12 @@ class AppLocalizations {
   String get enabled => _text('enabled');
   String get disabled => _text('disabled');
   String get language => _text('language');
+  String get theme => _text('theme');
+  String get systemTheme => _text('systemTheme');
+  String get lightTheme => _text('lightTheme');
+  String get darkTheme => _text('darkTheme');
+  String themeChanged(String theme) =>
+      _fmt('themeChanged', <String, Object>{'theme': theme});
   String get profileUnknownName => _text('profileUnknownName');
   String get profileUnknownPhone => _text('profileUnknownPhone');
   String get editProfile => _text('editProfile');
@@ -619,6 +641,17 @@ class AppLocalizations {
         return _text('uzbek');
       case AppLanguage.russian:
         return _text('russian');
+    }
+  }
+
+  String themeModeName(AppThemePreference preference) {
+    switch (preference) {
+      case AppThemePreference.system:
+        return systemTheme;
+      case AppThemePreference.light:
+        return lightTheme;
+      case AppThemePreference.dark:
+        return darkTheme;
     }
   }
 }

@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../core/localization/app_language.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
+import '../core/theme/app_theme_preference.dart';
 import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/language_provider.dart';
+import '../providers/theme_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -47,8 +49,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final BookingProvider bookingProvider = context.watch<BookingProvider>();
     final LanguageProvider languageProvider = context.watch<LanguageProvider>();
+    final ThemeProvider themeProvider = context.watch<ThemeProvider>();
     final AuthProvider authProvider = context.watch<AuthProvider>();
     final AppLanguage language = languageProvider.language;
+    final AppThemePreference themePreference = themeProvider.preference;
     final bool isLoadingProfile = authProvider.isLoadingProfile;
     final String? profileError = authProvider.errorMessage;
     final String fullName = _displayValue(
@@ -208,6 +212,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: l10n.languageName(language),
             onTap: _showLanguagePicker,
           ),
+          const SizedBox(height: 8),
+          _MenuTile(
+            icon: Icons.brightness_6_outlined,
+            title: l10n.theme,
+            subtitle: l10n.themeModeName(themePreference),
+            onTap: _showThemePicker,
+          ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _confirmSignOut,
@@ -272,6 +283,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
       SnackBar(
           content: Text(l10n.languageSwitched(l10n.languageName(selected)))),
     );
+  }
+
+  Future<void> _showThemePicker() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ThemeProvider themeProvider = context.read<ThemeProvider>();
+    final AppThemePreference currentPreference = themeProvider.preference;
+    final AppThemePreference? selected =
+        await showModalBottomSheet<AppThemePreference>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ...AppThemePreference.values.map(
+                (AppThemePreference preference) => ListTile(
+                  leading: Icon(_themeModeIcon(preference)),
+                  title: Text(l10n.themeModeName(preference)),
+                  trailing: currentPreference == preference
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => Navigator.of(context).pop(preference),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    await themeProvider.setPreference(selected);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.themeChanged(l10n.themeModeName(selected)))),
+    );
+  }
+
+  IconData _themeModeIcon(AppThemePreference preference) {
+    switch (preference) {
+      case AppThemePreference.system:
+        return Icons.brightness_auto_outlined;
+      case AppThemePreference.light:
+        return Icons.light_mode_outlined;
+      case AppThemePreference.dark:
+        return Icons.dark_mode_outlined;
+    }
   }
 
   Future<void> _showEditProfileSheet({

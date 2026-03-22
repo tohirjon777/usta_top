@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/config/app_assets.dart';
 import '../core/localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../ui/app_spacing.dart';
@@ -39,6 +40,24 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: <Widget>[
+              Center(
+                child: Column(
+                  children: <Widget>[
+                    Image.asset(
+                      AppAssets.logo,
+                      width: 124,
+                      height: 124,
+                      fit: BoxFit.contain,
+                    ),
+                    AppSpacing.h8,
+                    Text(
+                      l10n.appTitle,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
+              ),
+              AppSpacing.h16,
               Text(
                 l10n.welcomeBack,
                 style: Theme.of(context).textTheme.headlineSmall,

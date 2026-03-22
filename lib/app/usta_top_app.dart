@@ -7,6 +7,7 @@ import '../core/localization/app_localizations.dart';
 import '../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/language_provider.dart';
+import '../providers/theme_provider.dart';
 import '../screens/login_screen.dart';
 import '../ui/app_loading_view.dart';
 import 'main_navigation_shell.dart';
@@ -18,6 +19,7 @@ class UstaTopApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final AuthProvider authProvider = context.watch<AuthProvider>();
     final LanguageProvider languageProvider = context.watch<LanguageProvider>();
+    final ThemeProvider themeProvider = context.watch<ThemeProvider>();
     final AppLanguage currentLanguage = languageProvider.language;
 
     return MaterialApp(
@@ -26,7 +28,7 @@ class UstaTopApp extends StatelessWidget {
           AppLocalizations.of(context).appTitle,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeProvider.preference.themeMode,
       locale: currentLanguage.locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[

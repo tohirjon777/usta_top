@@ -6,12 +6,14 @@ import 'core/config/backend_config.dart';
 import 'core/localization/app_language.dart';
 import 'core/storage/auth_token_storage.dart';
 import 'core/storage/saved_workshops_storage.dart';
+import 'core/storage/theme_mode_storage.dart';
 import 'data/repositories/mock_salon_repository.dart';
 import 'models/booking_item.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/saved_workshops_provider.dart';
+import 'providers/theme_provider.dart';
 import 'providers/workshop_provider.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
@@ -58,11 +60,13 @@ class MyApp extends StatelessWidget {
     final String backendBaseUrl = BackendConfig.resolveBaseUrl();
     const AuthTokenStorage tokenStorage = AuthTokenStorage();
     const SavedWorkshopsStorage savedWorkshopsStorage = SavedWorkshopsStorage();
+    const ThemeModeStorage themeModeStorage = ThemeModeStorage();
 
     return MultiProvider(
       providers: [
         Provider<AuthTokenStorage>.value(value: tokenStorage),
         Provider<SavedWorkshopsStorage>.value(value: savedWorkshopsStorage),
+        Provider<ThemeModeStorage>.value(value: themeModeStorage),
         Provider<AuthService>(
           // TODO(API): Login va /auth/me shu servisedan keladi.
           create: (_) => useBackend
@@ -100,6 +104,11 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<LanguageProvider>(
           create: (_) => LanguageProvider(initialLanguage: AppLanguage.uzbek),
+        ),
+        ChangeNotifierProvider<ThemeProvider>(
+          create: (BuildContext context) => ThemeProvider(
+            storage: context.read<ThemeModeStorage>(),
+          )..restorePreference(),
         ),
         ChangeNotifierProvider<BookingProvider>(
           create: (BuildContext context) => BookingProvider(
