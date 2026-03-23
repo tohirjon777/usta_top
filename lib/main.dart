@@ -38,7 +38,10 @@ List<BookingItem> _seedBookings() {
       masterName: 'Aziz Usta',
       serviceId: 'srv-1',
       serviceName: 'Kompyuter diagnostika',
+      vehicleModel: 'Chevrolet Cobalt',
+      vehicleTypeId: 'sedan',
       dateTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
+      basePrice: 120,
       price: 120,
     ),
   ];

@@ -13,6 +13,8 @@ import 'controllers/workshop_controller.dart';
 import 'http_helpers.dart';
 import 'owner_auth.dart';
 import 'store.dart';
+import 'telegram_bot.dart';
+import 'workshop_notifications.dart';
 
 Handler buildHandler(
   InMemoryStore store, {
@@ -20,8 +22,10 @@ Handler buildHandler(
   required String workshopsFilePath,
   required String usersFilePath,
   required String bookingsFilePath,
+  required String telegramSyncStateFilePath,
   required String adminUsername,
   required String adminPassword,
+  required String telegramBotToken,
 }) {
   final HealthController healthController = HealthController();
   final AuthController authController = AuthController(
@@ -29,9 +33,15 @@ Handler buildHandler(
     usersFilePath: usersFilePath,
   );
   final WorkshopController workshopController = WorkshopController(store);
+  final TelegramBotService telegramBotService = TelegramBotService(
+    botToken: telegramBotToken,
+  );
+  final WorkshopNotificationsService notificationsService =
+      WorkshopNotificationsService(telegramBotService);
   final BookingController bookingController = BookingController(
     store,
     bookingsFilePath: bookingsFilePath,
+    notificationsService: notificationsService,
   );
   final AdminAuthService adminAuthService = AdminAuthService(
     username: adminUsername,
@@ -42,18 +52,24 @@ Handler buildHandler(
     adminAuthService: adminAuthService,
     locationsFilePath: workshopLocationsFilePath,
     workshopsFilePath: workshopsFilePath,
+    notificationsService: notificationsService,
   );
   final AdminBookingsController adminBookingsController =
       AdminBookingsController(
     store,
     adminAuthService: adminAuthService,
     bookingsFilePath: bookingsFilePath,
+    notificationsService: notificationsService,
   );
   final OwnerAuthService ownerAuthService = OwnerAuthService();
   final OwnerController ownerController = OwnerController(
     store,
     ownerAuthService: ownerAuthService,
     bookingsFilePath: bookingsFilePath,
+    workshopsFilePath: workshopsFilePath,
+    telegramSyncStateFilePath: telegramSyncStateFilePath,
+    telegramBotService: telegramBotService,
+    notificationsService: notificationsService,
   );
 
   final Router router = Router()
@@ -71,10 +87,15 @@ Handler buildHandler(
     ..post('/owner/login', ownerController.login)
     ..post('/owner/logout', ownerController.logout)
     ..get('/owner/bookings', ownerController.bookingsPage)
+    ..post('/owner/telegram/generate', ownerController.generateTelegramLinkCode)
+    ..post('/owner/telegram/check', ownerController.checkTelegramLink)
+    ..post('/owner/telegram/disconnect', ownerController.disconnectTelegram)
     ..post('/owner/bookings/<id>/status', ownerController.updateStatus)
     ..post('/admin/workshops', adminController.createWorkshop)
     ..post('/admin/workshops/<id>/update', adminController.updateWorkshop)
     ..post('/admin/workshops/<id>/delete', adminController.deleteWorkshop)
+    ..post(
+        '/admin/workshops/<id>/telegram/test', adminController.sendTelegramTest)
     ..post('/admin/workshops/<id>/location',
         adminController.updateWorkshopLocation)
     ..post('/auth/login', authController.login)

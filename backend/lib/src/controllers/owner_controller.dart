@@ -1,21 +1,35 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:shelf/shelf.dart';
 
 import '../models.dart';
 import '../owner_auth.dart';
 import '../store.dart';
+import '../telegram_bot.dart';
+import '../vehicle_types.dart';
+import '../workshop_notifications.dart';
 
 class OwnerController {
   const OwnerController(
     this._store, {
     required this.ownerAuthService,
     required this.bookingsFilePath,
+    required this.workshopsFilePath,
+    required this.telegramSyncStateFilePath,
+    required this.telegramBotService,
+    required this.notificationsService,
   });
 
   final InMemoryStore _store;
   final OwnerAuthService ownerAuthService;
   final String bookingsFilePath;
+  final String workshopsFilePath;
+  final String telegramSyncStateFilePath;
+  final TelegramBotService telegramBotService;
+  final WorkshopNotificationsService notificationsService;
+  static final Random _telegramCodeRandom = Random.secure();
 
   Response entry(Request request) {
     final String lang = _normalizeLang(request.url.queryParameters['lang']);
@@ -378,6 +392,137 @@ class OwnerController {
     );
   }
 
+  Future<Response> generateTelegramLinkCode(Request request) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    final WorkshopModel updated = workshop.copyWith(
+      telegramLinkCode: _newTelegramLinkCode(),
+    );
+    _store.updateWorkshop(workshopId: workshop.id, workshop: updated);
+    await _store.saveWorkshops(workshopsFilePath);
+
+    return Response.seeOther(
+      _ownerBookingsUri(
+        lang: lang,
+        status: returnStatus,
+        message: _text(
+          lang,
+          'telegramCodeCreated',
+          <String, Object>{'code': updated.telegramLinkCode},
+        ),
+      ),
+    );
+  }
+
+  Future<Response> checkTelegramLink(Request request) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    if (!telegramBotService.isConfigured) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: _text(lang, 'telegramBotNotConfigured'),
+        ),
+      );
+    }
+
+    try {
+      final _TelegramLinkCheckResult result = await _syncTelegramLinks(
+        requestedWorkshopId: workshop.id,
+      );
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          message: result.messageKey == null
+              ? null
+              : _text(
+                  lang,
+                  result.messageKey!,
+                  result.messageValues,
+                ),
+          error: result.errorKey == null
+              ? null
+              : _text(
+                  lang,
+                  result.errorKey!,
+                  result.messageValues,
+                ),
+        ),
+      );
+    } on TelegramBotException catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.message,
+        ),
+      );
+    } on Exception catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.toString(),
+        ),
+      );
+    }
+  }
+
+  Future<Response> disconnectTelegram(Request request) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    final WorkshopModel updated = workshop.copyWith(
+      telegramChatId: '',
+      telegramChatLabel: '',
+      telegramLinkCode: '',
+    );
+    _store.updateWorkshop(workshopId: workshop.id, workshop: updated);
+    await _store.saveWorkshops(workshopsFilePath);
+
+    return Response.seeOther(
+      _ownerBookingsUri(
+        lang: lang,
+        status: returnStatus,
+        message: _text(lang, 'telegramDisconnected'),
+      ),
+    );
+  }
+
   Response bookingsPage(Request request) {
     final Response? authRedirect = _requireOwner(request);
     if (authRedirect != null) {
@@ -414,6 +559,11 @@ class OwnerController {
     final Uri langUzUri = _ownerBookingsUri(lang: 'uz', status: status);
     final Uri langRuUri = _ownerBookingsUri(lang: 'ru', status: status);
     final Uri langEnUri = _ownerBookingsUri(lang: 'en', status: status);
+    final String telegramCard = _telegramCardHtml(
+      workshop: workshop,
+      lang: lang,
+      status: status,
+    );
 
     final String bookingCards = bookings.isEmpty
         ? '''
@@ -447,6 +597,10 @@ class OwnerController {
       <strong>${_escapeHtml(item.serviceName)}</strong>
     </div>
     <div class="meta-card">
+      <span>${_escapeHtml(_text(lang, 'vehicleLabel'))}</span>
+      <strong>${_escapeHtml(_vehicleSummary(item, lang))}</strong>
+    </div>
+    <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'masterLabel'))}</span>
       <strong>${_escapeHtml(item.masterName)}</strong>
     </div>
@@ -457,6 +611,10 @@ class OwnerController {
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'priceLabel'))}</span>
       <strong>${_escapeHtml(item.price.toString())}k</strong>
+    </div>
+    <div class="meta-card">
+      <span>${_escapeHtml(_text(lang, 'basePriceLabel'))}</span>
+      <strong>${_escapeHtml(item.basePrice.toString())}k</strong>
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'createdLabel'))}</span>
@@ -527,6 +685,13 @@ class OwnerController {
       padding: 26px 18px 48px;
       display: grid;
       gap: 18px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+      gap: 18px;
+      align-items: start;
     }
 
     .card, .topbar, .hero-card, .empty-card, .booking-card {
@@ -645,6 +810,60 @@ class OwnerController {
       margin-top: 10px;
     }
 
+    .telegram-card {
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .telegram-card p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .telegram-status {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 6px;
+    }
+
+    .telegram-status.ok {
+      background: var(--mint-soft);
+      border-color: rgba(31, 138, 99, 0.15);
+      color: var(--mint);
+    }
+
+    .telegram-status.pending {
+      background: #fff7df;
+      border-color: rgba(155, 107, 0, 0.15);
+      color: var(--yellow);
+    }
+
+    .telegram-code {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      background: rgba(36, 49, 63, 0.92);
+      color: white;
+    }
+
+    .telegram-steps {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+      display: grid;
+      gap: 6px;
+    }
+
     .flash {
       padding: 14px 16px;
       border-radius: 18px;
@@ -736,6 +955,7 @@ class OwnerController {
 
     @media (max-width: 760px) {
       .wrap { padding: 18px 12px 36px; }
+      .summary-grid { grid-template-columns: 1fr; }
       .stats-grid, .meta-grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -764,28 +984,32 @@ class OwnerController {
       </div>
     </div>
 
-    <section class="hero-card">
-      <div class="eyebrow">${_escapeHtml(_text(lang, 'panelEyebrow'))}</div>
-      <h1>${_escapeHtml(_text(lang, 'panelTitle'))}</h1>
-      <p>${_escapeHtml(_text(lang, 'panelDescription'))}</p>
+    <section class="summary-grid">
+      <div class="hero-card">
+        <div class="eyebrow">${_escapeHtml(_text(lang, 'panelEyebrow'))}</div>
+        <h1>${_escapeHtml(_text(lang, 'panelTitle'))}</h1>
+        <p>${_escapeHtml(_text(lang, 'panelDescription'))}</p>
 
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="eyebrow">${_escapeHtml(_text(lang, 'statusUpcoming'))}</div>
-          <strong>$upcomingCount</strong>
-          <div class="muted">${_escapeHtml(_text(lang, 'upcomingHint'))}</div>
-        </div>
-        <div class="stat-card">
-          <div class="eyebrow">${_escapeHtml(_text(lang, 'statusCompleted'))}</div>
-          <strong>$completedCount</strong>
-          <div class="muted">${_escapeHtml(_text(lang, 'completedHint'))}</div>
-        </div>
-        <div class="stat-card">
-          <div class="eyebrow">${_escapeHtml(_text(lang, 'statusCancelled'))}</div>
-          <strong>$cancelledCount</strong>
-          <div class="muted">${_escapeHtml(_text(lang, 'cancelledHint'))}</div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="eyebrow">${_escapeHtml(_text(lang, 'statusUpcoming'))}</div>
+            <strong>$upcomingCount</strong>
+            <div class="muted">${_escapeHtml(_text(lang, 'upcomingHint'))}</div>
+          </div>
+          <div class="stat-card">
+            <div class="eyebrow">${_escapeHtml(_text(lang, 'statusCompleted'))}</div>
+            <strong>$completedCount</strong>
+            <div class="muted">${_escapeHtml(_text(lang, 'completedHint'))}</div>
+          </div>
+          <div class="stat-card">
+            <div class="eyebrow">${_escapeHtml(_text(lang, 'statusCancelled'))}</div>
+            <strong>$cancelledCount</strong>
+            <div class="muted">${_escapeHtml(_text(lang, 'cancelledHint'))}</div>
+          </div>
         </div>
       </div>
+
+      $telegramCard
     </section>
 
     ${_flashHtml(message: message, error: error)}
@@ -826,6 +1050,7 @@ class OwnerController {
         status: nextStatus,
       );
       await _store.saveBookings(bookingsFilePath);
+      await _notifyWorkshopAboutStatusChange(updated);
       return Response.seeOther(
         _ownerBookingsUri(
           lang: lang,
@@ -849,6 +1074,373 @@ class OwnerController {
         ),
       );
     }
+  }
+
+  Future<void> _notifyWorkshopAboutStatusChange(BookingModel booking) async {
+    final WorkshopModel? workshop = _store.workshopById(booking.workshopId);
+    if (workshop == null) {
+      return;
+    }
+
+    try {
+      await notificationsService.sendBookingStatusNotification(
+        workshop: workshop,
+        booking: booking,
+        actor: 'Ustaxona egasi',
+      );
+    } on Exception catch (error) {
+      stderr.writeln('Telegram owner status xabari yuborilmadi: $error');
+    }
+  }
+
+  WorkshopModel? _ownerWorkshopFromRequest(Request request) {
+    final String workshopId =
+        ownerAuthService.workshopIdFromRequest(request) ?? '';
+    if (workshopId.isEmpty) {
+      return null;
+    }
+    return _store.workshopById(workshopId);
+  }
+
+  String _telegramCardHtml({
+    required WorkshopModel workshop,
+    required String lang,
+    required String status,
+  }) {
+    final bool botConfigured = telegramBotService.isConfigured;
+    final bool connected = workshop.telegramChatId.trim().isNotEmpty;
+    final bool hasPendingCode = workshop.telegramLinkCode.trim().isNotEmpty;
+    final String chatLabel = _telegramConnectedChatLabel(workshop);
+    final String statusClass = connected ? 'ok' : 'pending';
+    final String statusTitle = connected
+        ? _text(lang, 'telegramConnected')
+        : botConfigured
+            ? _text(lang, 'telegramPending')
+            : _text(lang, 'telegramBotNotConfiguredShort');
+    final String statusBody = connected
+        ? _text(
+            lang,
+            'telegramConnectedBody',
+            <String, Object>{'chat': chatLabel},
+          )
+        : botConfigured
+            ? _text(lang, 'telegramPendingBody')
+            : _text(lang, 'telegramBotNotConfiguredBody');
+    final String hiddenFields = '''
+<input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+<input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+''';
+    final String pendingCodeHtml = hasPendingCode
+        ? '''
+<div class="telegram-code">${_escapeHtml(workshop.telegramLinkCode)}</div>
+<ol class="telegram-steps">
+  <li>${_escapeHtml(_text(lang, 'telegramStepOpenBot'))}</li>
+  <li>${_escapeHtml(_text(lang, 'telegramStepSendCode', <String, Object>{'code': workshop.telegramLinkCode}))}</li>
+  <li>${_escapeHtml(_text(lang, 'telegramStepCheck'))}</li>
+</ol>
+'''
+        : '<p>${_escapeHtml(_text(lang, botConfigured ? 'telegramCodeMissingBody' : 'telegramBotNotConfiguredBody'))}</p>';
+    final String disconnectButton = connected
+        ? '''
+<form class="inline-form" method="post" action="/owner/telegram/disconnect?lang=${Uri.encodeQueryComponent(lang)}">
+  $hiddenFields
+  <button class="danger-btn" type="submit">${_escapeHtml(_text(lang, 'telegramDisconnect'))}</button>
+</form>
+'''
+        : '';
+    final String checkButton = hasPendingCode
+        ? '''
+<form class="inline-form" method="post" action="/owner/telegram/check?lang=${Uri.encodeQueryComponent(lang)}">
+  $hiddenFields
+  <button class="ghost-btn" type="submit">${_escapeHtml(_text(lang, 'telegramCheck'))}</button>
+</form>
+'''
+        : '';
+    final String generateLabel = hasPendingCode
+        ? _text(lang, 'telegramRegenerateCode')
+        : _text(lang, 'telegramGenerateCode');
+
+    return '''
+<section class="card telegram-card">
+  <div>
+    <div class="eyebrow">${_escapeHtml(_text(lang, 'telegramEyebrow'))}</div>
+    <h2>${_escapeHtml(_text(lang, 'telegramTitle'))}</h2>
+    <p>${_escapeHtml(_text(lang, 'telegramDescription'))}</p>
+  </div>
+
+  <div class="telegram-status $statusClass">
+    <strong>${_escapeHtml(statusTitle)}</strong>
+    <span>${_escapeHtml(statusBody)}</span>
+  </div>
+
+  $pendingCodeHtml
+
+  <div class="quick-links">
+    <form class="inline-form" method="post" action="/owner/telegram/generate?lang=${Uri.encodeQueryComponent(lang)}">
+      $hiddenFields
+      <button class="status-btn" type="submit">${_escapeHtml(generateLabel)}</button>
+    </form>
+    $checkButton
+    $disconnectButton
+  </div>
+</section>
+''';
+  }
+
+  String _telegramConnectedChatLabel(WorkshopModel workshop) {
+    if (workshop.telegramChatLabel.trim().isNotEmpty) {
+      return workshop.telegramChatLabel.trim();
+    }
+    if (workshop.telegramChatId.trim().isNotEmpty) {
+      return workshop.telegramChatId.trim();
+    }
+    return workshop.name;
+  }
+
+  String _vehicleSummary(BookingModel booking, String lang) {
+    final String vehicleType = vehicleTypePricingById(booking.vehicleTypeId)
+        .label(lang);
+    final String vehicleModel = booking.vehicleModel.trim();
+    if (vehicleModel.isEmpty) {
+      return vehicleType;
+    }
+    return '$vehicleModel • $vehicleType';
+  }
+
+  String _newTelegramLinkCode() {
+    final Set<String> existingCodes = _store
+        .workshops()
+        .map((WorkshopModel item) => item.telegramLinkCode.trim().toUpperCase())
+        .where((String item) => item.isNotEmpty)
+        .toSet();
+
+    for (int attempt = 0; attempt < 60; attempt++) {
+      final String code = 'UT-${100000 + _telegramCodeRandom.nextInt(900000)}';
+      if (!existingCodes.contains(code)) {
+        return code;
+      }
+    }
+
+    final int suffix = DateTime.now().millisecondsSinceEpoch % 1000000;
+    return 'UT-${suffix.toString().padLeft(6, '0')}';
+  }
+
+  Future<_TelegramLinkCheckResult> _syncTelegramLinks({
+    required String requestedWorkshopId,
+  }) async {
+    final WorkshopModel? requestedBefore = _store.workshopById(requestedWorkshopId);
+    if (requestedBefore == null) {
+      return const _TelegramLinkCheckResult(errorKey: 'garageNotFound');
+    }
+
+    final int nextUpdateId = await _loadTelegramNextUpdateId();
+    final List<Map<String, dynamic>> updates = await telegramBotService.getUpdates(
+      offset: nextUpdateId,
+    );
+    int nextProcessedUpdateId = nextUpdateId;
+    final Map<String, String> workshopIdByCode = <String, String>{};
+    for (final WorkshopModel workshop in _store.workshops()) {
+      final String code = workshop.telegramLinkCode.trim().toUpperCase();
+      if (code.isNotEmpty) {
+        workshopIdByCode[code] = workshop.id;
+      }
+    }
+
+    final Map<String, _TelegramIncomingMessage> matchedWorkshops =
+        <String, _TelegramIncomingMessage>{};
+
+    for (final Map<String, dynamic> update in updates) {
+      final int updateId = _toInt(update['update_id']);
+      if (updateId >= nextProcessedUpdateId) {
+        nextProcessedUpdateId = updateId + 1;
+      }
+
+      final _TelegramIncomingMessage? message =
+          _telegramIncomingMessageFromUpdate(update);
+      if (message == null) {
+        continue;
+      }
+
+      for (final String candidate in _extractTelegramCodes(message.text)) {
+        final String? workshopId = workshopIdByCode.remove(candidate);
+        if (workshopId == null) {
+          continue;
+        }
+        matchedWorkshops[workshopId] = message;
+        break;
+      }
+    }
+
+    final List<WorkshopModel> newlyLinked = <WorkshopModel>[];
+    for (final MapEntry<String, _TelegramIncomingMessage> entry
+        in matchedWorkshops.entries) {
+      final WorkshopModel? current = _store.workshopById(entry.key);
+      if (current == null) {
+        continue;
+      }
+
+      final WorkshopModel updated = current.copyWith(
+        telegramChatId: entry.value.chatId,
+        telegramChatLabel: entry.value.chatLabel,
+        telegramLinkCode: '',
+      );
+      _store.updateWorkshop(workshopId: current.id, workshop: updated);
+      newlyLinked.add(updated);
+    }
+
+    if (newlyLinked.isNotEmpty) {
+      await _store.saveWorkshops(workshopsFilePath);
+    }
+    if (nextProcessedUpdateId != nextUpdateId) {
+      await _saveTelegramNextUpdateId(nextProcessedUpdateId);
+    }
+
+    for (final WorkshopModel workshop in newlyLinked) {
+      try {
+        await notificationsService.sendTestNotification(workshop: workshop);
+      } on Exception catch (error) {
+        stderr.writeln('Telegram ulanish test xabari yuborilmadi: $error');
+      }
+    }
+
+    final WorkshopModel? requestedAfter = _store.workshopById(requestedWorkshopId);
+    if (requestedAfter == null) {
+      return const _TelegramLinkCheckResult(errorKey: 'garageNotFound');
+    }
+
+    if (matchedWorkshops.containsKey(requestedWorkshopId)) {
+      return _TelegramLinkCheckResult(
+        messageKey: 'telegramLinkedNow',
+        messageValues: <String, Object>{
+          'chat': _telegramConnectedChatLabel(requestedAfter),
+        },
+      );
+    }
+
+    if (requestedAfter.telegramLinkCode.trim().isEmpty &&
+        requestedAfter.telegramChatId.trim().isNotEmpty) {
+      return _TelegramLinkCheckResult(
+        messageKey: 'telegramAlreadyConnected',
+        messageValues: <String, Object>{
+          'chat': _telegramConnectedChatLabel(requestedAfter),
+        },
+      );
+    }
+
+    if (requestedAfter.telegramLinkCode.trim().isEmpty) {
+      return const _TelegramLinkCheckResult(
+        errorKey: 'telegramCodeMissing',
+      );
+    }
+
+    return _TelegramLinkCheckResult(
+      messageKey: 'telegramStillWaiting',
+      messageValues: <String, Object>{
+        'code': requestedAfter.telegramLinkCode,
+      },
+    );
+  }
+
+  Future<int> _loadTelegramNextUpdateId() async {
+    final File file = File(telegramSyncStateFilePath);
+    if (!await file.exists()) {
+      return 0;
+    }
+
+    final String raw = await file.readAsString();
+    if (raw.trim().isEmpty) {
+      return 0;
+    }
+
+    final dynamic decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      return 0;
+    }
+    return _toInt(decoded['nextUpdateId']);
+  }
+
+  Future<void> _saveTelegramNextUpdateId(int nextUpdateId) async {
+    final File file = File(telegramSyncStateFilePath);
+    await file.parent.create(recursive: true);
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString(
+      '${encoder.convert(<String, Object>{'nextUpdateId': nextUpdateId})}\n',
+    );
+  }
+
+  _TelegramIncomingMessage? _telegramIncomingMessageFromUpdate(
+    Map<String, dynamic> update,
+  ) {
+    for (final String key in <String>['message', 'edited_message']) {
+      final dynamic rawMessage = update[key];
+      if (rawMessage is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final String text = (rawMessage['text'] ?? '').toString().trim();
+      final dynamic rawChat = rawMessage['chat'];
+      if (text.isEmpty || rawChat is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final String chatId = '${rawChat['id'] ?? ''}'.trim();
+      if (chatId.isEmpty) {
+        continue;
+      }
+
+      return _TelegramIncomingMessage(
+        chatId: chatId,
+        chatLabel: _telegramChatLabelFromChat(rawChat),
+        text: text,
+      );
+    }
+    return null;
+  }
+
+  Iterable<String> _extractTelegramCodes(String rawText) sync* {
+    final String normalized = rawText.trim().toUpperCase();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    final RegExp codePattern = RegExp(r'UT-\d{6}');
+    for (final RegExpMatch match in codePattern.allMatches(normalized)) {
+      final String? code = match.group(0);
+      if (code != null && code.isNotEmpty) {
+        yield code;
+      }
+    }
+  }
+
+  String _telegramChatLabelFromChat(Map<String, dynamic> chat) {
+    final String username = (chat['username'] ?? '').toString().trim();
+    if (username.isNotEmpty) {
+      return '@$username';
+    }
+
+    final String title = (chat['title'] ?? '').toString().trim();
+    if (title.isNotEmpty) {
+      return title;
+    }
+
+    final String firstName = (chat['first_name'] ?? '').toString().trim();
+    final String lastName = (chat['last_name'] ?? '').toString().trim();
+    final String fullName = '$firstName $lastName'.trim();
+    if (fullName.isNotEmpty) {
+      return fullName;
+    }
+
+    return '${chat['id'] ?? ''}'.trim();
+  }
+
+  int _toInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse('$value') ?? 0;
   }
 
   String _statusActionForm(
@@ -1066,13 +1658,53 @@ class OwnerController {
       'unknownCustomer': 'Mijoz nomi yo‘q',
       'noPhone': 'Telefon yo‘q',
       'serviceLabel': 'Xizmat',
+      'vehicleLabel': 'Mashina',
       'masterLabel': 'Mas’ul usta',
       'appointmentLabel': 'Bron vaqti',
       'priceLabel': 'Narx',
+      'basePriceLabel': 'Bazaviy narx',
       'createdLabel': 'Tushgan vaqt',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
       'statusUpdated': '{id} statusi {status} ga o‘zgardi',
       'logout': 'Chiqish',
+      'garageNotFound': 'Workshop topilmadi',
+      'telegramEyebrow': 'Telegram Bot',
+      'telegramTitle': 'Zakazlarni Telegramga ulang',
+      'telegramDescription':
+          'Har bir workshop profili o‘z Telegram chatiga faqat o‘z zakazlarini oladi.',
+      'telegramConnected': 'Telegram ulangan',
+      'telegramPending': 'Telegram hali ulanmagan',
+      'telegramConnectedBody':
+          'Zakaz xabarlari {chat} chatiga yuborilmoqda.',
+      'telegramPendingBody':
+          'Botga link kod yuborib, keyin shu yerda tekshirishni bosing.',
+      'telegramBotNotConfiguredShort': 'Telegram bot o‘chiq',
+      'telegramBotNotConfiguredBody':
+          'Backendda TELEGRAM_BOT_TOKEN yoqilmagani uchun bot ulanishi hozir ishlamaydi.',
+      'telegramStepOpenBot': 'Telegram botni oching.',
+      'telegramStepSendCode':
+          'Botga quyidagi xabarni yuboring: /start {code}',
+      'telegramStepCheck':
+          'Keyin bu sahifada “Tekshirish” tugmasini bosing.',
+      'telegramGenerateCode': 'Bog‘lash kodini yaratish',
+      'telegramRegenerateCode': 'Yangi kod yaratish',
+      'telegramCheck': 'Tekshirish',
+      'telegramDisconnect': 'Telegramni uzish',
+      'telegramCodeCreated':
+          'Bog‘lash kodi yaratildi: {code}. Uni botga yuboring.',
+      'telegramLinkedNow':
+          'Telegram ulandi. Endi zakazlar {chat} chatiga boradi.',
+      'telegramAlreadyConnected':
+          'Telegram allaqachon ulangan: {chat}.',
+      'telegramStillWaiting':
+          'Botda hali {code} kodi bilan xabar topilmadi.',
+      'telegramCodeMissing':
+          'Avval Telegram bog‘lash kodini yarating.',
+      'telegramCodeMissingBody':
+          'Pastdagi tugma orqali yangi bog‘lash kodini yarating.',
+      'telegramDisconnected': 'Telegram ulanishi uzildi.',
+      'telegramBotNotConfigured':
+          'Telegram bot token sozlanmagan. Backendni token bilan qayta yoqing.',
     },
     'ru': <String, String>{
       'brandEyebrow': 'Owner Portal',
@@ -1120,13 +1752,53 @@ class OwnerController {
       'unknownCustomer': 'Имя клиента не указано',
       'noPhone': 'Телефон не указан',
       'serviceLabel': 'Услуга',
+      'vehicleLabel': 'Машина',
       'masterLabel': 'Ответственный мастер',
       'appointmentLabel': 'Время записи',
       'priceLabel': 'Цена',
+      'basePriceLabel': 'Базовая цена',
       'createdLabel': 'Время поступления',
       'callCustomer': 'Позвонить клиенту',
       'statusUpdated': 'Статус {id} изменен на {status}',
       'logout': 'Выйти',
+      'garageNotFound': 'Workshop не найден',
+      'telegramEyebrow': 'Telegram Bot',
+      'telegramTitle': 'Подключите заказы к Telegram',
+      'telegramDescription':
+          'Каждый профиль workshop получает в свой Telegram только свои заказы.',
+      'telegramConnected': 'Telegram подключен',
+      'telegramPending': 'Telegram еще не подключен',
+      'telegramConnectedBody':
+          'Уведомления о заказах отправляются в чат {chat}.',
+      'telegramPendingBody':
+          'Отправьте код привязки боту, затем нажмите проверку на этой странице.',
+      'telegramBotNotConfiguredShort': 'Telegram bot выключен',
+      'telegramBotNotConfiguredBody':
+          'Пока не задан TELEGRAM_BOT_TOKEN, подключение бота на backend не работает.',
+      'telegramStepOpenBot': 'Откройте Telegram-бота.',
+      'telegramStepSendCode':
+          'Отправьте боту следующее сообщение: /start {code}',
+      'telegramStepCheck':
+          'Потом нажмите кнопку «Проверить» на этой странице.',
+      'telegramGenerateCode': 'Создать код привязки',
+      'telegramRegenerateCode': 'Создать новый код',
+      'telegramCheck': 'Проверить',
+      'telegramDisconnect': 'Отключить Telegram',
+      'telegramCodeCreated':
+          'Код привязки создан: {code}. Отправьте его боту.',
+      'telegramLinkedNow':
+          'Telegram подключен. Теперь заказы будут приходить в чат {chat}.',
+      'telegramAlreadyConnected':
+          'Telegram уже подключен: {chat}.',
+      'telegramStillWaiting':
+          'Бот пока не получил сообщение с кодом {code}.',
+      'telegramCodeMissing':
+          'Сначала создайте код привязки Telegram.',
+      'telegramCodeMissingBody':
+          'Создайте новый код привязки кнопкой ниже.',
+      'telegramDisconnected': 'Подключение Telegram отключено.',
+      'telegramBotNotConfigured':
+          'Токен Telegram-бота не настроен. Перезапустите backend с токеном.',
     },
     'en': <String, String>{
       'brandEyebrow': 'Owner Portal',
@@ -1174,13 +1846,77 @@ class OwnerController {
       'unknownCustomer': 'Unknown customer',
       'noPhone': 'No phone number',
       'serviceLabel': 'Service',
+      'vehicleLabel': 'Vehicle',
       'masterLabel': 'Lead mechanic',
       'appointmentLabel': 'Appointment time',
       'priceLabel': 'Price',
+      'basePriceLabel': 'Base price',
       'createdLabel': 'Received at',
       'callCustomer': 'Call customer',
       'statusUpdated': '{id} status changed to {status}',
       'logout': 'Log out',
+      'garageNotFound': 'Workshop not found',
+      'telegramEyebrow': 'Telegram Bot',
+      'telegramTitle': 'Connect orders to Telegram',
+      'telegramDescription':
+          'Each workshop profile receives only its own orders in its own Telegram chat.',
+      'telegramConnected': 'Telegram connected',
+      'telegramPending': 'Telegram not connected yet',
+      'telegramConnectedBody':
+          'Order notifications are being sent to {chat}.',
+      'telegramPendingBody':
+          'Send the link code to the bot, then press check on this page.',
+      'telegramBotNotConfiguredShort': 'Telegram bot is off',
+      'telegramBotNotConfiguredBody':
+          'The bot cannot connect until TELEGRAM_BOT_TOKEN is set on the backend.',
+      'telegramStepOpenBot': 'Open the Telegram bot.',
+      'telegramStepSendCode':
+          'Send this message to the bot: /start {code}',
+      'telegramStepCheck':
+          'Then press the "Check" button on this page.',
+      'telegramGenerateCode': 'Create link code',
+      'telegramRegenerateCode': 'Create new code',
+      'telegramCheck': 'Check',
+      'telegramDisconnect': 'Disconnect Telegram',
+      'telegramCodeCreated':
+          'A link code was created: {code}. Send it to the bot.',
+      'telegramLinkedNow':
+          'Telegram connected. Orders will now arrive in {chat}.',
+      'telegramAlreadyConnected':
+          'Telegram is already connected: {chat}.',
+      'telegramStillWaiting':
+          'The bot has not received a message with code {code} yet.',
+      'telegramCodeMissing':
+          'Create a Telegram link code first.',
+      'telegramCodeMissingBody':
+          'Create a new link code with the button below.',
+      'telegramDisconnected': 'Telegram connection was removed.',
+      'telegramBotNotConfigured':
+          'Telegram bot token is not configured. Restart the backend with a token.',
     },
   };
+}
+
+class _TelegramLinkCheckResult {
+  const _TelegramLinkCheckResult({
+    this.messageKey,
+    this.errorKey,
+    this.messageValues = const <String, Object>{},
+  });
+
+  final String? messageKey;
+  final String? errorKey;
+  final Map<String, Object> messageValues;
+}
+
+class _TelegramIncomingMessage {
+  const _TelegramIncomingMessage({
+    required this.chatId,
+    required this.chatLabel,
+    required this.text,
+  });
+
+  final String chatId;
+  final String chatLabel;
+  final String text;
 }

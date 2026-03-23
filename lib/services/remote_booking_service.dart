@@ -46,6 +46,8 @@ class RemoteBookingService implements BookingService {
   Future<BookingItem> createBooking({
     required String workshopId,
     required String serviceId,
+    required String vehicleModel,
+    required String vehicleTypeId,
     required DateTime dateTime,
   }) async {
     // TODO(API): dateTime UTC ISO8601 formatda yuboriladi.
@@ -56,6 +58,8 @@ class RemoteBookingService implements BookingService {
       payload: <String, Object>{
         'workshopId': workshopId,
         'serviceId': serviceId,
+        'vehicleModel': vehicleModel,
+        'vehicleTypeId': vehicleTypeId,
         'dateTime': dateTime.toUtc().toIso8601String(),
       },
     );

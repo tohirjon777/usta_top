@@ -1,21 +1,26 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
 import '../models.dart';
 import '../store.dart';
+import '../vehicle_types.dart';
+import '../workshop_notifications.dart';
 
 class AdminBookingsController {
   const AdminBookingsController(
     this._store, {
     required this.adminAuthService,
     required this.bookingsFilePath,
+    required this.notificationsService,
   });
 
   final InMemoryStore _store;
   final AdminAuthService adminAuthService;
   final String bookingsFilePath;
+  final WorkshopNotificationsService notificationsService;
 
   Response bookingsPage(Request request) {
     final Response? authRedirect = _requireAdmin(request);
@@ -51,6 +56,11 @@ class AdminBookingsController {
           item.workshopName.toLowerCase().contains(q) ||
           item.masterName.toLowerCase().contains(q) ||
           item.serviceName.toLowerCase().contains(q) ||
+          item.vehicleModel.toLowerCase().contains(q) ||
+          vehicleTypePricingById(item.vehicleTypeId)
+              .label(lang)
+              .toLowerCase()
+              .contains(q) ||
           item.id.toLowerCase().contains(q);
     }).toList(growable: false);
 
@@ -141,8 +151,16 @@ class AdminBookingsController {
       <strong>${_escapeHtml(item.serviceName)}</strong>
     </div>
     <div class="meta-card">
+      <span>${_escapeHtml(_text(lang, 'vehicleLabel'))}</span>
+      <strong>${_escapeHtml(_vehicleSummary(item, lang))}</strong>
+    </div>
+    <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'priceLabel'))}</span>
       <strong>${_escapeHtml(item.price.toString())}k</strong>
+    </div>
+    <div class="meta-card">
+      <span>${_escapeHtml(_text(lang, 'basePriceLabel'))}</span>
+      <strong>${_escapeHtml(item.basePrice.toString())}k</strong>
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'appointmentLabel'))}</span>
@@ -645,6 +663,7 @@ class AdminBookingsController {
         status: nextStatus,
       );
       await _store.saveBookings(bookingsFilePath);
+      await _notifyWorkshopAboutStatusChange(updated);
       return Response.seeOther(
         _adminBookingsUri(
           lang: lang,
@@ -671,6 +690,23 @@ class AdminBookingsController {
           error: error.message,
         ),
       );
+    }
+  }
+
+  Future<void> _notifyWorkshopAboutStatusChange(BookingModel booking) async {
+    final WorkshopModel? workshop = _store.workshopById(booking.workshopId);
+    if (workshop == null) {
+      return;
+    }
+
+    try {
+      await notificationsService.sendBookingStatusNotification(
+        workshop: workshop,
+        booking: booking,
+        actor: 'Admin',
+      );
+    } on Exception catch (error) {
+      stderr.writeln('Telegram admin status xabari yuborilmadi: $error');
     }
   }
 
@@ -839,6 +875,16 @@ class AdminBookingsController {
     }
   }
 
+  String _vehicleSummary(BookingModel booking, String lang) {
+    final String vehicleType = vehicleTypePricingById(booking.vehicleTypeId)
+        .label(lang);
+    final String vehicleModel = booking.vehicleModel.trim();
+    if (vehicleModel.isEmpty) {
+      return vehicleType;
+    }
+    return '$vehicleModel • $vehicleType';
+  }
+
   String _formatDateTime(DateTime value) {
     final DateTime local = value.toLocal();
     final String month = local.month.toString().padLeft(2, '0');
@@ -894,7 +940,7 @@ class AdminBookingsController {
       'statCancelledSub': 'Bekor bo‘lgan buyurtmalar.',
       'filterEyebrow': 'Qidiruv va Filtr',
       'searchLabel': 'Mijoz, telefon, servis yoki ID bo‘yicha qidiruv',
-      'searchPlaceholder': 'Masalan: Tokhirjon, +99890, diagnostika, b-...',
+      'searchPlaceholder': 'Masalan: Tokhirjon, Cobalt, sedan, diagnostika...',
       'workshopFilter': 'Workshop filtri',
       'allWorkshops': 'Barcha avtoservislar',
       'statusFilter': 'Status filtri',
@@ -915,7 +961,9 @@ class AdminBookingsController {
       'garageLabel': 'Avtoservis',
       'masterLabel': 'Mas’ul usta',
       'serviceLabel': 'Xizmat',
+      'vehicleLabel': 'Mashina',
       'priceLabel': 'Narx',
+      'basePriceLabel': 'Bazaviy narx',
       'appointmentLabel': 'Bron vaqti',
       'createdLabel': 'Tushgan vaqt',
       'ownerInboxLink': 'Shu workshop zakazlari',
@@ -950,7 +998,7 @@ class AdminBookingsController {
       'statCancelledSub': 'Заказы со статусом отмены.',
       'filterEyebrow': 'Поиск и Фильтр',
       'searchLabel': 'Поиск по клиенту, телефону, услуге или ID',
-      'searchPlaceholder': 'Например: Tokhirjon, +99890, диагностика, b-...',
+      'searchPlaceholder': 'Например: Tokhirjon, Cobalt, sedan, диагностика...',
       'workshopFilter': 'Фильтр workshop',
       'allWorkshops': 'Все автосервисы',
       'statusFilter': 'Фильтр статуса',
@@ -970,7 +1018,9 @@ class AdminBookingsController {
       'garageLabel': 'Автосервис',
       'masterLabel': 'Ответственный мастер',
       'serviceLabel': 'Услуга',
+      'vehicleLabel': 'Машина',
       'priceLabel': 'Цена',
+      'basePriceLabel': 'Базовая цена',
       'appointmentLabel': 'Время записи',
       'createdLabel': 'Время поступления',
       'ownerInboxLink': 'Заказы этого workshop',
@@ -1005,7 +1055,7 @@ class AdminBookingsController {
       'statCancelledSub': 'Orders that were cancelled.',
       'filterEyebrow': 'Search and Filters',
       'searchLabel': 'Search by customer, phone, service, or ID',
-      'searchPlaceholder': 'For example: Tokhirjon, +99890, diagnostics, b-...',
+      'searchPlaceholder': 'For example: Tokhirjon, Cobalt, sedan, diagnostics...',
       'workshopFilter': 'Workshop filter',
       'allWorkshops': 'All workshops',
       'statusFilter': 'Status filter',
@@ -1026,7 +1076,9 @@ class AdminBookingsController {
       'garageLabel': 'Workshop',
       'masterLabel': 'Lead mechanic',
       'serviceLabel': 'Service',
+      'vehicleLabel': 'Vehicle',
       'priceLabel': 'Price',
+      'basePriceLabel': 'Base price',
       'appointmentLabel': 'Appointment time',
       'createdLabel': 'Received at',
       'ownerInboxLink': 'This workshop inbox',

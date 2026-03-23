@@ -29,6 +29,7 @@ Options:
 
 Examples:
   ./run_dev.sh
+  TELEGRAM_BOT_TOKEN=... ./run_dev.sh
   ./run_dev.sh -- --device-id chrome
   ./run_dev.sh --android-emulator -- -d emulator-5554
   ./run_dev.sh --api-base-url http://192.168.100.25:8080 -- -d RMX1234
@@ -115,9 +116,10 @@ if [[ "$SKIP_PUB_GET" -eq 0 ]]; then
 fi
 
 BACKEND_PID=""
+BACKEND_STARTED_BY_SCRIPT=0
 
 cleanup() {
-  if [[ -n "$BACKEND_PID" ]] && kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
+  if [[ "$BACKEND_STARTED_BY_SCRIPT" -eq 1 ]] && [[ -n "$BACKEND_PID" ]] && kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
     printf '\nStopping backend...\n'
     kill "$BACKEND_PID" >/dev/null 2>&1 || true
     wait "$BACKEND_PID" 2>/dev/null || true
@@ -126,26 +128,31 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-printf 'Starting backend on http://127.0.0.1:%s ...\n' "$PORT"
-(
-  cd "$BACKEND_DIR"
-  HOST="$BIND_HOST" PORT="$PORT" dart run bin/server.dart
-) &
-BACKEND_PID="$!"
+if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
+  printf 'Existing backend detected on http://127.0.0.1:%s, reusing it.\n' "$PORT"
+else
+  printf 'Starting backend on http://127.0.0.1:%s ...\n' "$PORT"
+  (
+    cd "$BACKEND_DIR"
+    HOST="$BIND_HOST" PORT="$PORT" dart run bin/server.dart
+  ) &
+  BACKEND_PID="$!"
+  BACKEND_STARTED_BY_SCRIPT=1
 
-for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
-    break
-  fi
+  for _ in $(seq 1 60); do
+    if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
+      break
+    fi
 
-  if ! kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
-    printf 'Backend ishga tushmay qoldi.\n' >&2
-    wait "$BACKEND_PID"
-    exit 1
-  fi
+    if ! kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
+      printf 'Backend ishga tushmay qoldi.\n' >&2
+      wait "$BACKEND_PID"
+      exit 1
+    fi
 
-  sleep 1
-done
+    sleep 1
+  done
+fi
 
 if ! curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
   printf "Backend health tekshiruvdan o'tmadi: http://127.0.0.1:%s/health\n" "$PORT" >&2
@@ -157,8 +164,12 @@ printf 'Admin panel: http://127.0.0.1:%s/admin/login\n' "$PORT"
 printf 'Owner panel: http://127.0.0.1:%s/owner/login\n' "$PORT"
 
 if [[ "$BACKEND_ONLY" -eq 1 ]]; then
-  printf "Backend-only mode. To'xtatish uchun Ctrl+C bosing.\n"
-  wait "$BACKEND_PID"
+  if [[ "$BACKEND_STARTED_BY_SCRIPT" -eq 1 ]]; then
+    printf "Backend-only mode. To'xtatish uchun Ctrl+C bosing.\n"
+    wait "$BACKEND_PID"
+  else
+    printf "Backend-only mode: mavjud backend ishlayapti, hech narsa ishga tushirilmadi.\n"
+  fi
   exit 0
 fi
 

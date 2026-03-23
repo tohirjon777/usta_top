@@ -5,6 +5,7 @@ import 'package:shelf/shelf.dart';
 import '../admin_auth.dart';
 import '../models.dart';
 import '../store.dart';
+import '../workshop_notifications.dart';
 
 class AdminController {
   const AdminController(
@@ -12,6 +13,7 @@ class AdminController {
     required this.adminAuthService,
     required this.locationsFilePath,
     required this.workshopsFilePath,
+    required this.notificationsService,
   });
 
   static const double _defaultLatitude = 41.3111;
@@ -21,6 +23,7 @@ class AdminController {
   final AdminAuthService adminAuthService;
   final String locationsFilePath;
   final String workshopsFilePath;
+  final WorkshopNotificationsService notificationsService;
 
   Response entry(Request request) {
     final String lang = _normalizeLang(request.url.queryParameters['lang']);
@@ -1778,6 +1781,7 @@ class AdminController {
         form,
         lang: lang,
         workshopId: _store.newWorkshopId(),
+        currentWorkshop: null,
       );
       _store.createWorkshop(workshop: workshop);
       await _persistWorkshopFiles();
@@ -1814,12 +1818,14 @@ class AdminController {
     final String lang = _normalizeLang(form['lang']);
     final String query = (form['returnQ'] ?? '').trim();
     final String status = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? currentWorkshop = _store.workshopById(id);
 
     try {
       final WorkshopModel workshop = _parseWorkshopForm(
         form,
         lang: lang,
         workshopId: id,
+        currentWorkshop: currentWorkshop,
       );
       final WorkshopModel? updated = _store.updateWorkshop(
         workshopId: id,
@@ -1949,6 +1955,49 @@ class AdminController {
     }
   }
 
+  Future<Response> sendTelegramTest(Request request, String id) async {
+    final Response? authRedirect = _requireAdmin(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String query = (form['returnQ'] ?? '').trim();
+    final String status = _normalizeStatus(form['returnStatus']);
+
+    final WorkshopModel? workshop = _store.workshopById(id);
+    if (workshop == null) {
+      return _redirectWithError(
+        _text(lang, 'garageNotFound'),
+        query: query,
+        status: status,
+        lang: lang,
+      );
+    }
+
+    try {
+      await notificationsService.sendTestNotification(workshop: workshop);
+      return _redirectWithMessage(
+        _text(
+          lang,
+          'telegramTestSent',
+          <String, Object>{'name': workshop.name},
+        ),
+        query: query,
+        status: status,
+        lang: lang,
+      );
+    } on Exception catch (error) {
+      return _redirectWithError(
+        error.toString(),
+        query: query,
+        status: status,
+        lang: lang,
+      );
+    }
+  }
+
   Future<void> _persistWorkshopFiles() async {
     await _store.saveWorkshops(workshopsFilePath);
     await _store.saveWorkshopLocations(locationsFilePath);
@@ -1974,6 +2023,7 @@ class AdminController {
     Map<String, String> form, {
     required String lang,
     required String workshopId,
+    required WorkshopModel? currentWorkshop,
   }) {
     final String name =
         _requiredText(form['name'], _text(lang, 'fieldWorkshopName'), lang);
@@ -1992,6 +2042,18 @@ class AdminController {
       form['ownerAccessCode'],
       fallback: WorkshopModel.defaultOwnerAccessCode(workshopId),
     );
+    final String telegramChatId = _optionalText(
+      form['telegramChatId'],
+      fallback: currentWorkshop?.telegramChatId ?? '',
+    );
+    final bool telegramChatChanged = currentWorkshop != null &&
+        telegramChatId != currentWorkshop.telegramChatId;
+    final String telegramChatLabel = telegramChatChanged
+        ? ''
+        : currentWorkshop?.telegramChatLabel ?? '';
+    final String telegramLinkCode = telegramChatChanged
+        ? ''
+        : currentWorkshop?.telegramLinkCode ?? '';
     final double rating = _parseDoubleField(
       form['rating'],
       fieldLabel: _text(lang, 'fieldRating'),
@@ -2050,6 +2112,9 @@ class AdminController {
       isOpen: isOpen,
       badge: badge,
       ownerAccessCode: ownerAccessCode,
+      telegramChatId: telegramChatId,
+      telegramChatLabel: telegramChatLabel,
+      telegramLinkCode: telegramLinkCode,
       services: services,
     );
   }
@@ -2408,6 +2473,13 @@ class AdminController {
     );
   }
 
+  String _telegramBotStatusLabel(String lang) {
+    if (notificationsService.isConfigured) {
+      return _text(lang, 'telegramBotEnabled');
+    }
+    return _text(lang, 'telegramBotDisabled');
+  }
+
   List<WorkshopModel> _applyStatusFilter(
     List<WorkshopModel> workshops, {
     required String status,
@@ -2545,6 +2617,8 @@ class AdminController {
       description: '',
       badge: '',
       ownerAccessCode: '',
+      telegramChatId: '',
+      telegramBotStatus: _telegramBotStatusLabel(lang),
       rating: '4.8',
       reviewCount: '0',
       distanceKm: '1.0',
@@ -2587,6 +2661,9 @@ class AdminController {
       lang: lang,
       workshopId: workshop.id,
     );
+    final String telegramChatValue = workshop.telegramChatId.trim().isEmpty
+        ? _text(lang, 'telegramNotLinked')
+        : workshop.telegramChatId;
 
     return '''
 <section class="card workshop-card">
@@ -2623,6 +2700,10 @@ class AdminController {
       <span>${_escapeHtml(_text(lang, 'fieldOwnerAccessCode'))}</span>
       <strong>${_escapeHtml(workshop.ownerAccessCode)}</strong>
     </div>
+    <div class="info-item">
+      <span>${_escapeHtml(_text(lang, 'fieldTelegramChatId'))}</span>
+      <strong>${_escapeHtml(telegramChatValue)}</strong>
+    </div>
   </div>
 
   <div class="service-row">$servicesSummary</div>
@@ -2643,6 +2724,8 @@ class AdminController {
       description: workshop.description,
       badge: workshop.badge,
       ownerAccessCode: workshop.ownerAccessCode,
+      telegramChatId: workshop.telegramChatId,
+      telegramBotStatus: _telegramBotStatusLabel(lang),
       rating: workshop.rating.toStringAsFixed(1),
       reviewCount: '${workshop.reviewCount}',
       distanceKm: workshop.distanceKm.toStringAsFixed(1),
@@ -2655,6 +2738,10 @@ class AdminController {
       extraActionsHtml: '''
 <a class="ghost-btn" href="${_escapeHtml(ownerPortalUri.toString())}" target="_blank" rel="noreferrer">${_escapeHtml(_text(lang, 'fieldOwnerPortal'))}</a>
 <a class="ghost-btn" href="${_escapeHtml(ordersUri.toString())}">${_escapeHtml(_text(lang, 'ordersButton'))}</a>
+<form method="post" action="/admin/workshops/${Uri.encodeComponent(workshop.id)}/telegram/test?lang=${Uri.encodeQueryComponent(lang)}">
+  $hiddenContextHtml
+  <button class="ghost-btn" type="submit">${_escapeHtml(_text(lang, 'telegramTestButton'))}</button>
+</form>
 <form method="post" action="/admin/workshops/${Uri.encodeComponent(workshop.id)}/delete?lang=${Uri.encodeQueryComponent(lang)}" onsubmit="return confirm('${_escapeHtml(_text(lang, 'deleteConfirm'))}')">
   $hiddenContextHtml
   <button class="danger-btn" type="submit">${_escapeHtml(_text(lang, 'deleteButton'))}</button>
@@ -2681,6 +2768,8 @@ class AdminController {
     required String description,
     required String badge,
     required String ownerAccessCode,
+    required String telegramChatId,
+    required String telegramBotStatus,
     required String rating,
     required String reviewCount,
     required String distanceKm,
@@ -2759,6 +2848,17 @@ class AdminController {
         <div class="field">
           <label>${_escapeHtml(_text(lang, 'fieldOwnerPortal'))}</label>
           <input type="text" value="/owner/login" readonly>
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldTelegramChatId'))}</label>
+          <input type="text" name="telegramChatId" value="${_escapeHtml(telegramChatId)}" placeholder="${_escapeHtml(_text(lang, 'placeholderTelegramChatId'))}">
+        </div>
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldTelegramBotStatus'))}</label>
+          <input type="text" value="${_escapeHtml(telegramBotStatus)}" readonly>
         </div>
       </div>
 
@@ -2988,6 +3088,8 @@ class AdminController {
       'fieldBadge': 'Afzallik yorlig‘i',
       'fieldOwnerAccessCode': 'Usta kirish kodi',
       'fieldOwnerPortal': 'Usta kabineti',
+      'fieldTelegramChatId': 'Telegram chat ID',
+      'fieldTelegramBotStatus': 'Telegram bot holati',
       'fieldRating': 'Reyting',
       'fieldReviewCount': 'Sharhlar soni',
       'fieldDistance': 'Masofa',
@@ -3043,8 +3145,14 @@ class AdminController {
       'placeholderMaster': 'Masalan: Aziz Usta',
       'placeholderBadge': 'Masalan: Tez qabul',
       'placeholderOwnerAccessCode': 'Bo‘sh qoldiring yoki masalan: 0001',
+      'placeholderTelegramChatId': 'Masalan: 123456789 yoki -100...',
       'placeholderAddress': 'Masalan: Chilonzor, Toshkent',
       'placeholderDescription': 'Avtoservis haqida qisqa tavsif kiriting',
+      'telegramBotEnabled': 'Ulangan',
+      'telegramBotDisabled': 'Token kiritilmagan',
+      'telegramNotLinked': 'Kiritilmagan',
+      'telegramTestButton': 'Telegram test',
+      'telegramTestSent': '{name} uchun test xabar yuborildi',
       'openCheckbox': 'Avtoservis hozir ochiq',
       'helperServices':
           'Xizmat turlarini shu yerda boshqaring. Ilovadagi boshlang‘ich narx va xizmat yorliqlari shu ro‘yxatdan olinadi.',
@@ -3176,6 +3284,8 @@ class AdminController {
       'fieldBadge': 'Ярлык преимущества',
       'fieldOwnerAccessCode': 'Код доступа владельца',
       'fieldOwnerPortal': 'Кабинет владельца',
+      'fieldTelegramChatId': 'Telegram chat ID',
+      'fieldTelegramBotStatus': 'Статус Telegram бота',
       'fieldRating': 'Рейтинг',
       'fieldReviewCount': 'Количество отзывов',
       'fieldDistance': 'Расстояние',
@@ -3228,8 +3338,14 @@ class AdminController {
       'placeholderMaster': 'Например: Азиз Уста',
       'placeholderBadge': 'Например: Быстрый прием',
       'placeholderOwnerAccessCode': 'Оставьте пустым или, например: 0001',
+      'placeholderTelegramChatId': 'Например: 123456789 или -100...',
       'placeholderAddress': 'Например: Чиланзар, Ташкент',
       'placeholderDescription': 'Коротко опишите автосервис',
+      'telegramBotEnabled': 'Подключен',
+      'telegramBotDisabled': 'Токен не задан',
+      'telegramNotLinked': 'Не указан',
+      'telegramTestButton': 'Тест Telegram',
+      'telegramTestSent': 'Тестовое сообщение отправлено для {name}',
       'openCheckbox': 'Автосервис сейчас открыт',
       'helperServices':
           'Управляйте видами работ здесь. Стартовая цена и ярлыки услуг в приложении формируются из этого списка.',
@@ -3361,6 +3477,8 @@ class AdminController {
       'fieldBadge': 'Highlight tag',
       'fieldOwnerAccessCode': 'Owner access code',
       'fieldOwnerPortal': 'Owner portal',
+      'fieldTelegramChatId': 'Telegram chat ID',
+      'fieldTelegramBotStatus': 'Telegram bot status',
       'fieldRating': 'Rating',
       'fieldReviewCount': 'Review count',
       'fieldDistance': 'Distance',
@@ -3416,8 +3534,14 @@ class AdminController {
       'placeholderMaster': 'For example: Aziz Usta',
       'placeholderBadge': 'For example: Fast intake',
       'placeholderOwnerAccessCode': 'Leave blank or use 0001',
+      'placeholderTelegramChatId': 'For example: 123456789 or -100...',
       'placeholderAddress': 'For example: Chilanzar, Tashkent',
       'placeholderDescription': 'Enter a short description of the garage',
+      'telegramBotEnabled': 'Connected',
+      'telegramBotDisabled': 'Token not configured',
+      'telegramNotLinked': 'Not linked',
+      'telegramTestButton': 'Telegram test',
+      'telegramTestSent': 'Test message sent for {name}',
       'openCheckbox': 'Garage is currently open',
       'helperServices':
           'Manage the job list here. The app uses this list to build the starting price and service labels.',

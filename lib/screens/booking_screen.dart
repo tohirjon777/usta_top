@@ -6,6 +6,7 @@ import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
+import '../models/vehicle_type.dart';
 import '../providers/booking_provider.dart';
 import '../services/api_exception.dart';
 
@@ -25,7 +26,9 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> {
   late String _selectedServiceId;
+  late String _selectedVehicleTypeId;
   late DateTime _selectedDate;
+  late final TextEditingController _vehicleModelController;
   String _selectedTime = _timeSlots.first;
   bool _isSubmitting = false;
 
@@ -50,8 +53,16 @@ class _BookingScreenState extends State<BookingScreen> {
     _selectedServiceId = containsPreselected
         ? widget.preselectedServiceId!
         : widget.salon.services.first.id;
+    _selectedVehicleTypeId = defaultVehicleType().id;
+    _vehicleModelController = TextEditingController();
 
     _selectedDate = DateTime.now().add(const Duration(days: 1));
+  }
+
+  @override
+  void dispose() {
+    _vehicleModelController.dispose();
+    super.dispose();
   }
 
   SalonService get _selectedService {
@@ -59,6 +70,14 @@ class _BookingScreenState extends State<BookingScreen> {
       (SalonService service) => service.id == _selectedServiceId,
     );
   }
+
+  VehicleTypeOption get _selectedVehicleType =>
+      vehicleTypeById(_selectedVehicleTypeId);
+
+  int get _calculatedPrice => adjustedVehiclePrice(
+        basePrice: _selectedService.price,
+        vehicleTypeId: _selectedVehicleTypeId,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +119,41 @@ class _BookingScreenState extends State<BookingScreen> {
               });
             },
             decoration: InputDecoration(labelText: l10n.service),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _vehicleModelController,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) {
+              setState(() {});
+            },
+            decoration: InputDecoration(
+              labelText: l10n.vehicleModelField,
+              hintText: l10n.vehicleModelHint,
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedVehicleTypeId,
+            items: vehicleTypes
+                .map(
+                  (VehicleTypeOption type) => DropdownMenuItem<String>(
+                    value: type.id,
+                    child: Text(
+                      '${type.label(l10n)}  •  ${type.percentLabel()}',
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                _selectedVehicleTypeId = value;
+              });
+            },
+            decoration: InputDecoration(labelText: l10n.vehicleTypeField),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -156,16 +210,38 @@ class _BookingScreenState extends State<BookingScreen> {
                   const SizedBox(height: 6),
                   Text(l10n.serviceLabel(_selectedService.name)),
                   Text(
+                    l10n.vehicleModelLabel(
+                      _vehicleModelController.text.trim().isEmpty
+                          ? l10n.vehicleModelPending
+                          : _vehicleModelController.text.trim(),
+                    ),
+                  ),
+                  Text(
+                    l10n.vehicleTypeLabel(
+                      _selectedVehicleType.label(l10n),
+                    ),
+                  ),
+                  Text(
                     l10n.durationLabel(
                       l10n.durationMinutes(_selectedService.durationMinutes),
                     ),
                   ),
                   Text(l10n.dateLabel(selectedDateLabel)),
                   Text(l10n.timeLabel(_selectedTime)),
+                  Text(
+                    l10n.basePriceLabel(
+                      AppFormatters.moneyK(_selectedService.price),
+                    ),
+                  ),
+                  Text(
+                    l10n.vehiclePriceAdjustmentLabel(
+                      _selectedVehicleType.percentLabel(),
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     l10n.totalLabel(
-                      AppFormatters.moneyK(_selectedService.price),
+                      AppFormatters.moneyK(_calculatedPrice),
                     ),
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
@@ -193,6 +269,15 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _submitBooking() async {
+    final String vehicleModel = _vehicleModelController.text.trim();
+    if (vehicleModel.length < 2) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.vehicleModelRequired)),
+      );
+      return;
+    }
+
     final List<String> parts = _selectedTime.split(':');
     final DateTime bookingDateTime = DateTime(
       _selectedDate.year,
@@ -214,8 +299,10 @@ class _BookingScreenState extends State<BookingScreen> {
                 masterName: widget.salon.master,
                 serviceId: _selectedService.id,
                 serviceName: _selectedService.name,
+                vehicleModel: vehicleModel,
+                vehicleTypeId: _selectedVehicleTypeId,
                 dateTime: bookingDateTime,
-                price: _selectedService.price,
+                basePrice: _selectedService.price,
               );
 
       if (!mounted) {

@@ -86,9 +86,18 @@ class AppLocalizations {
       'availableTimes': 'Available times',
       'summary': 'Request summary',
       'serviceLabel': 'Service type: {service}',
+      'vehicleModelField': 'Car model',
+      'vehicleModelHint': 'For example, Chevrolet Cobalt',
+      'vehicleModelRequired': 'Enter the car model',
+      'vehicleModelPending': 'Not entered yet',
+      'vehicleModelLabel': 'Car: {vehicle}',
+      'vehicleTypeField': 'Vehicle type',
+      'vehicleTypeLabel': 'Vehicle type: {type}',
       'durationLabel': 'Duration: {duration}',
       'dateLabel': 'Date: {date}',
       'timeLabel': 'Time: {time}',
+      'basePriceLabel': 'Base price: {price}',
+      'vehiclePriceAdjustmentLabel': 'Vehicle adjustment: {adjustment}',
       'totalLabel': 'Total: {total}',
       'confirmBooking': 'Confirm request',
       'priceLabel': 'Price: {price}',
@@ -230,9 +239,19 @@ class AppLocalizations {
       'availableTimes': 'Mavjud vaqtlar',
       'summary': 'Buyurtma xulosasi',
       'serviceLabel': 'Xizmat turi: {service}',
+      'vehicleModelField': 'Mashina modeli',
+      'vehicleModelHint': 'Masalan, Chevrolet Cobalt',
+      'vehicleModelRequired': 'Mashina modelini kiriting',
+      'vehicleModelPending': 'Hali kiritilmagan',
+      'vehicleModelLabel': 'Mashina: {vehicle}',
+      'vehicleTypeField': 'Mashina turi',
+      'vehicleTypeLabel': 'Mashina turi: {type}',
       'durationLabel': 'Davomiyligi: {duration}',
       'dateLabel': 'Sana: {date}',
       'timeLabel': 'Vaqt: {time}',
+      'basePriceLabel': 'Bazaviy narx: {price}',
+      'vehiclePriceAdjustmentLabel':
+          'Mashina turi bo\'yicha o\'zgarish: {adjustment}',
       'totalLabel': 'Jami: {total}',
       'confirmBooking': 'Buyurtmani tasdiqlash',
       'priceLabel': 'Narx: {price}',
@@ -375,9 +394,19 @@ class AppLocalizations {
       'availableTimes': 'Доступное время',
       'summary': 'Сводка заявки',
       'serviceLabel': 'Тип услуги: {service}',
+      'vehicleModelField': 'Модель автомобиля',
+      'vehicleModelHint': 'Например, Chevrolet Cobalt',
+      'vehicleModelRequired': 'Введите модель автомобиля',
+      'vehicleModelPending': 'Пока не указана',
+      'vehicleModelLabel': 'Автомобиль: {vehicle}',
+      'vehicleTypeField': 'Тип автомобиля',
+      'vehicleTypeLabel': 'Тип автомобиля: {type}',
       'durationLabel': 'Длительность: {duration}',
       'dateLabel': 'Дата: {date}',
       'timeLabel': 'Время: {time}',
+      'basePriceLabel': 'Базовая цена: {price}',
+      'vehiclePriceAdjustmentLabel':
+          'Корректировка по типу авто: {adjustment}',
       'totalLabel': 'Итого: {total}',
       'confirmBooking': 'Подтвердить заявку',
       'priceLabel': 'Цена: {price}',
@@ -545,12 +574,27 @@ class AppLocalizations {
   String get summary => _text('summary');
   String serviceLabel(String service) =>
       _fmt('serviceLabel', <String, Object>{'service': service});
+  String get vehicleModelField => _text('vehicleModelField');
+  String get vehicleModelHint => _text('vehicleModelHint');
+  String get vehicleModelRequired => _text('vehicleModelRequired');
+  String get vehicleModelPending => _text('vehicleModelPending');
+  String vehicleModelLabel(String vehicle) =>
+      _fmt('vehicleModelLabel', <String, Object>{'vehicle': vehicle});
+  String get vehicleTypeField => _text('vehicleTypeField');
+  String vehicleTypeLabel(String type) =>
+      _fmt('vehicleTypeLabel', <String, Object>{'type': type});
   String durationLabel(String duration) =>
       _fmt('durationLabel', <String, Object>{'duration': duration});
   String dateLabel(String date) =>
       _fmt('dateLabel', <String, Object>{'date': date});
   String timeLabel(String time) =>
       _fmt('timeLabel', <String, Object>{'time': time});
+  String basePriceLabel(String price) =>
+      _fmt('basePriceLabel', <String, Object>{'price': price});
+  String vehiclePriceAdjustmentLabel(String adjustment) => _fmt(
+        'vehiclePriceAdjustmentLabel',
+        <String, Object>{'adjustment': adjustment},
+      );
   String totalLabel(String total) =>
       _fmt('totalLabel', <String, Object>{'total': total});
   String get confirmBooking => _text('confirmBooking');

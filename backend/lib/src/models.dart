@@ -1,3 +1,5 @@
+import 'vehicle_types.dart';
+
 enum BookingStatus { upcoming, completed, cancelled }
 
 class ServiceModel {
@@ -71,6 +73,9 @@ class WorkshopModel {
     required this.isOpen,
     required this.badge,
     required this.ownerAccessCode,
+    required this.telegramChatId,
+    required this.telegramChatLabel,
+    required this.telegramLinkCode,
     required this.services,
   });
 
@@ -87,6 +92,9 @@ class WorkshopModel {
   final bool isOpen;
   final String badge;
   final String ownerAccessCode;
+  final String telegramChatId;
+  final String telegramChatLabel;
+  final String telegramLinkCode;
   final List<ServiceModel> services;
 
   WorkshopModel copyWith({
@@ -103,6 +111,9 @@ class WorkshopModel {
     bool? isOpen,
     String? badge,
     String? ownerAccessCode,
+    String? telegramChatId,
+    String? telegramChatLabel,
+    String? telegramLinkCode,
     List<ServiceModel>? services,
   }) {
     return WorkshopModel(
@@ -119,6 +130,9 @@ class WorkshopModel {
       isOpen: isOpen ?? this.isOpen,
       badge: badge ?? this.badge,
       ownerAccessCode: ownerAccessCode ?? this.ownerAccessCode,
+      telegramChatId: telegramChatId ?? this.telegramChatId,
+      telegramChatLabel: telegramChatLabel ?? this.telegramChatLabel,
+      telegramLinkCode: telegramLinkCode ?? this.telegramLinkCode,
       services: services ?? this.services,
     );
   }
@@ -148,6 +162,15 @@ class WorkshopModel {
       ownerAccessCode: _normalizeOwnerAccessCode(
         rawCode: (json['ownerAccessCode'] ?? '').toString(),
         workshopId: (json['id'] ?? '').toString(),
+      ),
+      telegramChatId: _normalizeTelegramChatId(
+        (json['telegramChatId'] ?? '').toString(),
+      ),
+      telegramChatLabel: _normalizeTelegramChatLabel(
+        (json['telegramChatLabel'] ?? '').toString(),
+      ),
+      telegramLinkCode: _normalizeTelegramLinkCode(
+        (json['telegramLinkCode'] ?? '').toString(),
       ),
       services: services,
     );
@@ -204,6 +227,9 @@ class WorkshopModel {
       'isOpen': isOpen,
       'badge': badge,
       'ownerAccessCode': ownerAccessCode,
+      'telegramChatId': telegramChatId,
+      'telegramChatLabel': telegramChatLabel,
+      'telegramLinkCode': telegramLinkCode,
       'startingPrice': startingPrice,
       'services': services.map((ServiceModel item) => item.toJson()).toList(),
     };
@@ -250,6 +276,18 @@ class WorkshopModel {
     }
     return defaultOwnerAccessCode(workshopId);
   }
+
+  static String _normalizeTelegramChatId(String raw) {
+    return raw.trim();
+  }
+
+  static String _normalizeTelegramChatLabel(String raw) {
+    return raw.trim();
+  }
+
+  static String _normalizeTelegramLinkCode(String raw) {
+    return raw.trim().toUpperCase();
+  }
 }
 
 class BookingModel {
@@ -263,7 +301,10 @@ class BookingModel {
     required this.masterName,
     required this.serviceId,
     required this.serviceName,
+    required this.vehicleModel,
+    required this.vehicleTypeId,
     required this.dateTime,
+    required this.basePrice,
     required this.price,
     required this.status,
     required this.createdAt,
@@ -278,7 +319,10 @@ class BookingModel {
   final String masterName;
   final String serviceId;
   final String serviceName;
+  final String vehicleModel;
+  final String vehicleTypeId;
   final DateTime dateTime;
+  final int basePrice;
   final int price;
   final BookingStatus status;
   final DateTime createdAt;
@@ -296,7 +340,10 @@ class BookingModel {
       masterName: masterName,
       serviceId: serviceId,
       serviceName: serviceName,
+      vehicleModel: vehicleModel,
+      vehicleTypeId: vehicleTypeId,
       dateTime: dateTime,
+      basePrice: basePrice,
       price: price,
       status: status ?? this.status,
       createdAt: createdAt,
@@ -314,8 +361,15 @@ class BookingModel {
       masterName: (json['masterName'] ?? '').toString(),
       serviceId: (json['serviceId'] ?? '').toString(),
       serviceName: (json['serviceName'] ?? '').toString(),
+      vehicleModel: (json['vehicleModel'] ?? '').toString(),
+      vehicleTypeId: vehicleTypePricingById(
+        (json['vehicleTypeId'] ?? '').toString(),
+      ).id,
       dateTime: DateTime.tryParse((json['dateTime'] ?? '').toString()) ??
           DateTime.now(),
+      basePrice: _toInt(json['basePrice']) == 0
+          ? _toInt(json['price'])
+          : _toInt(json['basePrice']),
       price: _toInt(json['price']),
       status: _bookingStatusFromString((json['status'] ?? '').toString()),
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
@@ -334,7 +388,10 @@ class BookingModel {
       'masterName': masterName,
       'serviceId': serviceId,
       'serviceName': serviceName,
+      'vehicleModel': vehicleModel,
+      'vehicleTypeId': vehicleTypeId,
       'dateTime': dateTime.toUtc().toIso8601String(),
+      'basePrice': basePrice,
       'price': price,
       'status': status.name,
       'createdAt': createdAt.toUtc().toIso8601String(),

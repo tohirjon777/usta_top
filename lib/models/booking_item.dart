@@ -1,3 +1,5 @@
+import 'vehicle_type.dart';
+
 enum BookingStatus { upcoming, completed, cancelled }
 
 extension BookingStatusX on BookingStatus {
@@ -21,7 +23,10 @@ class BookingItem {
     required this.masterName,
     required this.serviceId,
     required this.serviceName,
+    required this.vehicleModel,
+    required this.vehicleTypeId,
     required this.dateTime,
+    required this.basePrice,
     required this.price,
     this.status = BookingStatus.upcoming,
   });
@@ -32,7 +37,10 @@ class BookingItem {
   final String masterName;
   final String serviceId;
   final String serviceName;
+  final String vehicleModel;
+  final String vehicleTypeId;
   final DateTime dateTime;
+  final int basePrice;
   final int price;
   final BookingStatus status;
 
@@ -47,8 +55,15 @@ class BookingItem {
       masterName: (json['masterName'] ?? '').toString(),
       serviceId: (json['serviceId'] ?? '').toString(),
       serviceName: (json['serviceName'] ?? '').toString(),
+      vehicleModel: (json['vehicleModel'] ?? '').toString(),
+      vehicleTypeId: vehicleTypeById(
+        (json['vehicleTypeId'] ?? 'sedan').toString(),
+      ).id,
       dateTime: DateTime.tryParse((json['dateTime'] ?? '').toString()) ??
           DateTime.now(),
+      basePrice: _toInt(json['basePrice']) == 0
+          ? _toInt(json['price'])
+          : _toInt(json['basePrice']),
       price: _toInt(json['price']),
       status: _statusFromString((json['status'] ?? '').toString()),
     );
@@ -61,7 +76,10 @@ class BookingItem {
     String? masterName,
     String? serviceId,
     String? serviceName,
+    String? vehicleModel,
+    String? vehicleTypeId,
     DateTime? dateTime,
+    int? basePrice,
     int? price,
     BookingStatus? status,
   }) {
@@ -72,7 +90,10 @@ class BookingItem {
       masterName: masterName ?? this.masterName,
       serviceId: serviceId ?? this.serviceId,
       serviceName: serviceName ?? this.serviceName,
+      vehicleModel: vehicleModel ?? this.vehicleModel,
+      vehicleTypeId: vehicleTypeId ?? this.vehicleTypeId,
       dateTime: dateTime ?? this.dateTime,
+      basePrice: basePrice ?? this.basePrice,
       price: price ?? this.price,
       status: status ?? this.status,
     );

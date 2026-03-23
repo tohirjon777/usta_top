@@ -33,11 +33,34 @@ Foydali variantlar:
 ./run_dev.sh -- --device-id chrome
 ./run_dev.sh --android-emulator -- -d emulator-5554
 ./run_dev.sh --api-base-url http://192.168.100.25:8080 -- -d YOUR_DEVICE_ID
+TELEGRAM_BOT_TOKEN=... ./run_dev.sh
 ```
 
 Bu script backendni ko'taradi, health'ni kutadi, keyin appni backend bilan
 `flutter run` orqali ishga tushiradi. Admin panel `http://127.0.0.1:8080/admin/login`
 va owner panel `http://127.0.0.1:8080/owner/login` da ochiladi.
+
+Telegram bot yoqilgan bo'lsa, owner panel ichidan `Bog'lash kodini yaratish`
+orqali workshop profilini o'z Telegram chatiga ulash mumkin.
+
+Backendni terminalsiz avtomatik ishlatish uchun:
+
+```bash
+./backend_service.sh install
+./backend_service.sh status
+./backend_service.sh logs
+```
+
+Bu service macOS `launchd` orqali ishlaydi va login qilganingizda o'zi
+ko'tariladi. Backend kodi `~/Library/Application Support/UstaTopBackend/runtime`
+ga sync qilinadi, shuning uchun backend kodini o'zgartirgandan keyin:
+
+```bash
+./backend_service.sh restart
+```
+
+`run_dev.sh` esa endi 8080 da backend allaqachon ishlayotgan bo'lsa, o'shani
+qayta ishlatadi.
 
 ## Backend
 

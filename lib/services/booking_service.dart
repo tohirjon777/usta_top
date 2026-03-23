@@ -6,6 +6,8 @@ abstract interface class BookingService {
   Future<BookingItem> createBooking({
     required String workshopId,
     required String serviceId,
+    required String vehicleModel,
+    required String vehicleTypeId,
     required DateTime dateTime,
   });
 

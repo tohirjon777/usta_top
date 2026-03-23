@@ -1,4 +1,5 @@
 import '../models/booking_item.dart';
+import '../models/vehicle_type.dart';
 import '../services/api_exception.dart';
 import '../services/booking_service.dart';
 import '../state/booking_controller.dart';
@@ -56,8 +57,10 @@ class BookingProvider extends BookingController {
     required String masterName,
     required String serviceId,
     required String serviceName,
+    required String vehicleModel,
+    required String vehicleTypeId,
     required DateTime dateTime,
-    required int price,
+    required int basePrice,
   }) async {
     _errorMessage = null;
 
@@ -70,8 +73,14 @@ class BookingProvider extends BookingController {
           masterName: masterName,
           serviceId: serviceId,
           serviceName: serviceName,
+          vehicleModel: vehicleModel,
+          vehicleTypeId: vehicleTypeId,
           dateTime: dateTime,
-          price: price,
+          basePrice: basePrice,
+          price: adjustedVehiclePrice(
+            basePrice: basePrice,
+            vehicleTypeId: vehicleTypeId,
+          ),
         );
         upsertBooking(localBooking);
         return localBooking;
@@ -81,6 +90,8 @@ class BookingProvider extends BookingController {
       final BookingItem created = await _service.createBooking(
         workshopId: workshopId,
         serviceId: serviceId,
+        vehicleModel: vehicleModel,
+        vehicleTypeId: vehicleTypeId,
         dateTime: dateTime,
       );
       upsertBooking(created);

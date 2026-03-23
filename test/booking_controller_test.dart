@@ -13,7 +13,10 @@ void main() {
       masterName: 'Aziz Usta',
       serviceId: 'srv-1',
       serviceName: 'Kompyuter diagnostika',
+      vehicleModel: 'Chevrolet Cobalt',
+      vehicleTypeId: 'sedan',
       dateTime: DateTime(2026, 3, 20, 11, 0),
+      basePrice: 120,
       price: 120,
     );
 

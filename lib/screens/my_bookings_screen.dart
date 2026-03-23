@@ -5,6 +5,7 @@ import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
+import '../models/vehicle_type.dart';
 import '../providers/booking_provider.dart';
 import '../ui/app_loading_view.dart';
 
@@ -132,8 +133,15 @@ class _BookingCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(l10n.masterPrefix(booking.masterName)),
             Text(l10n.serviceLabel(booking.serviceName)),
+            Text(l10n.vehicleModelLabel(booking.vehicleModel)),
+            Text(
+              l10n.vehicleTypeLabel(
+                vehicleTypeById(booking.vehicleTypeId).label(l10n),
+              ),
+            ),
             Text(l10n.dateLabel(AppFormatters.dateTime(booking.dateTime))),
             const SizedBox(height: 6),
+            Text(l10n.basePriceLabel(AppFormatters.moneyK(booking.basePrice))),
             Text(
               l10n.priceLabel(AppFormatters.moneyK(booking.price)),
               style: TextStyle(

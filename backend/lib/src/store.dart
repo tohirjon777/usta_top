@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'models.dart';
+import 'vehicle_types.dart';
 
 class InMemoryStore {
   InMemoryStore({
@@ -42,7 +43,10 @@ class InMemoryStore {
         longitude: 69.2034,
         isOpen: true,
         badge: 'Eng ishonchli',
-        ownerAccessCode: '0001',
+        ownerAccessCode: '5252',
+        telegramChatId: '',
+        telegramChatLabel: '',
+        telegramLinkCode: '',
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-1',
@@ -79,6 +83,9 @@ class InMemoryStore {
         isOpen: true,
         badge: 'Tez qabul',
         ownerAccessCode: '0002',
+        telegramChatId: '',
+        telegramChatLabel: '',
+        telegramLinkCode: '',
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-4',
@@ -115,6 +122,9 @@ class InMemoryStore {
         isOpen: false,
         badge: 'Yuqori toifa',
         ownerAccessCode: '0003',
+        telegramChatId: '',
+        telegramChatLabel: '',
+        telegramLinkCode: '',
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-7',
@@ -150,7 +160,10 @@ class InMemoryStore {
         masterName: 'Aziz Usta',
         serviceId: 'srv-1',
         serviceName: 'Kompyuter diagnostika',
+        vehicleModel: 'Chevrolet Cobalt',
+        vehicleTypeId: 'sedan',
         dateTime: now.add(const Duration(days: 1, hours: 2)),
+        basePrice: 120,
         price: 120,
         status: BookingStatus.upcoming,
         createdAt: now,
@@ -583,6 +596,8 @@ class InMemoryStore {
     required String userId,
     required String workshopId,
     required String serviceId,
+    required String vehicleModel,
+    required String vehicleTypeId,
     required DateTime dateTime,
   }) {
     final UserModel? user = _usersById[userId];
@@ -604,6 +619,16 @@ class InMemoryStore {
     if (dateTime.isBefore(now.subtract(const Duration(minutes: 1)))) {
       throw StateError('Sana kelajakdagi vaqt bo\'lishi kerak');
     }
+    final String normalizedVehicleModel = vehicleModel.trim();
+    if (normalizedVehicleModel.isEmpty) {
+      throw StateError('Mashina modeli ko\'rsatilishi kerak');
+    }
+    final VehicleTypePricing vehicleType =
+        vehicleTypePricingById(vehicleTypeId);
+    final int finalPrice = adjustedServicePrice(
+      basePrice: service.price,
+      vehicleTypeId: vehicleType.id,
+    );
 
     final BookingModel booking = BookingModel(
       id: _newId('b'),
@@ -615,8 +640,11 @@ class InMemoryStore {
       masterName: workshop.master,
       serviceId: service.id,
       serviceName: service.name,
+      vehicleModel: normalizedVehicleModel,
+      vehicleTypeId: vehicleType.id,
       dateTime: dateTime,
-      price: service.price,
+      basePrice: service.price,
+      price: finalPrice,
       status: BookingStatus.upcoming,
       createdAt: now,
     );
