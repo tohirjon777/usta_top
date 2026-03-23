@@ -26,14 +26,16 @@ class BookingProvider extends BookingController {
     }
   }
 
-  Future<void> loadBookings() async {
+  Future<void> loadBookings({bool silent = false}) async {
     if (_service == null) {
       return;
     }
 
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    if (!silent) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       // TODO(API): Booking ro'yxati BookingService.fetchBookings orqali olinadi.
@@ -41,13 +43,19 @@ class BookingProvider extends BookingController {
       replaceBookings(items);
     } on ApiException catch (error) {
       _errorMessage = error.message;
-      notifyListeners();
+      if (!silent) {
+        notifyListeners();
+      }
     } catch (_) {
       _errorMessage = 'Buyurtmalarni yuklashda xatolik yuz berdi';
-      notifyListeners();
+      if (!silent) {
+        notifyListeners();
+      }
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!silent) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

@@ -127,6 +127,19 @@ class LocalAuthService implements AuthService {
     _passwordByUserId[current.id] = newPassword;
   }
 
+  @override
+  Future<void> registerPushToken({
+    required String accessToken,
+    required String token,
+    required String platform,
+  }) async {}
+
+  @override
+  Future<void> unregisterPushToken({
+    required String accessToken,
+    required String token,
+  }) async {}
+
   void _createSeedUser(
     AuthUser user, {
     required String password,

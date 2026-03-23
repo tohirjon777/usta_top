@@ -173,7 +173,7 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
     required String workshopId,
     required String bookingId,
   }) {
-    return 'done:$workshopId:$bookingId';
+    return 'd:${bookingId.trim()}';
   }
 
   static String cancelledBookingCallbackData({
@@ -181,7 +181,25 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
     required String workshopId,
     required String bookingId,
   }) {
-    return 'cancel:${normalizeBookingCancellationReasonId(reasonId)}:$workshopId:$bookingId';
+    final String normalizedReason =
+        normalizeBookingCancellationReasonId(reasonId);
+    return 'c:${_cancellationReasonShortCode(normalizedReason)}:${bookingId.trim()}';
+  }
+
+  static String _cancellationReasonShortCode(String reasonId) {
+    switch (normalizeBookingCancellationReasonId(reasonId)) {
+      case 'workshop_busy':
+        return 'wb';
+      case 'master_unavailable':
+        return 'mu';
+      case 'workshop_closed':
+        return 'wc';
+      case 'missing_parts':
+        return 'mp';
+      case 'customer_request':
+        return 'cr';
+    }
+    return 'uk';
   }
 
   String _statusLabel(BookingStatus status) {

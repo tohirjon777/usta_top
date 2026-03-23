@@ -16,6 +16,9 @@ Future<void> main() async {
       Platform.environment['WORKSHOPS_FILE'] ?? 'data/workshops.json';
   final String usersFilePath =
       Platform.environment['USERS_FILE'] ?? 'data/users.json';
+  final String authSessionsFilePath =
+      Platform.environment['AUTH_SESSIONS_FILE'] ??
+          'data/auth_sessions.json';
   final String bookingsFilePath =
       Platform.environment['BOOKINGS_FILE'] ?? 'data/bookings.json';
   final String telegramSyncStateFilePath =
@@ -27,9 +30,12 @@ Future<void> main() async {
       Platform.environment['ADMIN_PASSWORD'] ?? 'admin123';
   final String telegramBotToken =
       Platform.environment['TELEGRAM_BOT_TOKEN'] ?? '';
+  final String firebaseServiceAccountFilePath =
+      Platform.environment['FIREBASE_SERVICE_ACCOUNT_FILE'] ?? '';
 
   final InMemoryStore store = InMemoryStore.withSeedData();
   await store.loadUsers(usersFilePath);
+  await store.loadAuthSessions(authSessionsFilePath);
   await store.loadWorkshops(workshopsFilePath);
   await store.loadWorkshopLocations(workshopLocationsFilePath);
   await store.loadBookings(bookingsFilePath);
@@ -39,11 +45,13 @@ Future<void> main() async {
     workshopLocationsFilePath: workshopLocationsFilePath,
     workshopsFilePath: workshopsFilePath,
     usersFilePath: usersFilePath,
+    authSessionsFilePath: authSessionsFilePath,
     bookingsFilePath: bookingsFilePath,
     telegramSyncStateFilePath: telegramSyncStateFilePath,
     adminUsername: adminUsername,
     adminPassword: adminPassword,
     telegramBotToken: telegramBotToken,
+    firebaseServiceAccountFilePath: firebaseServiceAccountFilePath,
   );
   final server = await io.serve(
     appRuntime.handler,
@@ -73,6 +81,13 @@ Future<void> main() async {
     ownerAccessCodes.isEmpty
         ? 'Owner access codes: topilmadi'
         : 'Owner access codes: $ownerAccessCodes',
+  );
+  stdout.writeln(
+    firebaseServiceAccountFilePath.trim().isEmpty
+        ? 'Firebase push: o‘chiq (FIREBASE_SERVICE_ACCOUNT_FILE kiritilmagan)'
+        : File(firebaseServiceAccountFilePath).existsSync()
+            ? 'Firebase push: tayyor'
+            : 'Firebase push: service account topilmadi ($firebaseServiceAccountFilePath)',
   );
   if (telegramBotToken.trim().isEmpty) {
     stdout.writeln('Telegram bot: o‘chiq (TELEGRAM_BOT_TOKEN kiritilmagan)');

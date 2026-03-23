@@ -377,6 +377,112 @@ class RemoteAuthService implements AuthService {
     }
   }
 
+  @override
+  Future<void> registerPushToken({
+    required String accessToken,
+    required String token,
+    required String platform,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authPushToken}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $accessToken',
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'token': token,
+              'platform': platform,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Push tokenni saqlab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Push tokenni yuborish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<void> unregisterPushToken({
+    required String accessToken,
+    required String token,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authPushTokenRemove}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $accessToken',
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'token': token,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Push tokenni o\'chirib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Push tokenni o\'chirish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
   Map<String, dynamic> _decodeObject(String raw) {
     if (raw.trim().isEmpty) {
       return <String, dynamic>{};

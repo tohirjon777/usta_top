@@ -62,6 +62,38 @@ ga sync qilinadi, shuning uchun backend kodini o'zgartirgandan keyin:
 `run_dev.sh` esa endi 8080 da backend allaqachon ishlayotgan bo'lsa, o'shani
 qayta ishlatadi.
 
+## Push Notification
+
+Background push notification ishlashi uchun quyidagi Firebase fayllar kerak:
+
+- `android/app/google-services.json`
+- `ios/Runner/GoogleService-Info.plist`
+- backend uchun service account JSON (`backend/secrets/firebase-service-account.json` yoki `FIREBASE_SERVICE_ACCOUNT_FILE`)
+
+Eng qulay yo'l:
+
+1. `google-services.json` ni `android/app/` ichiga qo'ying
+2. `GoogleService-Info.plist` ni `ios/Runner/` ichiga qo'ying
+3. service account JSON ni `backend/secrets/firebase-service-account.json` nomi bilan joylang
+4. backend service'ni qayta ishga tushiring:
+
+```bash
+./backend_service.sh restart
+```
+
+Backendni push bilan qayta ishga tushirish:
+
+```bash
+FIREBASE_SERVICE_ACCOUNT_FILE=/abs/path/firebase-service-account.json ./backend_service.sh restart
+```
+
+Yoki backendni oddiy local rejimda:
+
+```bash
+cd backend
+FIREBASE_SERVICE_ACCOUNT_FILE=/abs/path/firebase-service-account.json dart run bin/server.dart
+```
+
 ## Backend
 
 Backend alohida papkada:

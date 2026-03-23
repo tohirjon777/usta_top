@@ -36,6 +36,8 @@ class AppLocalizations {
       'navProfile': 'Profile',
       'bookingAdded': 'Request created for {salon}',
       'bookingCancelled': 'Request cancelled',
+      'telegramCancellationNotice':
+          'Your request at {workshop} was cancelled in Telegram: {reason}',
       'savedSalonsConnectedHome':
           'Saved workshops are currently linked to Home list',
       'savedWorkshopsTitle': 'Saved workshops',
@@ -168,6 +170,7 @@ class AppLocalizations {
       'passwordUpdateFailed': 'Password could not be updated',
       'saveChanges': 'Save changes',
       'refresh': 'Refresh',
+      'view': 'View',
       'signOut': 'Sign out',
       'signOutTitle': 'Sign out',
       'signOutConfirm': 'Are you sure you want to sign out?',
@@ -212,6 +215,8 @@ class AppLocalizations {
       'navProfile': 'Kabinet',
       'bookingAdded': '{salon} uchun buyurtma qo\'shildi',
       'bookingCancelled': 'Buyurtma bekor qilindi',
+      'telegramCancellationNotice':
+          '{workshop} buyurtmangiz Telegram orqali bekor qilindi: {reason}',
       'savedSalonsConnectedHome':
           'Saqlangan servislar bo\'limi hozircha Asosiy ro\'yxatga ulangan',
       'savedWorkshopsTitle': 'Saqlangan servislar',
@@ -346,6 +351,7 @@ class AppLocalizations {
       'passwordUpdateFailed': 'Parolni yangilab bo\'lmadi',
       'saveChanges': 'Saqlash',
       'refresh': 'Yangilash',
+      'view': 'Ko\'rish',
       'signOut': 'Chiqish',
       'signOutTitle': 'Chiqish',
       'signOutConfirm': 'Rostdan ham akkauntdan chiqmoqchimisiz?',
@@ -390,6 +396,8 @@ class AppLocalizations {
       'navProfile': 'Профиль',
       'bookingAdded': 'Заявка создана для {salon}',
       'bookingCancelled': 'Заявка отменена',
+      'telegramCancellationNotice':
+          'Заявка в {workshop} была отменена через Telegram: {reason}',
       'savedSalonsConnectedHome':
           'Раздел сохраненных сервисов пока связан со списком на Главной',
       'savedWorkshopsTitle': 'Сохраненные сервисы',
@@ -523,6 +531,7 @@ class AppLocalizations {
       'passwordUpdateFailed': 'Не удалось обновить пароль',
       'saveChanges': 'Сохранить',
       'refresh': 'Обновить',
+      'view': 'Открыть',
       'signOut': 'Выйти',
       'signOutTitle': 'Выход',
       'signOutConfirm': 'Вы уверены, что хотите выйти?',
@@ -583,6 +592,10 @@ class AppLocalizations {
       _fmt('bookingAdded', <String, Object>{'salon': salon});
 
   String get bookingCancelled => _text('bookingCancelled');
+  String telegramCancellationNotice(String workshop, String reason) => _fmt(
+        'telegramCancellationNotice',
+        <String, Object>{'workshop': workshop, 'reason': reason},
+      );
   String get savedSalonsConnectedHome => _text('savedSalonsConnectedHome');
   String get savedWorkshopsTitle => _text('savedWorkshopsTitle');
   String get savedWorkshopsEmptyTitle => _text('savedWorkshopsEmptyTitle');
@@ -747,6 +760,7 @@ class AppLocalizations {
   String get passwordUpdateFailed => _text('passwordUpdateFailed');
   String get saveChanges => _text('saveChanges');
   String get refresh => _text('refresh');
+  String get view => _text('view');
   String get signOut => _text('signOut');
   String get signOutTitle => _text('signOutTitle');
   String get signOutConfirm => _text('signOutConfirm');

@@ -85,4 +85,15 @@ abstract interface class AuthService {
     required String currentPassword,
     required String newPassword,
   });
+
+  Future<void> registerPushToken({
+    required String accessToken,
+    required String token,
+    required String platform,
+  });
+
+  Future<void> unregisterPushToken({
+    required String accessToken,
+    required String token,
+  });
 }

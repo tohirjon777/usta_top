@@ -7,6 +7,7 @@ import '../admin_auth.dart';
 import '../booking_cancellation.dart';
 import '../models.dart';
 import '../store.dart';
+import '../user_notifications.dart';
 import '../vehicle_types.dart';
 import '../workshop_notifications.dart';
 
@@ -16,12 +17,14 @@ class AdminBookingsController {
     required this.adminAuthService,
     required this.bookingsFilePath,
     required this.notificationsService,
+    required this.userNotificationsService,
   });
 
   final InMemoryStore _store;
   final AdminAuthService adminAuthService;
   final String bookingsFilePath;
   final WorkshopNotificationsService notificationsService;
+  final UserNotificationsService userNotificationsService;
 
   Response bookingsPage(Request request) {
     final Response? authRedirect = _requireAdmin(request);
@@ -688,9 +691,10 @@ class AdminBookingsController {
           : _store.updateBookingStatus(
               bookingId: bookingId,
               status: nextStatus,
-            );
+      );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
+      await _notifyUserAboutStatusChange(updated);
       return Response.seeOther(
         _adminBookingsUri(
           lang: lang,
@@ -734,6 +738,23 @@ class AdminBookingsController {
       );
     } on Exception catch (error) {
       stderr.writeln('Telegram admin status xabari yuborilmadi: $error');
+    }
+  }
+
+  Future<void> _notifyUserAboutStatusChange(BookingModel booking) async {
+    final UserModel? user = _store.userById(booking.userId);
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await userNotificationsService.sendBookingStatusNotification(
+        user: user,
+        booking: booking,
+        actor: 'Admin',
+      );
+    } on Exception catch (error) {
+      stderr.writeln('Push admin status xabari yuborilmadi: $error');
     }
   }
 

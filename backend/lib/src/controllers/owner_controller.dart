@@ -9,6 +9,7 @@ import '../models.dart';
 import '../owner_auth.dart';
 import '../store.dart';
 import '../telegram_bot.dart';
+import '../user_notifications.dart';
 import '../vehicle_types.dart';
 import '../workshop_notifications.dart';
 
@@ -21,6 +22,7 @@ class OwnerController {
     required this.telegramSyncStateFilePath,
     required this.telegramBotService,
     required this.notificationsService,
+    required this.userNotificationsService,
   });
 
   final InMemoryStore _store;
@@ -30,6 +32,7 @@ class OwnerController {
   final String telegramSyncStateFilePath;
   final TelegramBotService telegramBotService;
   final WorkshopNotificationsService notificationsService;
+  final UserNotificationsService userNotificationsService;
   static final Random _telegramCodeRandom = Random.secure();
   bool _isTelegramSyncRunning = false;
 
@@ -1266,9 +1269,13 @@ class OwnerController {
               workshopId: workshopId,
               bookingId: bookingId,
               status: nextStatus,
-            );
+      );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
+      await _notifyUserAboutStatusChange(
+        updated,
+        actor: 'Ustaxona egasi',
+      );
       return Response.seeOther(
         _ownerBookingsUri(
           lang: lang,
@@ -1308,6 +1315,26 @@ class OwnerController {
       );
     } on Exception catch (error) {
       stderr.writeln('Telegram owner status xabari yuborilmadi: $error');
+    }
+  }
+
+  Future<void> _notifyUserAboutStatusChange(
+    BookingModel booking, {
+    required String actor,
+  }) async {
+    final UserModel? user = _store.userById(booking.userId);
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await userNotificationsService.sendBookingStatusNotification(
+        user: user,
+        booking: booking,
+        actor: actor,
+      );
+    } on Exception catch (error) {
+      stderr.writeln('Push owner status xabari yuborilmadi: $error');
     }
   }
 
@@ -1697,7 +1724,9 @@ class OwnerController {
       return false;
     }
 
-    final WorkshopModel? workshop = _store.workshopById(parsed.workshopId);
+    final WorkshopModel? workshop = parsed.workshopId.isEmpty
+        ? _telegramWorkshopByChatId(action.chatId)
+        : _store.workshopById(parsed.workshopId);
     if (workshop == null) {
       await _safeAnswerTelegramCallback(
         action.callbackQueryId,
@@ -1772,6 +1801,10 @@ class OwnerController {
           } on Exception catch (error) {
             stderr.writeln('Telegram callback status xabari yuborilmadi: $error');
           }
+          await _notifyUserAboutStatusChange(
+            updated,
+            actor: 'Telegram bot',
+          );
           return true;
         } on StateError catch (error) {
           await _safeAnswerTelegramCallback(
@@ -1821,6 +1854,34 @@ class OwnerController {
 
   _TelegramBookingCallback? _parseTelegramBookingCallback(String raw) {
     final List<String> parts = raw.trim().split(':');
+    if (parts.length == 2 && parts.first == 'd') {
+      final String bookingId = parts[1].trim();
+      if (bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'done',
+        workshopId: '',
+        bookingId: bookingId,
+      );
+    }
+
+    if (parts.length == 3 && parts.first == 'c') {
+      final String reasonId = _telegramCancellationReasonFromShortCode(parts[1]);
+      final String bookingId = parts[2].trim();
+      if (reasonId.isEmpty || bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'cancel',
+        workshopId: '',
+        bookingId: bookingId,
+        reasonId: reasonId,
+      );
+    }
+
     if (parts.length == 3 && parts.first == 'done') {
       final String workshopId = parts[1].trim();
       final String bookingId = parts[2].trim();
@@ -1854,6 +1915,22 @@ class OwnerController {
     return null;
   }
 
+  String _telegramCancellationReasonFromShortCode(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'wb':
+        return 'workshop_busy';
+      case 'mu':
+        return 'master_unavailable';
+      case 'wc':
+        return 'workshop_closed';
+      case 'mp':
+        return 'missing_parts';
+      case 'cr':
+        return 'customer_request';
+    }
+    return '';
+  }
+
   BookingModel? _workshopBookingById({
     required String workshopId,
     required String bookingId,
@@ -1861,6 +1938,20 @@ class OwnerController {
     for (final BookingModel item in _store.bookings(workshopId: workshopId)) {
       if (item.id == bookingId) {
         return item;
+      }
+    }
+    return null;
+  }
+
+  WorkshopModel? _telegramWorkshopByChatId(String chatId) {
+    final String normalizedChatId = chatId.trim();
+    if (normalizedChatId.isEmpty) {
+      return null;
+    }
+
+    for (final WorkshopModel workshop in _store.workshops()) {
+      if (workshop.telegramChatId.trim() == normalizedChatId) {
+        return workshop;
       }
     }
     return null;

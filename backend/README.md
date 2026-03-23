@@ -30,6 +30,12 @@ Zakazlarni alohida faylga saqlash uchun:
 BOOKINGS_FILE=data/bookings.json dart run bin/server.dart
 ```
 
+Auth sessiyalarni alohida faylga saqlash uchun:
+
+```bash
+AUTH_SESSIONS_FILE=data/auth_sessions.json dart run bin/server.dart
+```
+
 Workshop kartalarini alohida fayldan yuklash uchun:
 
 ```bash
@@ -41,6 +47,16 @@ Telegram bot bildirishnomalarini yoqish uchun:
 ```bash
 TELEGRAM_BOT_TOKEN=... dart run bin/server.dart
 ```
+
+Firebase push notificationni yoqish uchun:
+
+```bash
+FIREBASE_SERVICE_ACCOUNT_FILE=secrets/firebase-service-account.json dart run bin/server.dart
+```
+
+Yoki service account JSON faylini `backend/secrets/firebase-service-account.json`
+nomi bilan joylang. Shunda `backend_service.sh` va `run_service.sh` uni avtomatik
+ushlab oladi.
 
 macOS'da terminalsiz avtomatik ishlatish uchun:
 
@@ -54,6 +70,10 @@ cd ..
 Bu service backendning runtime copy'sini
 `~/Library/Application Support/UstaTopBackend/runtime` ichida ishlatadi.
 Backend kodini yangilaganingizdan keyin `./backend_service.sh restart` qiling.
+User login sessiyalari restartdan keyin ham saqlanadi va
+`runtime/data/auth_sessions.json` fayliga yoziladi.
+Push notification uchun service account JSON absolute path bilan env’da
+ko‘rsatilsa, service restartdan keyin ham ishlaydi.
 
 ## Login ma'lumotlari (seed)
 
@@ -179,6 +199,8 @@ servisning filtrlangan zakazlar inboxiga o'tish ham mumkin.
 - `POST /auth/login`
 - `POST /auth/register`
 - `POST /auth/forgot-password`
+- `POST /auth/push-token` (Bearer token kerak)
+- `POST /auth/push-token/remove` (Bearer token kerak)
 - `GET /auth/me` (Bearer token kerak)
 - `PATCH /auth/me` (Bearer token kerak)
 - `PATCH /auth/me/password` (Bearer token kerak)

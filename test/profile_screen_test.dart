@@ -7,11 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usta_top/core/localization/app_language.dart';
 import 'package:usta_top/core/localization/app_localizations.dart';
 import 'package:usta_top/core/storage/auth_token_storage.dart';
+import 'package:usta_top/core/storage/notification_settings_storage.dart';
 import 'package:usta_top/core/storage/theme_mode_storage.dart';
 import 'package:usta_top/models/booking_item.dart';
 import 'package:usta_top/providers/auth_provider.dart';
 import 'package:usta_top/providers/booking_provider.dart';
 import 'package:usta_top/providers/language_provider.dart';
+import 'package:usta_top/providers/notification_settings_provider.dart';
 import 'package:usta_top/providers/theme_provider.dart';
 import 'package:usta_top/screens/profile_screen.dart';
 import 'package:usta_top/services/auth_service.dart';
@@ -42,6 +44,11 @@ void main() {
         ),
         ChangeNotifierProvider<LanguageProvider>(
           create: (_) => LanguageProvider(initialLanguage: AppLanguage.uzbek),
+        ),
+        ChangeNotifierProvider<NotificationSettingsProvider>(
+          create: (_) => NotificationSettingsProvider(
+            storage: const NotificationSettingsStorage(),
+          )..restorePreference(),
         ),
         ChangeNotifierProvider<ThemeProvider>(
           create: (_) => ThemeProvider(storage: const ThemeModeStorage()),
@@ -138,6 +145,19 @@ class FakeAuthService implements AuthService {
     required String accessToken,
     required String currentPassword,
     required String newPassword,
+  }) async {}
+
+  @override
+  Future<void> registerPushToken({
+    required String accessToken,
+    required String token,
+    required String platform,
+  }) async {}
+
+  @override
+  Future<void> unregisterPushToken({
+    required String accessToken,
+    required String token,
   }) async {}
 
   @override

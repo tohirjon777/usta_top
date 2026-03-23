@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
+import '../models/booking_cancellation_reason.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
 import '../providers/booking_provider.dart';
+import '../providers/notification_settings_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/map_screen.dart';
@@ -21,18 +25,32 @@ class MainNavigationShell extends StatefulWidget {
 }
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
+  static const Duration _bookingRefreshInterval = Duration(seconds: 20);
+
   int _currentIndex = 0;
+  final Map<String, String> _bookingFingerprints = <String, String>{};
+  late final _LifecycleObserver _lifecycleObserver;
+  Timer? _bookingRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    _lifecycleObserver = _LifecycleObserver(_handleAppResumed);
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
       context.read<WorkshopProvider>().loadWorkshops();
-      context.read<BookingProvider>().loadBookings();
+      _bootstrapBookings();
     });
+  }
+
+  @override
+  void dispose() {
+    _bookingRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
+    super.dispose();
   }
 
   Future<void> _openSalonDetail(Salon salon) async {
@@ -72,6 +90,98 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         builder: (_) => SavedSalonsScreen(onOpenSalon: _openSalonDetail),
       ),
     );
+  }
+
+  Future<void> _bootstrapBookings() async {
+    await _refreshBookings(notifyOnTelegramCancellation: false);
+    if (!mounted) {
+      return;
+    }
+    _bookingRefreshTimer?.cancel();
+    _bookingRefreshTimer = Timer.periodic(
+      _bookingRefreshInterval,
+      (_) => _refreshBookings(),
+    );
+  }
+
+  Future<void> _handleAppResumed() async {
+    await _refreshBookings();
+  }
+
+  Future<void> _refreshBookings({
+    bool notifyOnTelegramCancellation = true,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+
+    final BookingProvider bookingProvider = context.read<BookingProvider>();
+    final NotificationSettingsProvider notificationSettingsProvider =
+        context.read<NotificationSettingsProvider>();
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final Map<String, String> previousFingerprints =
+        Map<String, String>.from(_bookingFingerprints);
+
+    await bookingProvider.loadBookings(silent: true);
+    if (!mounted) {
+      return;
+    }
+
+    final List<BookingItem> bookings = bookingProvider.bookings.toList();
+    _bookingFingerprints
+      ..clear()
+      ..addEntries(
+        bookings.map(
+          (BookingItem booking) => MapEntry<String, String>(
+            booking.id,
+            _bookingFingerprint(booking),
+          ),
+        ),
+      );
+
+    if (!notifyOnTelegramCancellation ||
+        previousFingerprints.isEmpty ||
+        !notificationSettingsProvider.isEnabled) {
+      return;
+    }
+
+    final List<BookingItem> telegramCancelled = bookings.where((BookingItem item) {
+      final String? previous = previousFingerprints[item.id];
+      return previous != null &&
+          previous != _bookingFingerprint(item) &&
+          item.status == BookingStatus.cancelled &&
+          item.cancelledByRole == 'owner_telegram';
+    }).toList(growable: false);
+
+    if (telegramCancelled.isEmpty) {
+      return;
+    }
+
+    final BookingItem latest = telegramCancelled.first;
+    final String message = l10n.telegramCancellationNotice(
+      latest.salonName,
+      bookingCancellationReasonLabel(latest.cancelReasonId, l10n),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: l10n.view,
+          onPressed: () {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _currentIndex = 2;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  String _bookingFingerprint(BookingItem booking) {
+    return '${booking.status.name}|${booking.cancelledByRole}|${booking.cancelReasonId}';
   }
 
   @override
@@ -121,5 +231,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ],
       ),
     );
+  }
+}
+
+class _LifecycleObserver with WidgetsBindingObserver {
+  _LifecycleObserver(this.onResumed);
+
+  final Future<void> Function() onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(onResumed());
+    }
   }
 }

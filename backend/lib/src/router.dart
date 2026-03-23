@@ -10,10 +10,12 @@ import 'controllers/booking_controller.dart';
 import 'controllers/health_controller.dart';
 import 'controllers/owner_controller.dart';
 import 'controllers/workshop_controller.dart';
+import 'firebase_push.dart';
 import 'http_helpers.dart';
 import 'owner_auth.dart';
 import 'store.dart';
 import 'telegram_bot.dart';
+import 'user_notifications.dart';
 import 'workshop_notifications.dart';
 
 class AppRuntime {
@@ -31,23 +33,31 @@ AppRuntime buildAppRuntime(
   required String workshopLocationsFilePath,
   required String workshopsFilePath,
   required String usersFilePath,
+  required String authSessionsFilePath,
   required String bookingsFilePath,
   required String telegramSyncStateFilePath,
   required String adminUsername,
   required String adminPassword,
   required String telegramBotToken,
+  required String firebaseServiceAccountFilePath,
 }) {
   final HealthController healthController = HealthController();
   final AuthController authController = AuthController(
     store,
     usersFilePath: usersFilePath,
+    sessionsFilePath: authSessionsFilePath,
   );
   final WorkshopController workshopController = WorkshopController(store);
   final TelegramBotService telegramBotService = TelegramBotService(
     botToken: telegramBotToken,
   );
+  final FirebasePushService firebasePushService = FirebasePushService(
+    serviceAccountFilePath: firebaseServiceAccountFilePath,
+  );
   final WorkshopNotificationsService notificationsService =
       WorkshopNotificationsService(telegramBotService);
+  final UserNotificationsService userNotificationsService =
+      UserNotificationsService(firebasePushService);
   final BookingController bookingController = BookingController(
     store,
     bookingsFilePath: bookingsFilePath,
@@ -70,6 +80,7 @@ AppRuntime buildAppRuntime(
     adminAuthService: adminAuthService,
     bookingsFilePath: bookingsFilePath,
     notificationsService: notificationsService,
+    userNotificationsService: userNotificationsService,
   );
   final OwnerAuthService ownerAuthService = OwnerAuthService();
   final OwnerController ownerController = OwnerController(
@@ -80,6 +91,7 @@ AppRuntime buildAppRuntime(
     telegramSyncStateFilePath: telegramSyncStateFilePath,
     telegramBotService: telegramBotService,
     notificationsService: notificationsService,
+    userNotificationsService: userNotificationsService,
   );
 
   final Router router = Router()
@@ -112,6 +124,8 @@ AppRuntime buildAppRuntime(
     ..post('/auth/login', authController.login)
     ..post('/auth/register', authController.register)
     ..post('/auth/forgot-password', authController.forgotPassword)
+    ..post('/auth/push-token', authController.registerPushToken)
+    ..post('/auth/push-token/remove', authController.unregisterPushToken)
     ..get('/auth/me', authController.me)
     ..patch('/auth/me', authController.updateMe)
     ..patch('/auth/me/password', authController.updatePassword)
@@ -138,21 +152,25 @@ Handler buildHandler(
   required String workshopLocationsFilePath,
   required String workshopsFilePath,
   required String usersFilePath,
+  required String authSessionsFilePath,
   required String bookingsFilePath,
   required String telegramSyncStateFilePath,
   required String adminUsername,
   required String adminPassword,
   required String telegramBotToken,
+  required String firebaseServiceAccountFilePath,
 }) {
   return buildAppRuntime(
     store,
     workshopLocationsFilePath: workshopLocationsFilePath,
     workshopsFilePath: workshopsFilePath,
     usersFilePath: usersFilePath,
+    authSessionsFilePath: authSessionsFilePath,
     bookingsFilePath: bookingsFilePath,
     telegramSyncStateFilePath: telegramSyncStateFilePath,
     adminUsername: adminUsername,
     adminPassword: adminPassword,
     telegramBotToken: telegramBotToken,
+    firebaseServiceAccountFilePath: firebaseServiceAccountFilePath,
   ).handler;
 }

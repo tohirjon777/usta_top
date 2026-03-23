@@ -16,6 +16,7 @@ LABEL="com.ustatop.backend"
 LAUNCH_DOMAIN="gui/$(id -u)"
 OUT_LOG="$LOG_DIR/backend.out.log"
 ERR_LOG="$LOG_DIR/backend.err.log"
+HEALTH_URL="http://127.0.0.1:8080/health"
 
 usage() {
   cat <<'EOF'
@@ -109,6 +110,26 @@ is_loaded() {
   launchctl print "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1
 }
 
+health_ready() {
+  curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1
+}
+
+wait_for_health() {
+  local attempts="${1:-8}"
+  local delay_seconds="${2:-1}"
+  local try=1
+
+  while (( try <= attempts )); do
+    if health_ready; then
+      return 0
+    fi
+    sleep "$delay_seconds"
+    ((try++))
+  done
+
+  return 1
+}
+
 install_service() {
   ensure_env_file
   sync_runtime
@@ -118,6 +139,7 @@ install_service() {
   launchctl bootstrap "$LAUNCH_DOMAIN" "$PLIST_PATH"
   launchctl enable "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "$LAUNCH_DOMAIN/$LABEL"
+  wait_for_health 10 1 || true
 
   printf 'Backend service installed: %s\n' "$PLIST_PATH"
 }
@@ -135,6 +157,7 @@ start_service() {
   fi
   launchctl enable "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "$LAUNCH_DOMAIN/$LABEL"
+  wait_for_health 10 1 || true
 }
 
 stop_service() {
@@ -160,8 +183,8 @@ show_status() {
     printf 'Service not loaded: %s\n' "$LABEL"
   fi
 
-  if curl -fsS "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
-    printf 'Health: http://127.0.0.1:8080/health OK\n'
+  if wait_for_health 5 1; then
+    printf 'Health: %s OK\n' "$HEALTH_URL"
   else
     printf 'Health: backend javob bermayapti\n'
   fi

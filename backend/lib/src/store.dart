@@ -207,6 +207,23 @@ class InMemoryStore {
     return _usersById[userId];
   }
 
+  int revokeUserSessions(
+    String userId, {
+    Set<String> exceptTokens = const <String>{},
+  }) {
+    final List<String> tokensToRemove = _tokenToUserId.entries
+        .where(
+          (MapEntry<String, String> entry) =>
+              entry.value == userId && !exceptTokens.contains(entry.key),
+        )
+        .map((MapEntry<String, String> entry) => entry.key)
+        .toList(growable: false);
+    for (final String token in tokensToRemove) {
+      _tokenToUserId.remove(token);
+    }
+    return tokensToRemove.length;
+  }
+
   UserModel? userById(String userId) => _usersById[userId];
 
   String newUserId() => _newId('u');
@@ -292,6 +309,71 @@ class InMemoryStore {
     return updated;
   }
 
+  UserModel? registerUserPushToken({
+    required String userId,
+    required String token,
+    required String platform,
+  }) {
+    final UserModel? current = _usersById[userId];
+    if (current == null) {
+      return null;
+    }
+
+    final String normalizedToken = token.trim();
+    if (normalizedToken.isEmpty) {
+      throw StateError('Push token majburiy');
+    }
+
+    _removePushTokenFromAllUsers(
+      normalizedToken,
+      exceptUserId: userId,
+    );
+
+    final List<PushTokenModel> nextTokens = current.pushTokens
+        .where((PushTokenModel item) => item.token != normalizedToken)
+        .toList(growable: true)
+      ..insert(
+        0,
+        PushTokenModel(
+          token: normalizedToken,
+          platform: normalizePushPlatform(platform),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+    final UserModel updated = current.copyWith(
+      pushTokens: List<PushTokenModel>.unmodifiable(nextTokens),
+    );
+    _usersById[userId] = updated;
+    _usersByPhone[_normalizePhone(updated.phone)] = updated;
+    return updated;
+  }
+
+  UserModel? unregisterUserPushToken({
+    required String userId,
+    required String token,
+  }) {
+    final UserModel? current = _usersById[userId];
+    if (current == null) {
+      return null;
+    }
+
+    final String normalizedToken = token.trim();
+    if (normalizedToken.isEmpty) {
+      throw StateError('Push token majburiy');
+    }
+
+    final List<PushTokenModel> nextTokens = current.pushTokens
+        .where((PushTokenModel item) => item.token != normalizedToken)
+        .toList(growable: false);
+    final UserModel updated = current.copyWith(
+      pushTokens: List<PushTokenModel>.unmodifiable(nextTokens),
+    );
+    _usersById[userId] = updated;
+    _usersByPhone[_normalizePhone(updated.phone)] = updated;
+    return updated;
+  }
+
   Future<void> loadUsers(String filePath) async {
     final File file = File(filePath);
     if (!await file.exists()) {
@@ -322,6 +404,7 @@ class InMemoryStore {
       _usersById[user.id] = user;
       _usersByPhone[_normalizePhone(user.phone)] = user;
     }
+    _pruneInvalidAuthSessions();
   }
 
   Future<void> saveUsers(String filePath) async {
@@ -331,6 +414,52 @@ class InMemoryStore {
     final List<Map<String, Object>> data = _usersById.values
         .map((UserModel item) => item.toStorageJson())
         .toList(growable: false);
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
+  }
+
+  Future<void> loadAuthSessions(String filePath) async {
+    final File file = File(filePath);
+    _tokenToUserId.clear();
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    final String trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(trimmed);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Auth sessions file object bo\'lishi kerak');
+    }
+
+    decoded.forEach((String token, dynamic rawUserId) {
+      final String normalizedToken = token.trim();
+      final String userId = rawUserId?.toString().trim() ?? '';
+      if (normalizedToken.isEmpty || userId.isEmpty) {
+        return;
+      }
+      if (!_usersById.containsKey(userId)) {
+        return;
+      }
+      _tokenToUserId[normalizedToken] = userId;
+    });
+    _pruneInvalidAuthSessions();
+  }
+
+  Future<void> saveAuthSessions(String filePath) async {
+    _pruneInvalidAuthSessions();
+
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final Map<String, String> data = <String, String>{
+      for (final MapEntry<String, String> entry in _tokenToUserId.entries)
+        entry.key: entry.value,
+    };
     const JsonEncoder encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString('${encoder.convert(data)}\n');
   }
@@ -847,5 +976,44 @@ class InMemoryStore {
   String _newId(String prefix) {
     final String randomPart = _random.nextInt(10000).toString().padLeft(4, '0');
     return '$prefix-${DateTime.now().microsecondsSinceEpoch}-$randomPart';
+  }
+
+  void _pruneInvalidAuthSessions() {
+    final List<String> invalidTokens = _tokenToUserId.entries
+        .where(
+          (MapEntry<String, String> entry) => !_usersById.containsKey(
+            entry.value,
+          ),
+        )
+        .map((MapEntry<String, String> entry) => entry.key)
+        .toList(growable: false);
+    for (final String token in invalidTokens) {
+      _tokenToUserId.remove(token);
+    }
+  }
+
+  void _removePushTokenFromAllUsers(
+    String pushToken, {
+    String? exceptUserId,
+  }) {
+    for (final String userId in _usersById.keys.toList(growable: false)) {
+      if (exceptUserId != null && userId == exceptUserId) {
+        continue;
+      }
+
+      final UserModel current = _usersById[userId]!;
+      final List<PushTokenModel> nextTokens = current.pushTokens
+          .where((PushTokenModel item) => item.token != pushToken)
+          .toList(growable: false);
+      if (nextTokens.length == current.pushTokens.length) {
+        continue;
+      }
+
+      final UserModel updated = current.copyWith(
+        pushTokens: List<PushTokenModel>.unmodifiable(nextTokens),
+      );
+      _usersById[userId] = updated;
+      _usersByPhone[_normalizePhone(updated.phone)] = updated;
+    }
   }
 }

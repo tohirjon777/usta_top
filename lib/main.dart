@@ -5,6 +5,7 @@ import 'app/usta_top_app.dart';
 import 'core/config/backend_config.dart';
 import 'core/localization/app_language.dart';
 import 'core/storage/auth_token_storage.dart';
+import 'core/storage/notification_settings_storage.dart';
 import 'core/storage/saved_workshops_storage.dart';
 import 'core/storage/theme_mode_storage.dart';
 import 'data/repositories/mock_salon_repository.dart';
@@ -12,6 +13,8 @@ import 'models/booking_item.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/language_provider.dart';
+import 'providers/notification_settings_provider.dart';
+import 'providers/push_notifications_provider.dart';
 import 'providers/saved_workshops_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/workshop_provider.dart';
@@ -59,15 +62,21 @@ class MyApp extends StatelessWidget {
       'USE_BACKEND',
       defaultValue: !isFlutterTest,
     );
+    final bool enablePushNotifications = useBackend && !isFlutterTest;
     // TODO(API): Server manzilini `--dart-define=API_BASE_URL=https://...` bilan bering.
     final String backendBaseUrl = BackendConfig.resolveBaseUrl();
     const AuthTokenStorage tokenStorage = AuthTokenStorage();
+    const NotificationSettingsStorage notificationSettingsStorage =
+        NotificationSettingsStorage();
     const SavedWorkshopsStorage savedWorkshopsStorage = SavedWorkshopsStorage();
     const ThemeModeStorage themeModeStorage = ThemeModeStorage();
 
     return MultiProvider(
       providers: [
         Provider<AuthTokenStorage>.value(value: tokenStorage),
+        Provider<NotificationSettingsStorage>.value(
+          value: notificationSettingsStorage,
+        ),
         Provider<SavedWorkshopsStorage>.value(value: savedWorkshopsStorage),
         Provider<ThemeModeStorage>.value(value: themeModeStorage),
         Provider<AuthService>(
@@ -108,6 +117,21 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<LanguageProvider>(
           create: (_) => LanguageProvider(initialLanguage: AppLanguage.uzbek),
         ),
+        ChangeNotifierProvider<NotificationSettingsProvider>(
+          create: (BuildContext context) => NotificationSettingsProvider(
+            storage: context.read<NotificationSettingsStorage>(),
+          )..restorePreference(),
+        ),
+        if (enablePushNotifications)
+          ChangeNotifierProvider<PushNotificationsProvider>(
+            lazy: false,
+            create: (BuildContext context) => PushNotificationsProvider(
+              authProvider: context.read<AuthProvider>(),
+              notificationSettingsProvider:
+                  context.read<NotificationSettingsProvider>(),
+              authService: context.read<AuthService>(),
+            )..initialize(),
+          ),
         ChangeNotifierProvider<ThemeProvider>(
           create: (BuildContext context) => ThemeProvider(
             storage: context.read<ThemeModeStorage>(),

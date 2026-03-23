@@ -20,6 +20,8 @@ abstract final class ApiEndpoints {
   static const String authLogin = '/auth/login';
   static const String authRegister = '/auth/register';
   static const String authForgotPassword = '/auth/forgot-password';
+  static const String authPushToken = '/auth/push-token';
+  static const String authPushTokenRemove = '/auth/push-token/remove';
 
   // TODO(API): GET /auth/me
   // Header: Authorization: Bearer <accessToken>

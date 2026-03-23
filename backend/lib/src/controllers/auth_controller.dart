@@ -9,10 +9,12 @@ class AuthController {
   const AuthController(
     this._store, {
     required this.usersFilePath,
+    required this.sessionsFilePath,
   });
 
   final InMemoryStore _store;
   final String usersFilePath;
+  final String sessionsFilePath;
 
   Future<Response> login(Request request) async {
     try {
@@ -29,6 +31,7 @@ class AuthController {
       if (token == null) {
         return errorResponse('Telefon yoki parol noto\'g\'ri', statusCode: 401);
       }
+      await _store.saveAuthSessions(sessionsFilePath);
 
       final UserModel user = _store.userByToken(token)!;
       final DateTime expiresAt = DateTime.now().add(const Duration(days: 30));
@@ -69,6 +72,7 @@ class AuthController {
       if (token == null) {
         return errorResponse('Ro\'yxatdan o\'tib bo\'lmadi', statusCode: 500);
       }
+      await _store.saveAuthSessions(sessionsFilePath);
 
       final DateTime expiresAt = DateTime.now().add(const Duration(days: 30));
       return jsonResponse(<String, Object>{
@@ -107,6 +111,8 @@ class AuthController {
       }
 
       await _store.saveUsers(usersFilePath);
+      _store.revokeUserSessions(user.id);
+      await _store.saveAuthSessions(sessionsFilePath);
       return jsonResponse(<String, Object>{
         'data': <String, Object>{
           'success': true,
@@ -166,6 +172,7 @@ class AuthController {
 
     try {
       final Map<String, dynamic> body = await readJsonMap(request);
+      final String? currentToken = extractBearerToken(request);
       final String currentPassword = (body['currentPassword'] ?? '').toString();
       final String newPassword = (body['newPassword'] ?? '').toString();
       if (currentPassword.isEmpty || newPassword.isEmpty) {
@@ -183,10 +190,83 @@ class AuthController {
       }
 
       await _store.saveUsers(usersFilePath);
+      _store.revokeUserSessions(
+        user.id,
+        exceptTokens: currentToken == null
+            ? const <String>{}
+            : <String>{currentToken},
+      );
+      await _store.saveAuthSessions(sessionsFilePath);
       return jsonResponse(<String, Object>{
         'data': <String, Object>{
           'success': true,
         },
+      });
+    } on StateError catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    } on FormatException catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    }
+  }
+
+  Future<Response> registerPushToken(Request request) async {
+    final UserModel? user = userFromRequest(request);
+    if (user == null) {
+      return errorResponse('Unauthorized', statusCode: 401);
+    }
+
+    try {
+      final Map<String, dynamic> body = await readJsonMap(request);
+      final String token = (body['token'] ?? '').toString().trim();
+      final String platform = (body['platform'] ?? '').toString().trim();
+      if (token.isEmpty) {
+        return errorResponse('Push token majburiy', statusCode: 400);
+      }
+
+      final UserModel? updated = _store.registerUserPushToken(
+        userId: user.id,
+        token: token,
+        platform: platform,
+      );
+      if (updated == null) {
+        return errorResponse('Foydalanuvchi topilmadi', statusCode: 404);
+      }
+
+      await _store.saveUsers(usersFilePath);
+      return jsonResponse(<String, Object>{
+        'data': <String, Object>{'success': true},
+      });
+    } on StateError catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    } on FormatException catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    }
+  }
+
+  Future<Response> unregisterPushToken(Request request) async {
+    final UserModel? user = userFromRequest(request);
+    if (user == null) {
+      return errorResponse('Unauthorized', statusCode: 401);
+    }
+
+    try {
+      final Map<String, dynamic> body = await readJsonMap(request);
+      final String token = (body['token'] ?? '').toString().trim();
+      if (token.isEmpty) {
+        return errorResponse('Push token majburiy', statusCode: 400);
+      }
+
+      final UserModel? updated = _store.unregisterUserPushToken(
+        userId: user.id,
+        token: token,
+      );
+      if (updated == null) {
+        return errorResponse('Foydalanuvchi topilmadi', statusCode: 404);
+      }
+
+      await _store.saveUsers(usersFilePath);
+      return jsonResponse(<String, Object>{
+        'data': <String, Object>{'success': true},
       });
     } on StateError catch (error) {
       return errorResponse(error.message, statusCode: 400);

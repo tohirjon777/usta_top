@@ -8,6 +8,7 @@ import '../core/theme/app_theme_preference.dart';
 import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/language_provider.dart';
+import '../providers/notification_settings_provider.dart';
 import '../providers/theme_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -25,8 +26,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _notificationsEnabled = true;
-
   @override
   void initState() {
     super.initState();
@@ -49,6 +48,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final BookingProvider bookingProvider = context.watch<BookingProvider>();
     final LanguageProvider languageProvider = context.watch<LanguageProvider>();
+    final NotificationSettingsProvider notificationSettingsProvider =
+        context.watch<NotificationSettingsProvider>();
     final ThemeProvider themeProvider = context.watch<ThemeProvider>();
     final AuthProvider authProvider = context.watch<AuthProvider>();
     final AppLanguage language = languageProvider.language;
@@ -202,7 +203,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _MenuTile(
             icon: Icons.notifications_none,
             title: l10n.notifications,
-            subtitle: _notificationsEnabled ? l10n.enabled : l10n.disabled,
+            subtitle: notificationSettingsProvider.isEnabled
+                ? l10n.enabled
+                : l10n.disabled,
             onTap: _toggleNotifications,
           ),
           const SizedBox(height: 8),
@@ -230,16 +233,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _toggleNotifications() {
-    setState(() {
-      _notificationsEnabled = !_notificationsEnabled;
-    });
-
+  Future<void> _toggleNotifications() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final NotificationSettingsProvider notificationSettingsProvider =
+        context.read<NotificationSettingsProvider>();
+    await notificationSettingsProvider.toggle();
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _notificationsEnabled
+          notificationSettingsProvider.isEnabled
               ? l10n.notificationsEnabled
               : l10n.notificationsDisabled,
         ),

@@ -447,38 +447,106 @@ class BookingModel {
   }
 }
 
+class PushTokenModel {
+  const PushTokenModel({
+    required this.token,
+    required this.platform,
+    required this.updatedAt,
+  });
+
+  final String token;
+  final String platform;
+  final DateTime updatedAt;
+
+  PushTokenModel copyWith({
+    String? token,
+    String? platform,
+    DateTime? updatedAt,
+  }) {
+    return PushTokenModel(
+      token: token ?? this.token,
+      platform: platform ?? this.platform,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  factory PushTokenModel.fromJson(Map<String, dynamic> json) {
+    return PushTokenModel(
+      token: (json['token'] ?? '').toString().trim(),
+      platform: normalizePushPlatform((json['platform'] ?? '').toString()),
+      updatedAt: DateTime.tryParse((json['updatedAt'] ?? '').toString()) ??
+          DateTime.now(),
+    );
+  }
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'token': token,
+      'platform': platform,
+      'updatedAt': updatedAt.toUtc().toIso8601String(),
+    };
+  }
+}
+
+String normalizePushPlatform(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'android':
+      return 'android';
+    case 'ios':
+      return 'ios';
+    case 'web':
+      return 'web';
+    default:
+      return 'unknown';
+  }
+}
+
 class UserModel {
   const UserModel({
     required this.id,
     required this.fullName,
     required this.phone,
     required this.password,
+    this.pushTokens = const <PushTokenModel>[],
   });
 
   final String id;
   final String fullName;
   final String phone;
   final String password;
+  final List<PushTokenModel> pushTokens;
 
   UserModel copyWith({
     String? fullName,
     String? phone,
     String? password,
+    List<PushTokenModel>? pushTokens,
   }) {
     return UserModel(
       id: id,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
       password: password ?? this.password,
+      pushTokens: pushTokens ?? this.pushTokens,
     );
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    final dynamic rawPushTokens = json['pushTokens'];
+    final List<PushTokenModel> pushTokens = rawPushTokens is List
+        ? rawPushTokens
+            .whereType<Map<String, dynamic>>()
+            .map(PushTokenModel.fromJson)
+            .where((PushTokenModel item) => item.token.isNotEmpty)
+            .toList(growable: false)
+        : <PushTokenModel>[];
+
     return UserModel(
       id: (json['id'] ?? '').toString(),
       fullName: (json['fullName'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
       password: (json['password'] ?? '').toString(),
+      pushTokens: pushTokens,
     );
   }
 
@@ -488,6 +556,9 @@ class UserModel {
       'fullName': fullName,
       'phone': phone,
       'password': password,
+      if (pushTokens.isNotEmpty)
+        'pushTokens':
+            pushTokens.map((PushTokenModel item) => item.toJson()).toList(),
     };
   }
 
