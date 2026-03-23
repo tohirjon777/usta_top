@@ -1,3 +1,4 @@
+import 'booking_cancellation.dart';
 import 'vehicle_types.dart';
 
 enum BookingStatus { upcoming, completed, cancelled }
@@ -308,6 +309,9 @@ class BookingModel {
     required this.price,
     required this.status,
     required this.createdAt,
+    this.cancelReasonId = '',
+    this.cancelledByRole = '',
+    this.cancelledAt,
   });
 
   final String id;
@@ -326,9 +330,15 @@ class BookingModel {
   final int price;
   final BookingStatus status;
   final DateTime createdAt;
+  final String cancelReasonId;
+  final String cancelledByRole;
+  final DateTime? cancelledAt;
 
   BookingModel copyWith({
     BookingStatus? status,
+    String? cancelReasonId,
+    String? cancelledByRole,
+    DateTime? cancelledAt,
   }) {
     return BookingModel(
       id: id,
@@ -347,6 +357,9 @@ class BookingModel {
       price: price,
       status: status ?? this.status,
       createdAt: createdAt,
+      cancelReasonId: cancelReasonId ?? this.cancelReasonId,
+      cancelledByRole: cancelledByRole ?? this.cancelledByRole,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
     );
   }
 
@@ -374,6 +387,13 @@ class BookingModel {
       status: _bookingStatusFromString((json['status'] ?? '').toString()),
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
+      cancelReasonId: normalizeBookingCancellationReasonId(
+        (json['cancelReasonId'] ?? '').toString(),
+      ),
+      cancelledByRole: normalizeBookingCancellationActor(
+        (json['cancelledByRole'] ?? '').toString(),
+      ),
+      cancelledAt: DateTime.tryParse((json['cancelledAt'] ?? '').toString()),
     );
   }
 
@@ -395,6 +415,10 @@ class BookingModel {
       'price': price,
       'status': status.name,
       'createdAt': createdAt.toUtc().toIso8601String(),
+      if (cancelReasonId.isNotEmpty) 'cancelReasonId': cancelReasonId,
+      if (cancelledByRole.isNotEmpty) 'cancelledByRole': cancelledByRole,
+      if (cancelledAt != null)
+        'cancelledAt': cancelledAt!.toUtc().toIso8601String(),
     };
   }
 

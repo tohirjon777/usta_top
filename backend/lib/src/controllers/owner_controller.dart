@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:shelf/shelf.dart';
 
+import '../booking_cancellation.dart';
 import '../models.dart';
 import '../owner_auth.dart';
 import '../store.dart';
@@ -12,7 +13,7 @@ import '../vehicle_types.dart';
 import '../workshop_notifications.dart';
 
 class OwnerController {
-  const OwnerController(
+  OwnerController(
     this._store, {
     required this.ownerAuthService,
     required this.bookingsFilePath,
@@ -30,6 +31,7 @@ class OwnerController {
   final TelegramBotService telegramBotService;
   final WorkshopNotificationsService notificationsService;
   static final Random _telegramCodeRandom = Random.secure();
+  bool _isTelegramSyncRunning = false;
 
   Response entry(Request request) {
     final String lang = _normalizeLang(request.url.queryParameters['lang']);
@@ -450,27 +452,60 @@ class OwnerController {
     }
 
     try {
-      final _TelegramLinkCheckResult result = await _syncTelegramLinks(
-        requestedWorkshopId: workshop.id,
-      );
+      await syncTelegramUpdates();
+      final WorkshopModel? refreshedWorkshop = _store.workshopById(workshop.id);
+      if (refreshedWorkshop == null) {
+        return Response.seeOther(
+          _ownerBookingsUri(
+            lang: lang,
+            status: returnStatus,
+            error: _text(lang, 'garageNotFound'),
+          ),
+        );
+      }
+
+      final bool isConnected = refreshedWorkshop.telegramChatId.trim().isNotEmpty &&
+          refreshedWorkshop.telegramLinkCode.trim().isEmpty;
+      if (isConnected) {
+        final bool linkedNow =
+            workshop.telegramChatId.trim() != refreshedWorkshop.telegramChatId.trim() ||
+                workshop.telegramChatLabel.trim() !=
+                    refreshedWorkshop.telegramChatLabel.trim() ||
+                workshop.telegramLinkCode.trim().isNotEmpty;
+        return Response.seeOther(
+          _ownerBookingsUri(
+            lang: lang,
+            status: returnStatus,
+            message: _text(
+              lang,
+              linkedNow ? 'telegramLinkedNow' : 'telegramAlreadyConnected',
+              <String, Object>{
+                'chat': _telegramConnectedChatLabel(refreshedWorkshop),
+              },
+            ),
+          ),
+        );
+      }
+
+      if (refreshedWorkshop.telegramLinkCode.trim().isEmpty) {
+        return Response.seeOther(
+          _ownerBookingsUri(
+            lang: lang,
+            status: returnStatus,
+            error: _text(lang, 'telegramCodeMissing'),
+          ),
+        );
+      }
+
       return Response.seeOther(
         _ownerBookingsUri(
           lang: lang,
           status: returnStatus,
-          message: result.messageKey == null
-              ? null
-              : _text(
-                  lang,
-                  result.messageKey!,
-                  result.messageValues,
-                ),
-          error: result.errorKey == null
-              ? null
-              : _text(
-                  lang,
-                  result.errorKey!,
-                  result.messageValues,
-                ),
+          message: _text(
+            lang,
+            'telegramStillWaiting',
+            <String, Object>{'code': refreshedWorkshop.telegramLinkCode},
+          ),
         ),
       );
     } on TelegramBotException catch (error) {
@@ -564,6 +599,11 @@ class OwnerController {
       lang: lang,
       status: status,
     );
+    final String servicePricingCard = _servicePricingCardHtml(
+      workshop: workshop,
+      lang: lang,
+      status: status,
+    );
 
     final String bookingCards = bookings.isEmpty
         ? '''
@@ -622,18 +662,17 @@ class OwnerController {
     </div>
   </div>
 
-  <div class="booking-footer">
-    <div class="quick-links">
-      ${item.customerPhone.isEmpty ? '' : '<a class="ghost-btn" href="tel:${_escapeHtml(item.customerPhone)}">${_escapeHtml(_text(lang, 'callCustomer'))}</a>'}
-    </div>
-    <div class="quick-links">
-      ${_statusActionForm(item, BookingStatus.upcoming, lang, status)}
-      ${_statusActionForm(item, BookingStatus.completed, lang, status)}
-      ${_statusActionForm(item, BookingStatus.cancelled, lang, status)}
-    </div>
-  </div>
-</article>
-''';
+	  <div class="booking-footer">
+	    <div class="quick-links">
+	      ${item.customerPhone.isEmpty ? '' : '<a class="ghost-btn" href="tel:${_escapeHtml(item.customerPhone)}">${_escapeHtml(_text(lang, 'callCustomer'))}</a>'}
+	    </div>
+	    <div class="quick-links">
+	      ${_statusActionsHtml(item, lang, status)}
+	    </div>
+	  </div>
+	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong> · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
+	</article>
+	''';
           }).join();
 
     final String html = '''
@@ -752,7 +791,7 @@ class OwnerController {
       align-items: center;
     }
 
-    .pill-link, .ghost-btn, .status-btn, .danger-btn {
+    .pill-link, .ghost-btn, .status-btn, .danger-btn, .cancel-select {
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.72);
       border-radius: 999px;
@@ -780,6 +819,26 @@ class OwnerController {
     }
 
     .inline-form { margin: 0; }
+    .cancel-form {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .cancel-select {
+      min-width: 210px;
+      padding-right: 38px;
+      color: var(--ink);
+      appearance: none;
+    }
+    .cancel-meta {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--line);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
 
     .hero-card {
       padding: 24px;
@@ -819,6 +878,83 @@ class OwnerController {
     .telegram-card p {
       color: var(--muted);
       line-height: 1.65;
+    }
+
+    .service-pricing-card {
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .service-pricing-card p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .service-pricing-note {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(36, 49, 63, 0.04);
+      border: 1px dashed rgba(36, 49, 63, 0.14);
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .service-pricing-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .service-pricing-row {
+      margin: 0;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .service-pricing-copy {
+      display: grid;
+      gap: 6px;
+    }
+
+    .service-pricing-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .service-pricing-actions {
+      display: flex;
+      gap: 12px;
+      align-items: end;
+      flex-wrap: wrap;
+    }
+
+    .service-pricing-field {
+      display: grid;
+      gap: 6px;
+      min-width: 170px;
+    }
+
+    .service-pricing-field span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .service-pricing-field input {
+      min-height: 48px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      font-size: 15px;
+      background: rgba(255, 255, 255, 0.92);
     }
 
     .telegram-status {
@@ -1014,6 +1150,8 @@ class OwnerController {
 
     ${_flashHtml(message: message, error: error)}
 
+    $servicePricingCard
+
     <section class="booking-list">
       $bookingCards
     </section>
@@ -1030,6 +1168,77 @@ class OwnerController {
     );
   }
 
+  Future<Response> updateServicePrice(Request request, String serviceId) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    final ServiceModel? currentService = workshop.getServiceById(serviceId);
+    if (currentService == null) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: _text(lang, 'ownerServiceNotFound'),
+        ),
+      );
+    }
+
+    try {
+      final int nextPrice = _parseIntField(
+        form['price'],
+        fieldLabel: _text(
+          lang,
+          'servicePriceFieldLabel',
+          <String, Object>{'service': currentService.name},
+        ),
+        lang: lang,
+        min: 0,
+      );
+
+      final List<ServiceModel> updatedServices = workshop.services
+          .map((ServiceModel item) => item.id == currentService.id
+              ? item.copyWith(price: nextPrice)
+              : item)
+          .toList(growable: false);
+      final WorkshopModel updated = workshop.copyWith(services: updatedServices);
+      _store.updateWorkshop(workshopId: workshop.id, workshop: updated);
+      await _store.saveWorkshops(workshopsFilePath);
+
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          message: _text(
+            lang,
+            'servicePriceUpdated',
+            <String, Object>{
+              'service': currentService.name,
+              'price': '${nextPrice}k',
+            },
+          ),
+        ),
+      );
+    } on FormatException catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.message,
+        ),
+      );
+    }
+  }
+
   Future<Response> updateStatus(Request request, String bookingId) async {
     final Response? authRedirect = _requireOwner(request);
     if (authRedirect != null) {
@@ -1042,13 +1251,22 @@ class OwnerController {
     final String lang = _normalizeLang(form['lang']);
     final String returnStatus = _normalizeStatus(form['returnStatus']);
     final BookingStatus nextStatus = _statusFromRaw(form['bookingStatus']);
+    final String cancellationReasonId =
+        normalizeBookingCancellationReasonId(form['cancellationReason'] ?? '');
 
     try {
-      final BookingModel updated = _store.updateWorkshopBookingStatus(
-        workshopId: workshopId,
-        bookingId: bookingId,
-        status: nextStatus,
-      );
+      final BookingModel updated = nextStatus == BookingStatus.cancelled
+          ? _store.cancelWorkshopBooking(
+              workshopId: workshopId,
+              bookingId: bookingId,
+              reasonId: cancellationReasonId,
+              actorRole: 'owner_panel',
+            )
+          : _store.updateWorkshopBookingStatus(
+              workshopId: workshopId,
+              bookingId: bookingId,
+              status: nextStatus,
+            );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
       return Response.seeOther(
@@ -1100,6 +1318,64 @@ class OwnerController {
       return null;
     }
     return _store.workshopById(workshopId);
+  }
+
+  String _servicePricingCardHtml({
+    required WorkshopModel workshop,
+    required String lang,
+    required String status,
+  }) {
+    final String hiddenFields = '''
+<input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+<input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+''';
+
+    final String serviceList = workshop.services.isEmpty
+        ? '<section class="empty-card"><p>${_escapeHtml(_text(lang, 'servicePricingEmpty'))}</p></section>'
+        : workshop.services.map((ServiceModel service) {
+            final String durationText = _text(
+              lang,
+              'serviceDurationMinutes',
+              <String, Object>{'minutes': service.durationMinutes},
+            );
+            final String currentPriceText = _text(
+              lang,
+              'serviceCurrentPriceLabel',
+              <String, Object>{'price': '${service.price}k'},
+            );
+            return '''
+<form class="service-pricing-row" method="post" action="/owner/services/${Uri.encodeComponent(service.id)}/price?lang=${Uri.encodeQueryComponent(lang)}">
+  $hiddenFields
+  <div class="service-pricing-copy">
+    <strong>${_escapeHtml(service.name)}</strong>
+    <div class="service-pricing-meta">${_escapeHtml(durationText)} • ${_escapeHtml(currentPriceText)}</div>
+  </div>
+  <div class="service-pricing-actions">
+    <label class="service-pricing-field">
+      <span>${_escapeHtml(_text(lang, 'serviceNewPriceLabel'))}</span>
+      <input type="number" name="price" min="0" step="1" value="${_escapeHtml(service.price.toString())}" placeholder="${_escapeHtml(_text(lang, 'servicePricePlaceholder'))}">
+    </label>
+    <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'servicePriceSave'))}</button>
+  </div>
+</form>
+''';
+          }).join();
+
+    return '''
+<section class="card service-pricing-card">
+  <div>
+    <div class="eyebrow">${_escapeHtml(_text(lang, 'servicePricingEyebrow'))}</div>
+    <h2>${_escapeHtml(_text(lang, 'servicePricingTitle'))}</h2>
+    <p>${_escapeHtml(_text(lang, 'servicePricingDescription'))}</p>
+  </div>
+
+  <div class="service-pricing-note">${_escapeHtml(_text(lang, 'servicePricingHint'))}</div>
+
+  <div class="service-pricing-list">
+    $serviceList
+  </div>
+</section>
+''';
   }
 
   String _telegramCardHtml({
@@ -1225,120 +1501,95 @@ class OwnerController {
     return 'UT-${suffix.toString().padLeft(6, '0')}';
   }
 
-  Future<_TelegramLinkCheckResult> _syncTelegramLinks({
-    required String requestedWorkshopId,
-  }) async {
-    final WorkshopModel? requestedBefore = _store.workshopById(requestedWorkshopId);
-    if (requestedBefore == null) {
-      return const _TelegramLinkCheckResult(errorKey: 'garageNotFound');
+  Future<void> syncTelegramUpdates() async {
+    if (!telegramBotService.isConfigured || _isTelegramSyncRunning) {
+      return;
     }
 
-    final int nextUpdateId = await _loadTelegramNextUpdateId();
-    final List<Map<String, dynamic>> updates = await telegramBotService.getUpdates(
-      offset: nextUpdateId,
-    );
-    int nextProcessedUpdateId = nextUpdateId;
-    final Map<String, String> workshopIdByCode = <String, String>{};
-    for (final WorkshopModel workshop in _store.workshops()) {
-      final String code = workshop.telegramLinkCode.trim().toUpperCase();
-      if (code.isNotEmpty) {
-        workshopIdByCode[code] = workshop.id;
+    _isTelegramSyncRunning = true;
+    try {
+      final int nextUpdateId = await _loadTelegramNextUpdateId();
+      final List<Map<String, dynamic>> updates =
+          await telegramBotService.getUpdates(
+        offset: nextUpdateId,
+      );
+      int nextProcessedUpdateId = nextUpdateId;
+      final Map<String, String> workshopIdByCode = <String, String>{};
+      for (final WorkshopModel workshop in _store.workshops()) {
+        final String code = workshop.telegramLinkCode.trim().toUpperCase();
+        if (code.isNotEmpty) {
+          workshopIdByCode[code] = workshop.id;
+        }
       }
-    }
+      final List<WorkshopModel> newlyLinked = <WorkshopModel>[];
+      bool workshopsChanged = false;
+      bool bookingsChanged = false;
 
-    final Map<String, _TelegramIncomingMessage> matchedWorkshops =
-        <String, _TelegramIncomingMessage>{};
+      for (final Map<String, dynamic> update in updates) {
+        final int updateId = _toInt(update['update_id']);
+        if (updateId >= nextProcessedUpdateId) {
+          nextProcessedUpdateId = updateId + 1;
+        }
 
-    for (final Map<String, dynamic> update in updates) {
-      final int updateId = _toInt(update['update_id']);
-      if (updateId >= nextProcessedUpdateId) {
-        nextProcessedUpdateId = updateId + 1;
-      }
+        final _TelegramIncomingMessage? message =
+            _telegramIncomingMessageFromUpdate(update);
+        if (message != null) {
+          for (final String candidate in _extractTelegramCodes(message.text)) {
+            final String? workshopId = workshopIdByCode.remove(candidate);
+            if (workshopId == null) {
+              continue;
+            }
 
-      final _TelegramIncomingMessage? message =
-          _telegramIncomingMessageFromUpdate(update);
-      if (message == null) {
-        continue;
-      }
+            final WorkshopModel? current = _store.workshopById(workshopId);
+            if (current == null) {
+              continue;
+            }
 
-      for (final String candidate in _extractTelegramCodes(message.text)) {
-        final String? workshopId = workshopIdByCode.remove(candidate);
-        if (workshopId == null) {
+            final WorkshopModel updated = current.copyWith(
+              telegramChatId: message.chatId,
+              telegramChatLabel: message.chatLabel,
+              telegramLinkCode: '',
+            );
+            _store.updateWorkshop(workshopId: current.id, workshop: updated);
+            workshopsChanged = true;
+            newlyLinked.add(updated);
+            break;
+          }
+        }
+
+        final _TelegramCallbackAction? callbackAction =
+            _telegramCallbackActionFromUpdate(update);
+        if (callbackAction == null) {
           continue;
         }
-        matchedWorkshops[workshopId] = message;
-        break;
-      }
-    }
 
-    final List<WorkshopModel> newlyLinked = <WorkshopModel>[];
-    for (final MapEntry<String, _TelegramIncomingMessage> entry
-        in matchedWorkshops.entries) {
-      final WorkshopModel? current = _store.workshopById(entry.key);
-      if (current == null) {
-        continue;
+        final bool changed =
+            await _handleTelegramCallbackAction(callbackAction);
+        if (changed) {
+          bookingsChanged = true;
+        }
       }
 
-      final WorkshopModel updated = current.copyWith(
-        telegramChatId: entry.value.chatId,
-        telegramChatLabel: entry.value.chatLabel,
-        telegramLinkCode: '',
-      );
-      _store.updateWorkshop(workshopId: current.id, workshop: updated);
-      newlyLinked.add(updated);
-    }
-
-    if (newlyLinked.isNotEmpty) {
-      await _store.saveWorkshops(workshopsFilePath);
-    }
-    if (nextProcessedUpdateId != nextUpdateId) {
-      await _saveTelegramNextUpdateId(nextProcessedUpdateId);
-    }
-
-    for (final WorkshopModel workshop in newlyLinked) {
-      try {
-        await notificationsService.sendTestNotification(workshop: workshop);
-      } on Exception catch (error) {
-        stderr.writeln('Telegram ulanish test xabari yuborilmadi: $error');
+      if (workshopsChanged) {
+        await _store.saveWorkshops(workshopsFilePath);
       }
-    }
+      if (bookingsChanged) {
+        await _store.saveBookings(bookingsFilePath);
+      }
+      if (nextProcessedUpdateId != nextUpdateId) {
+        await _saveTelegramNextUpdateId(nextProcessedUpdateId);
+      }
 
-    final WorkshopModel? requestedAfter = _store.workshopById(requestedWorkshopId);
-    if (requestedAfter == null) {
-      return const _TelegramLinkCheckResult(errorKey: 'garageNotFound');
+      for (final WorkshopModel workshop in newlyLinked) {
+        try {
+          await notificationsService.sendTestNotification(workshop: workshop);
+        } on Exception catch (error) {
+          stderr.writeln('Telegram ulanish test xabari yuborilmadi: $error');
+        }
+      }
+    } finally {
+      _isTelegramSyncRunning = false;
     }
-
-    if (matchedWorkshops.containsKey(requestedWorkshopId)) {
-      return _TelegramLinkCheckResult(
-        messageKey: 'telegramLinkedNow',
-        messageValues: <String, Object>{
-          'chat': _telegramConnectedChatLabel(requestedAfter),
-        },
-      );
-    }
-
-    if (requestedAfter.telegramLinkCode.trim().isEmpty &&
-        requestedAfter.telegramChatId.trim().isNotEmpty) {
-      return _TelegramLinkCheckResult(
-        messageKey: 'telegramAlreadyConnected',
-        messageValues: <String, Object>{
-          'chat': _telegramConnectedChatLabel(requestedAfter),
-        },
-      );
-    }
-
-    if (requestedAfter.telegramLinkCode.trim().isEmpty) {
-      return const _TelegramLinkCheckResult(
-        errorKey: 'telegramCodeMissing',
-      );
-    }
-
-    return _TelegramLinkCheckResult(
-      messageKey: 'telegramStillWaiting',
-      messageValues: <String, Object>{
-        'code': requestedAfter.telegramLinkCode,
-      },
-    );
   }
 
   Future<int> _loadTelegramNextUpdateId() async {
@@ -1433,6 +1684,215 @@ class OwnerController {
     return '${chat['id'] ?? ''}'.trim();
   }
 
+  Future<bool> _handleTelegramCallbackAction(
+    _TelegramCallbackAction action,
+  ) async {
+    final _TelegramBookingCallback? parsed =
+        _parseTelegramBookingCallback(action.data);
+    if (parsed == null) {
+      await _safeAnswerTelegramCallback(
+        action.callbackQueryId,
+        'Bu tugma endi faol emas',
+      );
+      return false;
+    }
+
+    final WorkshopModel? workshop = _store.workshopById(parsed.workshopId);
+    if (workshop == null) {
+      await _safeAnswerTelegramCallback(
+        action.callbackQueryId,
+        'Workshop topilmadi',
+      );
+      return false;
+    }
+
+    if (workshop.telegramChatId.trim() != action.chatId.trim()) {
+      await _safeAnswerTelegramCallback(
+        action.callbackQueryId,
+        'Bu tugma boshqa chat uchun ulangan',
+      );
+      return false;
+    }
+
+    final BookingModel? booking = _workshopBookingById(
+      workshopId: workshop.id,
+      bookingId: parsed.bookingId,
+    );
+    if (booking == null) {
+      await _safeClearTelegramButtons(action);
+      await _safeAnswerTelegramCallback(
+        action.callbackQueryId,
+        'Zakaz topilmadi',
+      );
+      return false;
+    }
+
+    switch (booking.status) {
+      case BookingStatus.completed:
+        await _safeClearTelegramButtons(action);
+        await _safeAnswerTelegramCallback(
+          action.callbackQueryId,
+          'Zakaz allaqachon bajarilgan',
+        );
+        return false;
+      case BookingStatus.cancelled:
+        await _safeClearTelegramButtons(action);
+        await _safeAnswerTelegramCallback(
+          action.callbackQueryId,
+          'Bu zakaz allaqachon bekor qilingan',
+        );
+        return false;
+      case BookingStatus.upcoming:
+        try {
+          final BookingModel updated = parsed.kind == 'cancel'
+              ? _store.cancelWorkshopBooking(
+                  workshopId: workshop.id,
+                  bookingId: booking.id,
+                  reasonId: parsed.reasonId,
+                  actorRole: 'owner_telegram',
+                )
+              : _store.updateWorkshopBookingStatus(
+                  workshopId: workshop.id,
+                  bookingId: booking.id,
+                  status: BookingStatus.completed,
+                );
+          await _safeClearTelegramButtons(action);
+          await _safeAnswerTelegramCallback(
+            action.callbackQueryId,
+            parsed.kind == 'cancel'
+                ? 'Zakaz bekor qilindi'
+                : 'Zakaz bajarildi deb belgilandi',
+          );
+          try {
+            await notificationsService.sendBookingStatusNotification(
+              workshop: workshop,
+              booking: updated,
+              actor: 'Telegram tugmasi',
+            );
+          } on Exception catch (error) {
+            stderr.writeln('Telegram callback status xabari yuborilmadi: $error');
+          }
+          return true;
+        } on StateError catch (error) {
+          await _safeAnswerTelegramCallback(
+            action.callbackQueryId,
+            error.message,
+          );
+          return false;
+        }
+    }
+  }
+
+  _TelegramCallbackAction? _telegramCallbackActionFromUpdate(
+    Map<String, dynamic> update,
+  ) {
+    final dynamic rawCallback = update['callback_query'];
+    if (rawCallback is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final String callbackQueryId = (rawCallback['id'] ?? '').toString().trim();
+    final String data = (rawCallback['data'] ?? '').toString().trim();
+    final dynamic rawMessage = rawCallback['message'];
+    if (callbackQueryId.isEmpty ||
+        data.isEmpty ||
+        rawMessage is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final dynamic rawChat = rawMessage['chat'];
+    if (rawChat is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final String chatId = '${rawChat['id'] ?? ''}'.trim();
+    final int messageId = _toInt(rawMessage['message_id']);
+    if (chatId.isEmpty || messageId <= 0) {
+      return null;
+    }
+
+    return _TelegramCallbackAction(
+      callbackQueryId: callbackQueryId,
+      chatId: chatId,
+      messageId: messageId,
+      data: data,
+    );
+  }
+
+  _TelegramBookingCallback? _parseTelegramBookingCallback(String raw) {
+    final List<String> parts = raw.trim().split(':');
+    if (parts.length == 3 && parts.first == 'done') {
+      final String workshopId = parts[1].trim();
+      final String bookingId = parts[2].trim();
+      if (workshopId.isEmpty || bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'done',
+        workshopId: workshopId,
+        bookingId: bookingId,
+      );
+    }
+
+    if (parts.length == 4 && parts.first == 'cancel') {
+      final String reasonId = normalizeBookingCancellationReasonId(parts[1]);
+      final String workshopId = parts[2].trim();
+      final String bookingId = parts[3].trim();
+      if (reasonId.isEmpty || workshopId.isEmpty || bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'cancel',
+        workshopId: workshopId,
+        bookingId: bookingId,
+        reasonId: reasonId,
+      );
+    }
+
+    return null;
+  }
+
+  BookingModel? _workshopBookingById({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    for (final BookingModel item in _store.bookings(workshopId: workshopId)) {
+      if (item.id == bookingId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _safeAnswerTelegramCallback(
+    String callbackQueryId,
+    String text,
+  ) async {
+    try {
+      await telegramBotService.answerCallbackQuery(
+        callbackQueryId: callbackQueryId,
+        text: text,
+      );
+    } on Exception catch (error) {
+      stderr.writeln('Telegram callback javobi yuborilmadi: $error');
+    }
+  }
+
+  Future<void> _safeClearTelegramButtons(
+    _TelegramCallbackAction action,
+  ) async {
+    try {
+      await telegramBotService.editMessageReplyMarkup(
+        chatId: action.chatId,
+        messageId: action.messageId,
+      );
+    } on Exception catch (error) {
+      stderr.writeln('Telegram callback tugmasi tozalanmadi: $error');
+    }
+  }
+
   int _toInt(Object? value) {
     if (value is int) {
       return value;
@@ -1441,6 +1901,29 @@ class OwnerController {
       return value.toInt();
     }
     return int.tryParse('$value') ?? 0;
+  }
+
+  String _statusActionsHtml(
+    BookingModel booking,
+    String lang,
+    String status,
+  ) {
+    if (booking.status != BookingStatus.upcoming) {
+      return '<span class="muted">${_escapeHtml(_text(lang, 'noFurtherActions'))}</span>';
+    }
+
+    final String completeForm = _statusActionForm(
+      booking,
+      BookingStatus.completed,
+      lang,
+      status,
+    );
+    final String cancelForm = _cancelActionForm(
+      booking: booking,
+      lang: lang,
+      status: status,
+    );
+    return '$completeForm$cancelForm';
   }
 
   String _statusActionForm(
@@ -1458,6 +1941,47 @@ class OwnerController {
   <button class="status-btn${isActive ? ' active' : ''}" type="submit">${_escapeHtml(_statusLabel(nextStatus, lang))}</button>
 </form>
 ''';
+  }
+
+  String _cancelActionForm({
+    required BookingModel booking,
+    required String lang,
+    required String status,
+  }) {
+    final DateTime now = DateTime.now();
+    final bool canCancel = booking.dateTime.isAfter(
+      now.add(workshopCancellationLeadTime),
+    );
+    if (!canCancel) {
+      return '<span class="muted">${_escapeHtml(_text(lang, 'cancelGuardHint', <String, Object>{'minutes': workshopCancellationLeadTime.inMinutes}))}</span>';
+    }
+
+    final String options = bookingCancellationReasons
+        .where((BookingCancellationReason item) => item.id != 'customer_request')
+        .map(
+          (BookingCancellationReason item) =>
+              '<option value="${_escapeHtml(item.id)}">${_escapeHtml(item.label(lang))}</option>',
+        )
+        .join();
+    return '''
+<form class="inline-form cancel-form" method="post" action="/owner/bookings/${Uri.encodeComponent(booking.id)}/status?lang=${Uri.encodeQueryComponent(lang)}">
+  <input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+  <input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+  <input type="hidden" name="bookingStatus" value="cancelled">
+  <select class="cancel-select" name="cancellationReason" aria-label="${_escapeHtml(_text(lang, 'cancelReasonLabel'))}">
+    $options
+  </select>
+  <button class="danger-btn" type="submit">${_escapeHtml(_text(lang, 'cancelButton'))}</button>
+</form>
+''';
+  }
+
+  String _cancellationReasonLabel(BookingModel booking, String lang) {
+    final String reasonId = booking.cancelReasonId.trim();
+    if (reasonId.isEmpty) {
+      return _text(lang, 'unknownReason');
+    }
+    return bookingCancellationReasonById(reasonId).label(lang);
   }
 
   Response? _requireOwner(Request request) {
@@ -1535,6 +2059,37 @@ class OwnerController {
       return '<div class="flash err">${_escapeHtml(error)}</div>';
     }
     return '';
+  }
+
+  int _parseIntField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+    required int min,
+  }) {
+    final String normalized = (raw ?? '').trim();
+    if (normalized.isEmpty) {
+      throw FormatException(
+        _text(lang, 'requiredField', <String, Object>{'field': fieldLabel}),
+      );
+    }
+
+    final int? value = int.tryParse(normalized);
+    if (value == null) {
+      throw FormatException(
+        _text(lang, 'invalidNumber', <String, Object>{'field': fieldLabel}),
+      );
+    }
+    if (value < min) {
+      throw FormatException(
+        _text(
+          lang,
+          'numberMin',
+          <String, Object>{'field': fieldLabel, 'min': min},
+        ),
+      );
+    }
+    return value;
   }
 
   String _normalizeLang(String? raw) {
@@ -1665,7 +2220,32 @@ class OwnerController {
       'basePriceLabel': 'Bazaviy narx',
       'createdLabel': 'Tushgan vaqt',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
+      'servicePricingEyebrow': 'Narx boshqaruvi',
+      'servicePricingTitle': 'Xizmat narxlarini o‘zingiz belgilang',
+      'servicePricingDescription':
+          'Quyida faqat shu ustaxonaga tegishli xizmatlar narxini yangilaysiz.',
+      'servicePricingHint':
+          'Saqlangan narx appdagi keyingi yangilanishda ko‘rinadi va keyingi zakazlar shu bazaviy narx bilan hisoblanadi.',
+      'servicePricingEmpty': 'Bu ustaxonaga hali xizmatlar qo‘shilmagan.',
+      'serviceDurationMinutes': '{minutes} daqiqa',
+      'serviceCurrentPriceLabel': 'Joriy narx: {price}',
+      'serviceNewPriceLabel': 'Yangi narx',
+      'servicePricePlaceholder': 'Masalan: 150',
+      'servicePriceSave': 'Narxni saqlash',
+      'servicePriceUpdated': '{service} narxi {price} ga yangilandi',
+      'servicePriceFieldLabel': '{service} narxi',
+      'ownerServiceNotFound': 'Xizmat topilmadi',
+      'requiredField': '{field} majburiy',
+      'invalidNumber': '{field} noto‘g‘ri',
+      'numberMin': '{field} kamida {min} bo‘lishi kerak',
       'statusUpdated': '{id} statusi {status} ga o‘zgardi',
+      'cancelButton': 'Bekor qilish',
+      'cancelReasonLabel': 'Bekor qilish sababi',
+      'cancelledByLabel': 'Bekor qildi',
+      'cancelGuardHint':
+          'Bekor qilish faqat bron vaqtigacha kamida {minutes} daqiqa qolganda mumkin.',
+      'noFurtherActions': 'Bu zakaz uchun qo‘shimcha amal yo‘q.',
+      'unknownReason': 'Ko‘rsatilmagan',
       'logout': 'Chiqish',
       'garageNotFound': 'Workshop topilmadi',
       'telegramEyebrow': 'Telegram Bot',
@@ -1759,7 +2339,32 @@ class OwnerController {
       'basePriceLabel': 'Базовая цена',
       'createdLabel': 'Время поступления',
       'callCustomer': 'Позвонить клиенту',
+      'servicePricingEyebrow': 'Управление ценами',
+      'servicePricingTitle': 'Устанавливайте цены на услуги сами',
+      'servicePricingDescription':
+          'Ниже вы обновляете цены только для услуг своего автосервиса.',
+      'servicePricingHint':
+          'Сохраненная цена появится в приложении после следующего обновления, а новые заказы будут считаться по этой базовой цене.',
+      'servicePricingEmpty': 'Для этого workshop пока не добавлены услуги.',
+      'serviceDurationMinutes': '{minutes} мин',
+      'serviceCurrentPriceLabel': 'Текущая цена: {price}',
+      'serviceNewPriceLabel': 'Новая цена',
+      'servicePricePlaceholder': 'Например: 150',
+      'servicePriceSave': 'Сохранить цену',
+      'servicePriceUpdated': 'Цена услуги {service} обновлена до {price}',
+      'servicePriceFieldLabel': 'Цена для {service}',
+      'ownerServiceNotFound': 'Услуга не найдена',
+      'requiredField': 'Поле {field} обязательно',
+      'invalidNumber': 'Поле {field} заполнено неверно',
+      'numberMin': 'Поле {field} должно быть не меньше {min}',
       'statusUpdated': 'Статус {id} изменен на {status}',
+      'cancelButton': 'Отменить заказ',
+      'cancelReasonLabel': 'Причина отмены',
+      'cancelledByLabel': 'Кто отменил',
+      'cancelGuardHint':
+          'Отмена доступна только если до записи осталось не меньше {minutes} минут.',
+      'noFurtherActions': 'Для этого заказа больше нет доступных действий.',
+      'unknownReason': 'Не указано',
       'logout': 'Выйти',
       'garageNotFound': 'Workshop не найден',
       'telegramEyebrow': 'Telegram Bot',
@@ -1853,7 +2458,32 @@ class OwnerController {
       'basePriceLabel': 'Base price',
       'createdLabel': 'Received at',
       'callCustomer': 'Call customer',
+      'servicePricingEyebrow': 'Price control',
+      'servicePricingTitle': 'Set your own service prices',
+      'servicePricingDescription':
+          'Update prices here only for the services that belong to your workshop.',
+      'servicePricingHint':
+          'The saved price appears in the app on the next refresh, and new bookings will use that base price immediately.',
+      'servicePricingEmpty': 'No services have been added to this workshop yet.',
+      'serviceDurationMinutes': '{minutes} min',
+      'serviceCurrentPriceLabel': 'Current price: {price}',
+      'serviceNewPriceLabel': 'New price',
+      'servicePricePlaceholder': 'For example: 150',
+      'servicePriceSave': 'Save price',
+      'servicePriceUpdated': '{service} price was updated to {price}',
+      'servicePriceFieldLabel': 'Price for {service}',
+      'ownerServiceNotFound': 'Service not found',
+      'requiredField': '{field} is required',
+      'invalidNumber': '{field} must be a valid number',
+      'numberMin': '{field} must be at least {min}',
       'statusUpdated': '{id} status changed to {status}',
+      'cancelButton': 'Cancel order',
+      'cancelReasonLabel': 'Cancellation reason',
+      'cancelledByLabel': 'Cancelled by',
+      'cancelGuardHint':
+          'Cancellation is allowed only when at least {minutes} minutes remain before the appointment.',
+      'noFurtherActions': 'No further actions are available for this order.',
+      'unknownReason': 'Not specified',
       'logout': 'Log out',
       'garageNotFound': 'Workshop not found',
       'telegramEyebrow': 'Telegram Bot',
@@ -1897,18 +2527,6 @@ class OwnerController {
   };
 }
 
-class _TelegramLinkCheckResult {
-  const _TelegramLinkCheckResult({
-    this.messageKey,
-    this.errorKey,
-    this.messageValues = const <String, Object>{},
-  });
-
-  final String? messageKey;
-  final String? errorKey;
-  final Map<String, Object> messageValues;
-}
-
 class _TelegramIncomingMessage {
   const _TelegramIncomingMessage({
     required this.chatId,
@@ -1919,4 +2537,32 @@ class _TelegramIncomingMessage {
   final String chatId;
   final String chatLabel;
   final String text;
+}
+
+class _TelegramCallbackAction {
+  const _TelegramCallbackAction({
+    required this.callbackQueryId,
+    required this.chatId,
+    required this.messageId,
+    required this.data,
+  });
+
+  final String callbackQueryId;
+  final String chatId;
+  final int messageId;
+  final String data;
+}
+
+class _TelegramBookingCallback {
+  const _TelegramBookingCallback({
+    required this.kind,
+    required this.workshopId,
+    required this.bookingId,
+    this.reasonId = '',
+  });
+
+  final String kind;
+  final String workshopId;
+  final String bookingId;
+  final String reasonId;
 }

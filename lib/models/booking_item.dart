@@ -29,6 +29,9 @@ class BookingItem {
     required this.basePrice,
     required this.price,
     this.status = BookingStatus.upcoming,
+    this.cancelReasonId = '',
+    this.cancelledByRole = '',
+    this.cancelledAt,
   });
 
   final String id;
@@ -43,6 +46,9 @@ class BookingItem {
   final int basePrice;
   final int price;
   final BookingStatus status;
+  final String cancelReasonId;
+  final String cancelledByRole;
+  final DateTime? cancelledAt;
 
   factory BookingItem.fromJson(Map<String, dynamic> json) {
     // TODO(API): booking object kalitlari:
@@ -66,6 +72,9 @@ class BookingItem {
           : _toInt(json['basePrice']),
       price: _toInt(json['price']),
       status: _statusFromString((json['status'] ?? '').toString()),
+      cancelReasonId: (json['cancelReasonId'] ?? '').toString().trim(),
+      cancelledByRole: (json['cancelledByRole'] ?? '').toString().trim(),
+      cancelledAt: DateTime.tryParse((json['cancelledAt'] ?? '').toString()),
     );
   }
 
@@ -82,6 +91,9 @@ class BookingItem {
     int? basePrice,
     int? price,
     BookingStatus? status,
+    String? cancelReasonId,
+    String? cancelledByRole,
+    DateTime? cancelledAt,
   }) {
     return BookingItem(
       id: id ?? this.id,
@@ -96,6 +108,9 @@ class BookingItem {
       basePrice: basePrice ?? this.basePrice,
       price: price ?? this.price,
       status: status ?? this.status,
+      cancelReasonId: cancelReasonId ?? this.cancelReasonId,
+      cancelledByRole: cancelledByRole ?? this.cancelledByRole,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
     );
   }
 

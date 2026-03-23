@@ -16,7 +16,17 @@ import 'store.dart';
 import 'telegram_bot.dart';
 import 'workshop_notifications.dart';
 
-Handler buildHandler(
+class AppRuntime {
+  const AppRuntime({
+    required this.handler,
+    required this.ownerController,
+  });
+
+  final Handler handler;
+  final OwnerController ownerController;
+}
+
+AppRuntime buildAppRuntime(
   InMemoryStore store, {
   required String workshopLocationsFilePath,
   required String workshopsFilePath,
@@ -90,6 +100,7 @@ Handler buildHandler(
     ..post('/owner/telegram/generate', ownerController.generateTelegramLinkCode)
     ..post('/owner/telegram/check', ownerController.checkTelegramLink)
     ..post('/owner/telegram/disconnect', ownerController.disconnectTelegram)
+    ..post('/owner/services/<id>/price', ownerController.updateServicePrice)
     ..post('/owner/bookings/<id>/status', ownerController.updateStatus)
     ..post('/admin/workshops', adminController.createWorkshop)
     ..post('/admin/workshops/<id>/update', adminController.updateWorkshop)
@@ -110,9 +121,38 @@ Handler buildHandler(
     ..post('/bookings', bookingController.create)
     ..patch('/bookings/<id>/cancel', bookingController.cancel);
 
-  return Pipeline()
+  final Handler handler = Pipeline()
       .addMiddleware(logRequests())
       .addMiddleware(corsMiddleware())
       .addMiddleware(authMiddleware(store))
       .addHandler(router.call);
+
+  return AppRuntime(
+    handler: handler,
+    ownerController: ownerController,
+  );
+}
+
+Handler buildHandler(
+  InMemoryStore store, {
+  required String workshopLocationsFilePath,
+  required String workshopsFilePath,
+  required String usersFilePath,
+  required String bookingsFilePath,
+  required String telegramSyncStateFilePath,
+  required String adminUsername,
+  required String adminPassword,
+  required String telegramBotToken,
+}) {
+  return buildAppRuntime(
+    store,
+    workshopLocationsFilePath: workshopLocationsFilePath,
+    workshopsFilePath: workshopsFilePath,
+    usersFilePath: usersFilePath,
+    bookingsFilePath: bookingsFilePath,
+    telegramSyncStateFilePath: telegramSyncStateFilePath,
+    adminUsername: adminUsername,
+    adminPassword: adminPassword,
+    telegramBotToken: telegramBotToken,
+  ).handler;
 }

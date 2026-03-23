@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
+import '../booking_cancellation.dart';
 import '../models.dart';
 import '../store.dart';
 import '../vehicle_types.dart';
@@ -106,7 +107,7 @@ class AdminBookingsController {
       return '<option value="${_escapeHtml(workshop.id)}"${selected ? ' selected' : ''}>${_escapeHtml(workshop.name)}</option>';
     }).join();
 
-    final String bookingCards = filtered.isEmpty
+  final String bookingCards = filtered.isEmpty
         ? '''
 <section class="empty-card">
   <div class="eyebrow">${_escapeHtml(_text(lang, 'emptyEyebrow'))}</div>
@@ -173,19 +174,18 @@ class AdminBookingsController {
   </div>
 
   <div class="booking-footer">
-    <div class="quick-links">
-      <a class="ghost-btn" href="${_escapeHtml(workshopInboxUri)}">${_escapeHtml(_text(lang, 'ownerInboxLink'))}</a>
-      ${item.customerPhone.isEmpty ? '' : '<a class="ghost-btn" href="tel:${_escapeHtml(item.customerPhone)}">${_escapeHtml(_text(lang, 'callCustomer'))}</a>'}
-    </div>
-    <div class="quick-links">
-      ${_statusActionForm(item, BookingStatus.upcoming, lang, query, workshopId, status)}
-      ${_statusActionForm(item, BookingStatus.completed, lang, query, workshopId, status)}
-      ${_statusActionForm(item, BookingStatus.cancelled, lang, query, workshopId, status)}
-    </div>
-  </div>
-</article>
-''';
-          }).join();
+	    <div class="quick-links">
+	      <a class="ghost-btn" href="${_escapeHtml(workshopInboxUri)}">${_escapeHtml(_text(lang, 'ownerInboxLink'))}</a>
+	      ${item.customerPhone.isEmpty ? '' : '<a class="ghost-btn" href="tel:${_escapeHtml(item.customerPhone)}">${_escapeHtml(_text(lang, 'callCustomer'))}</a>'}
+	    </div>
+	    <div class="quick-links">
+	      ${_statusActionsHtml(item, lang, query, workshopId, status)}
+	    </div>
+	  </div>
+	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong> · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
+	</article>
+	''';
+	          }).join();
 
     final String ownerFlow = workshopId.isEmpty
         ? _text(lang, 'ownerFlowAll')
@@ -310,7 +310,7 @@ class AdminBookingsController {
       align-items: center;
     }
 
-    .pill-link, .ghost-btn, .status-btn, .danger-btn {
+    .pill-link, .ghost-btn, .status-btn, .danger-btn, .cancel-select {
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.7);
       border-radius: 999px;
@@ -338,6 +338,26 @@ class AdminBookingsController {
     }
 
     .inline-form { margin: 0; }
+    .cancel-form {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .cancel-select {
+      min-width: 210px;
+      padding-right: 38px;
+      color: var(--ink);
+      appearance: none;
+    }
+    .cancel-meta {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--line);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
 
     .hero-card {
       padding: 24px;
@@ -656,12 +676,19 @@ class AdminBookingsController {
     final String workshopId = (form['returnWorkshop'] ?? '').trim();
     final String status = _normalizeStatus(form['returnStatus']);
     final BookingStatus nextStatus = _statusFromRaw(form['bookingStatus']);
+    final String cancellationReasonId =
+        normalizeBookingCancellationReasonId(form['cancellationReason'] ?? '');
 
     try {
-      final BookingModel updated = _store.updateBookingStatus(
-        bookingId: bookingId,
-        status: nextStatus,
-      );
+      final BookingModel updated = nextStatus == BookingStatus.cancelled
+          ? _store.cancelBookingByAdmin(
+              bookingId: bookingId,
+              reasonId: cancellationReasonId,
+            )
+          : _store.updateBookingStatus(
+              bookingId: bookingId,
+              status: nextStatus,
+            );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
       return Response.seeOther(
@@ -710,6 +737,35 @@ class AdminBookingsController {
     }
   }
 
+  String _statusActionsHtml(
+    BookingModel booking,
+    String lang,
+    String query,
+    String workshopId,
+    String status,
+  ) {
+    if (booking.status != BookingStatus.upcoming) {
+      return '<span class="muted">${_escapeHtml(_text(lang, 'noFurtherActions'))}</span>';
+    }
+
+    final String completeForm = _statusActionForm(
+      booking,
+      BookingStatus.completed,
+      lang,
+      query,
+      workshopId,
+      status,
+    );
+    final String cancelForm = _cancelActionForm(
+      booking: booking,
+      lang: lang,
+      query: query,
+      workshopId: workshopId,
+      status: status,
+    );
+    return '$completeForm$cancelForm';
+  }
+
   String _statusActionForm(
     BookingModel booking,
     BookingStatus nextStatus,
@@ -729,6 +785,51 @@ class AdminBookingsController {
   <button class="status-btn${isActive ? ' active' : ''}" type="submit">${_escapeHtml(_statusLabel(nextStatus, lang))}</button>
 </form>
 ''';
+  }
+
+  String _cancelActionForm({
+    required BookingModel booking,
+    required String lang,
+    required String query,
+    required String workshopId,
+    required String status,
+  }) {
+    final DateTime now = DateTime.now();
+    final bool canCancel = booking.dateTime.isAfter(
+      now.add(workshopCancellationLeadTime),
+    );
+    if (!canCancel) {
+      return '<span class="muted">${_escapeHtml(_text(lang, 'cancelGuardHint', <String, Object>{'minutes': workshopCancellationLeadTime.inMinutes}))}</span>';
+    }
+
+    final String options = bookingCancellationReasons
+        .where((BookingCancellationReason item) => item.id != 'customer_request')
+        .map(
+          (BookingCancellationReason item) =>
+              '<option value="${_escapeHtml(item.id)}">${_escapeHtml(item.label(lang))}</option>',
+        )
+        .join();
+    return '''
+<form class="inline-form cancel-form" method="post" action="/admin/bookings/${Uri.encodeComponent(booking.id)}/status?lang=${Uri.encodeQueryComponent(lang)}">
+  <input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+  <input type="hidden" name="returnQ" value="${_escapeHtml(query)}">
+  <input type="hidden" name="returnWorkshop" value="${_escapeHtml(workshopId)}">
+  <input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+  <input type="hidden" name="bookingStatus" value="cancelled">
+  <select class="cancel-select" name="cancellationReason" aria-label="${_escapeHtml(_text(lang, 'cancelReasonLabel'))}">
+    $options
+  </select>
+  <button class="danger-btn" type="submit">${_escapeHtml(_text(lang, 'cancelButton'))}</button>
+</form>
+''';
+  }
+
+  String _cancellationReasonLabel(BookingModel booking, String lang) {
+    final String reasonId = booking.cancelReasonId.trim();
+    if (reasonId.isEmpty) {
+      return _text(lang, 'unknownReason');
+    }
+    return bookingCancellationReasonById(reasonId).label(lang);
   }
 
   Response? _requireAdmin(Request request) {
@@ -969,6 +1070,13 @@ class AdminBookingsController {
       'ownerInboxLink': 'Shu workshop zakazlari',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
       'statusUpdated': '{id} statusi {status} ga yangilandi',
+      'cancelButton': 'Bekor qilish',
+      'cancelReasonLabel': 'Bekor qilish sababi',
+      'cancelledByLabel': 'Bekor qildi',
+      'cancelGuardHint':
+          'Bekor qilish faqat bron vaqtigacha kamida {minutes} daqiqa qolganda mumkin.',
+      'noFurtherActions': 'Bu zakaz uchun qo‘shimcha amal yo‘q.',
+      'unknownReason': 'Ko‘rsatilmagan',
     },
     'ru': <String, String>{
       'pageTitle': 'Панель заказов Usta Top',
@@ -1026,6 +1134,13 @@ class AdminBookingsController {
       'ownerInboxLink': 'Заказы этого workshop',
       'callCustomer': 'Позвонить клиенту',
       'statusUpdated': 'Статус {id} обновлен на {status}',
+      'cancelButton': 'Отменить заказ',
+      'cancelReasonLabel': 'Причина отмены',
+      'cancelledByLabel': 'Кто отменил',
+      'cancelGuardHint':
+          'Отмена доступна только если до записи осталось не меньше {minutes} минут.',
+      'noFurtherActions': 'Для этого заказа больше нет доступных действий.',
+      'unknownReason': 'Не указано',
     },
     'en': <String, String>{
       'pageTitle': 'Usta Top Orders Panel',
@@ -1084,6 +1199,13 @@ class AdminBookingsController {
       'ownerInboxLink': 'This workshop inbox',
       'callCustomer': 'Call customer',
       'statusUpdated': '{id} status was updated to {status}',
+      'cancelButton': 'Cancel order',
+      'cancelReasonLabel': 'Cancellation reason',
+      'cancelledByLabel': 'Cancelled by',
+      'cancelGuardHint':
+          'Cancellation is allowed only when at least {minutes} minutes remain before the appointment.',
+      'noFurtherActions': 'No further actions are available for this order.',
+      'unknownReason': 'Not specified',
     },
   };
 }

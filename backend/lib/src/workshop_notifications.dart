@@ -1,3 +1,4 @@
+import 'booking_cancellation.dart';
 import 'models.dart';
 import 'telegram_bot.dart';
 import 'vehicle_types.dart';
@@ -15,7 +16,23 @@ class WorkshopNotificationsService {
   }) {
     return _sendToWorkshop(
       workshop: workshop,
-      text: '''
+      text: newBookingText(
+        workshop: workshop,
+        booking: booking,
+      ),
+      replyMarkup: bookingActionMarkup(
+        workshop: workshop,
+        booking: booking,
+      ),
+    );
+  }
+
+  String newBookingText({
+    required WorkshopModel workshop,
+    required BookingModel booking,
+    bool includeStatus = false,
+  }) {
+    return '''
 Usta Top: yangi zakaz tushdi
 
 Avtoservis: ${workshop.name}
@@ -27,8 +44,7 @@ Mashina: ${_vehicleSummary(booking)}
 Vaqt: ${_formatDateTime(booking.dateTime)}
 Asosiy narx: ${booking.basePrice}k
 Yakuniy narx: ${booking.price}k
-''',
-    );
+${includeStatus ? 'Holat: ${_statusLabel(booking.status)}\n' : ''}''';
   }
 
   Future<void> sendBookingStatusNotification({
@@ -50,7 +66,7 @@ Telefon: ${_safeValue(booking.customerPhone)}
 Xizmat: ${booking.serviceName}
 Mashina: ${_vehicleSummary(booking)}
 Vaqt: ${_formatDateTime(booking.dateTime)}
-Yakuniy narx: ${booking.price}k
+${booking.status == BookingStatus.cancelled ? 'Bekor qildi: ${_cancellationActor(booking)}\nBekor qilish sababi: ${_cancellationReason(booking)}\n' : ''}Yakuniy narx: ${booking.price}k
 ''',
     );
   }
@@ -74,6 +90,7 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
   Future<void> _sendToWorkshop({
     required WorkshopModel workshop,
     required String text,
+    Map<String, Object>? replyMarkup,
   }) async {
     if (!_telegramBotService.isConfigured) {
       throw const TelegramBotException('Telegram bot token sozlanmagan');
@@ -89,7 +106,82 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
     await _telegramBotService.sendMessage(
       chatId: chatId,
       text: text.trim(),
+      replyMarkup: replyMarkup,
     );
+  }
+
+  Map<String, Object>? bookingActionMarkup({
+    required WorkshopModel workshop,
+    required BookingModel booking,
+  }) {
+    if (booking.status != BookingStatus.upcoming) {
+      return null;
+    }
+
+    return <String, Object>{
+      'inline_keyboard': <List<Map<String, String>>>[
+        <Map<String, String>>[
+          <String, String>{
+            'text': 'Bajardim',
+            'callback_data': completedBookingCallbackData(
+              workshopId: workshop.id,
+              bookingId: booking.id,
+            ),
+          },
+        ],
+        <Map<String, String>>[
+          <String, String>{
+            'text': 'Bekor: jadval band',
+            'callback_data': cancelledBookingCallbackData(
+              reasonId: 'workshop_busy',
+              workshopId: workshop.id,
+              bookingId: booking.id,
+            ),
+          },
+          <String, String>{
+            'text': 'Bekor: usta yo‘q',
+            'callback_data': cancelledBookingCallbackData(
+              reasonId: 'master_unavailable',
+              workshopId: workshop.id,
+              bookingId: booking.id,
+            ),
+          },
+        ],
+        <Map<String, String>>[
+          <String, String>{
+            'text': 'Bekor: ustaxona yopiq',
+            'callback_data': cancelledBookingCallbackData(
+              reasonId: 'workshop_closed',
+              workshopId: workshop.id,
+              bookingId: booking.id,
+            ),
+          },
+          <String, String>{
+            'text': 'Bekor: qism yo‘q',
+            'callback_data': cancelledBookingCallbackData(
+              reasonId: 'missing_parts',
+              workshopId: workshop.id,
+              bookingId: booking.id,
+            ),
+          },
+        ],
+      ],
+    };
+  }
+
+  static String completedBookingCallbackData({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    return 'done:$workshopId:$bookingId';
+  }
+
+  static String cancelledBookingCallbackData({
+    required String reasonId,
+    required String workshopId,
+    required String bookingId,
+  }) {
+    return 'cancel:${normalizeBookingCancellationReasonId(reasonId)}:$workshopId:$bookingId';
   }
 
   String _statusLabel(BookingStatus status) {
@@ -129,5 +221,17 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
       return vehicleType;
     }
     return '$model • $vehicleType';
+  }
+
+  String _cancellationReason(BookingModel booking) {
+    final String reasonId = booking.cancelReasonId.trim();
+    if (reasonId.isEmpty) {
+      return 'Ko‘rsatilmagan';
+    }
+    return bookingCancellationReasonById(reasonId).label('uz');
+  }
+
+  String _cancellationActor(BookingModel booking) {
+    return bookingCancellationActorLabel(booking.cancelledByRole, 'uz');
   }
 }

@@ -56,6 +56,17 @@ class AppLocalizations {
       'mapHint': 'Tap a marker to open workshop details',
       'mapNoCoordinates': 'Workshop coordinates are not available yet.',
       'openOnMap': 'Open workshop',
+      'routeToWorkshop': 'Route',
+      'chooseNavigatorTitle': 'Choose navigator',
+      'chooseNavigatorSubtitle': 'Open route to {workshop}',
+      'navigatorGoogleMaps': 'Google Maps',
+      'navigatorYandexNavigator': 'Yandex Navigator',
+      'navigatorYandexMaps': 'Yandex Maps',
+      'navigatorAppleMaps': 'Apple Maps',
+      'navigatorWaze': 'Waze',
+      'navigatorBrowserMaps': 'Browser maps',
+      'navigatorNoApps': 'No navigator apps found.',
+      'navigatorOpenFailed': 'Navigator app could not be opened.',
       'mapOpenInYandex': 'Open in Yandex Maps',
       'mapOpenYandexFailed': 'Yandex Maps could not be opened.',
       'mapZoomIn': 'Zoom in',
@@ -102,6 +113,18 @@ class AppLocalizations {
       'confirmBooking': 'Confirm request',
       'priceLabel': 'Price: {price}',
       'cancelBooking': 'Cancel request',
+      'cancelledByLabel': 'Cancelled by: {actor}',
+      'cancellationReasonLabel': 'Reason: {reason}',
+      'cancellationUnknown': 'Not specified',
+      'cancellationReasonWorkshopBusy': 'Schedule is full',
+      'cancellationReasonMasterUnavailable': 'Technician unavailable',
+      'cancellationReasonWorkshopClosed': 'Workshop closed',
+      'cancellationReasonMissingParts': 'Parts unavailable',
+      'cancellationReasonCustomerRequest': 'Customer request',
+      'cancellationActorCustomer': 'Customer',
+      'cancellationActorAdmin': 'Admin',
+      'cancellationActorOwnerPanel': 'Workshop owner',
+      'cancellationActorOwnerTelegram': 'Owner via Telegram',
       'noBookingsYet': 'No requests yet',
       'bookingsEmptyHint':
           'Open Home, choose a workshop, and create your first request.',
@@ -208,6 +231,17 @@ class AppLocalizations {
       'mapHint': 'Servis tafsilotini ochish uchun markerga bosing',
       'mapNoCoordinates': 'Servislar uchun koordinatalar hali kiritilmagan.',
       'openOnMap': 'Servisni ochish',
+      'routeToWorkshop': 'Marshrut',
+      'chooseNavigatorTitle': 'Navigatorni tanlang',
+      'chooseNavigatorSubtitle': '{workshop} ga yo\'l ochish',
+      'navigatorGoogleMaps': 'Google Maps',
+      'navigatorYandexNavigator': 'Yandex Navigator',
+      'navigatorYandexMaps': 'Yandex Maps',
+      'navigatorAppleMaps': 'Apple Maps',
+      'navigatorWaze': 'Waze',
+      'navigatorBrowserMaps': 'Brauzer xaritasi',
+      'navigatorNoApps': 'Hech qanday navigator topilmadi.',
+      'navigatorOpenFailed': 'Navigator ilovasini ochib bo\'lmadi.',
       'mapOpenInYandex': 'Yandex Mapsda ochish',
       'mapOpenYandexFailed': 'Yandex Mapsni ochib bo\'lmadi.',
       'mapZoomIn': 'Yaqinlashtirish',
@@ -256,6 +290,18 @@ class AppLocalizations {
       'confirmBooking': 'Buyurtmani tasdiqlash',
       'priceLabel': 'Narx: {price}',
       'cancelBooking': 'Buyurtmani bekor qilish',
+      'cancelledByLabel': 'Bekor qildi: {actor}',
+      'cancellationReasonLabel': 'Sabab: {reason}',
+      'cancellationUnknown': 'Ko\'rsatilmagan',
+      'cancellationReasonWorkshopBusy': 'Jadval band',
+      'cancellationReasonMasterUnavailable': 'Usta mavjud emas',
+      'cancellationReasonWorkshopClosed': 'Ustaxona yopiq',
+      'cancellationReasonMissingParts': 'Ehtiyot qism yo\'q',
+      'cancellationReasonCustomerRequest': 'Mijoz so\'rovi',
+      'cancellationActorCustomer': 'Mijoz',
+      'cancellationActorAdmin': 'Admin',
+      'cancellationActorOwnerPanel': 'Ustaxona egasi',
+      'cancellationActorOwnerTelegram': 'Telegram orqali usta',
       'noBookingsYet': 'Hali buyurtmalar yo\'q',
       'bookingsEmptyHint':
           'Asosiy sahifadan servis tanlab birinchi buyurtmangizni yarating.',
@@ -364,6 +410,17 @@ class AppLocalizations {
       'mapHint': 'Нажмите на маркер, чтобы открыть детали сервиса',
       'mapNoCoordinates': 'Координаты сервисов пока не заполнены.',
       'openOnMap': 'Открыть сервис',
+      'routeToWorkshop': 'Маршрут',
+      'chooseNavigatorTitle': 'Выберите навигатор',
+      'chooseNavigatorSubtitle': 'Построить маршрут до {workshop}',
+      'navigatorGoogleMaps': 'Google Maps',
+      'navigatorYandexNavigator': 'Yandex Navigator',
+      'navigatorYandexMaps': 'Yandex Maps',
+      'navigatorAppleMaps': 'Apple Maps',
+      'navigatorWaze': 'Waze',
+      'navigatorBrowserMaps': 'Браузерная карта',
+      'navigatorNoApps': 'Навигаторы не найдены.',
+      'navigatorOpenFailed': 'Не удалось открыть навигатор.',
       'mapOpenInYandex': 'Открыть в Yandex Maps',
       'mapOpenYandexFailed': 'Не удалось открыть Yandex Maps.',
       'mapZoomIn': 'Приблизить',
@@ -411,6 +468,18 @@ class AppLocalizations {
       'confirmBooking': 'Подтвердить заявку',
       'priceLabel': 'Цена: {price}',
       'cancelBooking': 'Отменить заявку',
+      'cancelledByLabel': 'Отменил: {actor}',
+      'cancellationReasonLabel': 'Причина: {reason}',
+      'cancellationUnknown': 'Не указано',
+      'cancellationReasonWorkshopBusy': 'График занят',
+      'cancellationReasonMasterUnavailable': 'Мастер недоступен',
+      'cancellationReasonWorkshopClosed': 'Сервис закрыт',
+      'cancellationReasonMissingParts': 'Нет запчастей',
+      'cancellationReasonCustomerRequest': 'По просьбе клиента',
+      'cancellationActorCustomer': 'Клиент',
+      'cancellationActorAdmin': 'Админ',
+      'cancellationActorOwnerPanel': 'Владелец сервиса',
+      'cancellationActorOwnerTelegram': 'Владелец через Telegram',
       'noBookingsYet': 'Заявок пока нет',
       'bookingsEmptyHint':
           'Откройте Главную, выберите сервис и создайте первую заявку.',
@@ -536,6 +605,18 @@ class AppLocalizations {
   String get mapHint => _text('mapHint');
   String get mapNoCoordinates => _text('mapNoCoordinates');
   String get openOnMap => _text('openOnMap');
+  String get routeToWorkshop => _text('routeToWorkshop');
+  String get chooseNavigatorTitle => _text('chooseNavigatorTitle');
+  String chooseNavigatorSubtitle(String workshop) =>
+      _fmt('chooseNavigatorSubtitle', <String, Object>{'workshop': workshop});
+  String get navigatorGoogleMaps => _text('navigatorGoogleMaps');
+  String get navigatorYandexNavigator => _text('navigatorYandexNavigator');
+  String get navigatorYandexMaps => _text('navigatorYandexMaps');
+  String get navigatorAppleMaps => _text('navigatorAppleMaps');
+  String get navigatorWaze => _text('navigatorWaze');
+  String get navigatorBrowserMaps => _text('navigatorBrowserMaps');
+  String get navigatorNoApps => _text('navigatorNoApps');
+  String get navigatorOpenFailed => _text('navigatorOpenFailed');
   String get mapOpenInYandex => _text('mapOpenInYandex');
   String get mapOpenYandexFailed => _text('mapOpenYandexFailed');
   String get mapZoomIn => _text('mapZoomIn');
@@ -602,6 +683,26 @@ class AppLocalizations {
       _fmt('priceLabel', <String, Object>{'price': price});
 
   String get cancelBooking => _text('cancelBooking');
+  String cancelledByLabel(String actor) =>
+      _fmt('cancelledByLabel', <String, Object>{'actor': actor});
+  String cancellationReasonLabel(String reason) =>
+      _fmt('cancellationReasonLabel', <String, Object>{'reason': reason});
+  String get cancellationUnknown => _text('cancellationUnknown');
+  String get cancellationReasonWorkshopBusy =>
+      _text('cancellationReasonWorkshopBusy');
+  String get cancellationReasonMasterUnavailable =>
+      _text('cancellationReasonMasterUnavailable');
+  String get cancellationReasonWorkshopClosed =>
+      _text('cancellationReasonWorkshopClosed');
+  String get cancellationReasonMissingParts =>
+      _text('cancellationReasonMissingParts');
+  String get cancellationReasonCustomerRequest =>
+      _text('cancellationReasonCustomerRequest');
+  String get cancellationActorCustomer => _text('cancellationActorCustomer');
+  String get cancellationActorAdmin => _text('cancellationActorAdmin');
+  String get cancellationActorOwnerPanel => _text('cancellationActorOwnerPanel');
+  String get cancellationActorOwnerTelegram =>
+      _text('cancellationActorOwnerTelegram');
   String get noBookingsYet => _text('noBookingsYet');
   String get bookingsEmptyHint => _text('bookingsEmptyHint');
   String get statusUpcoming => _text('statusUpcoming');

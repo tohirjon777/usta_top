@@ -35,11 +35,16 @@ class BookingController extends ChangeNotifier {
     }
 
     final BookingItem current = _bookings[index];
-    if (current.status == BookingStatus.cancelled) {
+    if (current.status != BookingStatus.upcoming) {
       return false;
     }
 
-    _bookings[index] = current.copyWith(status: BookingStatus.cancelled);
+    _bookings[index] = current.copyWith(
+      status: BookingStatus.cancelled,
+      cancelReasonId: 'customer_request',
+      cancelledByRole: 'customer',
+      cancelledAt: DateTime.now(),
+    );
     notifyListeners();
     return true;
   }

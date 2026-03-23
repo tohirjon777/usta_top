@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
+import '../models/booking_cancellation_reason.dart';
 import '../models/booking_item.dart';
 import '../models/vehicle_type.dart';
 import '../providers/booking_provider.dart';
@@ -149,6 +150,19 @@ class _BookingCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (booking.status == BookingStatus.cancelled) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                l10n.cancelledByLabel(
+                  bookingCancellationActorLabel(booking.cancelledByRole, l10n),
+                ),
+              ),
+              Text(
+                l10n.cancellationReasonLabel(
+                  bookingCancellationReasonLabel(booking.cancelReasonId, l10n),
+                ),
+              ),
+            ],
             if (booking.status == BookingStatus.upcoming) ...<Widget>[
               const SizedBox(height: 8),
               TextButton.icon(

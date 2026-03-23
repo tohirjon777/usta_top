@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:shelf/shelf_io.dart' as io;
@@ -33,18 +34,19 @@ Future<void> main() async {
   await store.loadWorkshopLocations(workshopLocationsFilePath);
   await store.loadBookings(bookingsFilePath);
 
+  final AppRuntime appRuntime = buildAppRuntime(
+    store,
+    workshopLocationsFilePath: workshopLocationsFilePath,
+    workshopsFilePath: workshopsFilePath,
+    usersFilePath: usersFilePath,
+    bookingsFilePath: bookingsFilePath,
+    telegramSyncStateFilePath: telegramSyncStateFilePath,
+    adminUsername: adminUsername,
+    adminPassword: adminPassword,
+    telegramBotToken: telegramBotToken,
+  );
   final server = await io.serve(
-    buildHandler(
-      store,
-      workshopLocationsFilePath: workshopLocationsFilePath,
-      workshopsFilePath: workshopsFilePath,
-      usersFilePath: usersFilePath,
-      bookingsFilePath: bookingsFilePath,
-      telegramSyncStateFilePath: telegramSyncStateFilePath,
-      adminUsername: adminUsername,
-      adminPassword: adminPassword,
-      telegramBotToken: telegramBotToken,
-    ),
+    appRuntime.handler,
     host,
     port,
   );
@@ -80,6 +82,23 @@ Future<void> main() async {
   final TelegramBotService telegramBotService = TelegramBotService(
     botToken: telegramBotToken,
   );
+  bool isTelegramSyncRunning = false;
+
+  Future<void> syncTelegramUpdatesSafely() async {
+    if (isTelegramSyncRunning) {
+      return;
+    }
+
+    isTelegramSyncRunning = true;
+    try {
+      await appRuntime.ownerController.syncTelegramUpdates();
+    } on Exception catch (error) {
+      stderr.writeln('Telegram sync xatoligi: $error');
+    } finally {
+      isTelegramSyncRunning = false;
+    }
+  }
+
   try {
     final Map<String, dynamic> bot = await telegramBotService.getMe();
     final String username = (bot['username'] ?? '').toString();
@@ -87,6 +106,10 @@ Future<void> main() async {
     stdout.writeln(
       'Telegram bot: ulangan${username.isEmpty ? '' : ' (@$username)'}${botName.isEmpty ? '' : ' - $botName'}',
     );
+    unawaited(syncTelegramUpdatesSafely());
+    Timer.periodic(const Duration(seconds: 3), (_) {
+      unawaited(syncTelegramUpdatesSafely());
+    });
   } on Exception catch (error) {
     stdout.writeln('Telegram bot: xatolik - $error');
   }

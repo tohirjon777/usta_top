@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'booking_cancellation.dart';
 import 'models.dart';
 import 'vehicle_types.dart';
 
@@ -664,12 +665,38 @@ class InMemoryStore {
     }
 
     final BookingModel current = _bookings[index];
-    if (current.status == BookingStatus.cancelled) {
-      return current;
+    _ensureCustomerCancellationAllowed(current);
+    final BookingModel updated = current.copyWith(
+      status: BookingStatus.cancelled,
+      cancelReasonId: 'customer_request',
+      cancelledByRole: 'customer',
+      cancelledAt: DateTime.now(),
+    );
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  BookingModel cancelBookingByAdmin({
+    required String bookingId,
+    required String reasonId,
+  }) {
+    final int index =
+        _bookings.indexWhere((BookingModel item) => item.id == bookingId);
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
     }
 
-    final BookingModel updated =
-        current.copyWith(status: BookingStatus.cancelled);
+    final BookingModel current = _bookings[index];
+    _ensureWorkshopCancellationAllowed(
+      booking: current,
+      reasonId: reasonId,
+    );
+    final BookingModel updated = current.copyWith(
+      status: BookingStatus.cancelled,
+      cancelReasonId: normalizeBookingCancellationReasonId(reasonId),
+      cancelledByRole: 'admin',
+      cancelledAt: DateTime.now(),
+    );
     _bookings[index] = updated;
     return updated;
   }
@@ -684,7 +711,12 @@ class InMemoryStore {
       throw StateError('Buyurtma topilmadi');
     }
 
-    final BookingModel updated = _bookings[index].copyWith(status: status);
+    final BookingModel current = _bookings[index];
+    _ensureStatusTransitionAllowed(
+      current: current,
+      nextStatus: status,
+    );
+    final BookingModel updated = current.copyWith(status: status);
     _bookings[index] = updated;
     return updated;
   }
@@ -702,9 +734,100 @@ class InMemoryStore {
       throw StateError('Buyurtma topilmadi');
     }
 
-    final BookingModel updated = _bookings[index].copyWith(status: status);
+    final BookingModel current = _bookings[index];
+    _ensureStatusTransitionAllowed(
+      current: current,
+      nextStatus: status,
+    );
+    final BookingModel updated = current.copyWith(status: status);
     _bookings[index] = updated;
     return updated;
+  }
+
+  BookingModel cancelWorkshopBooking({
+    required String workshopId,
+    required String bookingId,
+    required String reasonId,
+    required String actorRole,
+  }) {
+    final int index = _bookings.indexWhere(
+      (BookingModel item) =>
+          item.id == bookingId && item.workshopId == workshopId,
+    );
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel current = _bookings[index];
+    _ensureWorkshopCancellationAllowed(
+      booking: current,
+      reasonId: reasonId,
+    );
+    final BookingModel updated = current.copyWith(
+      status: BookingStatus.cancelled,
+      cancelReasonId: normalizeBookingCancellationReasonId(reasonId),
+      cancelledByRole: normalizeBookingCancellationActor(actorRole),
+      cancelledAt: DateTime.now(),
+    );
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  void _ensureCustomerCancellationAllowed(BookingModel booking) {
+    switch (booking.status) {
+      case BookingStatus.upcoming:
+        return;
+      case BookingStatus.completed:
+        throw StateError('Yakunlangan buyurtmani bekor qilib bo‘lmaydi');
+      case BookingStatus.cancelled:
+        throw StateError('Buyurtma allaqachon bekor qilingan');
+    }
+  }
+
+  void _ensureWorkshopCancellationAllowed({
+    required BookingModel booking,
+    required String reasonId,
+  }) {
+    _ensureCustomerCancellationAllowed(booking);
+    final String normalizedReason =
+        normalizeBookingCancellationReasonId(reasonId);
+    if (normalizedReason.isEmpty) {
+      throw StateError('Bekor qilish sababi tanlanishi kerak');
+    }
+
+    final DateTime now = DateTime.now();
+    if (!booking.dateTime.isAfter(now)) {
+      throw StateError('Vaqti o‘tgan zakazni bekor qilib bo‘lmaydi');
+    }
+    if (!booking.dateTime.isAfter(now.add(workshopCancellationLeadTime))) {
+      throw StateError(
+        'Zakazni faqat bron vaqtigacha kamida ${workshopCancellationLeadTime.inMinutes} daqiqa qolganda bekor qilish mumkin',
+      );
+    }
+  }
+
+  void _ensureStatusTransitionAllowed({
+    required BookingModel current,
+    required BookingStatus nextStatus,
+  }) {
+    if (nextStatus == BookingStatus.cancelled) {
+      throw StateError(
+        'Bekor qilish uchun alohida bekor qilish tugmasidan foydalaning',
+      );
+    }
+
+    if (current.status == nextStatus) {
+      return;
+    }
+
+    switch (current.status) {
+      case BookingStatus.upcoming:
+        return;
+      case BookingStatus.completed:
+        throw StateError('Yakunlangan zakaz statusini qayta o‘zgartirib bo‘lmaydi');
+      case BookingStatus.cancelled:
+        throw StateError('Bekor qilingan zakaz statusini qayta o‘zgartirib bo‘lmaydi');
+    }
   }
 
   String _normalizePhone(String raw) {

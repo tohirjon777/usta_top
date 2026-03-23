@@ -7,6 +7,7 @@ import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
 import '../providers/saved_workshops_provider.dart';
+import '../services/navigation_launcher.dart';
 import 'booking_screen.dart';
 
 class SalonDetailScreen extends StatelessWidget {
@@ -113,6 +114,15 @@ class SalonDetailScreen extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(child: Text(salon.address)),
             ],
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => NavigationLauncher.showNavigatorPicker(
+              context,
+              salon: salon,
+            ),
+            icon: const Icon(Icons.route_outlined),
+            label: Text(l10n.routeToWorkshop),
           ),
           const SizedBox(height: 20),
           Text(l10n.services, style: Theme.of(context).textTheme.titleLarge),
