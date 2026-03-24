@@ -1,22 +1,28 @@
+import '../models/saved_vehicle_profile.dart';
+
 class AuthUser {
   const AuthUser({
     required this.id,
     required this.fullName,
     required this.phone,
+    this.savedVehicles = const <SavedVehicleProfile>[],
   });
 
   final String id;
   final String fullName;
   final String phone;
+  final List<SavedVehicleProfile> savedVehicles;
 
   AuthUser copyWith({
     String? fullName,
     String? phone,
+    List<SavedVehicleProfile>? savedVehicles,
   }) {
     return AuthUser(
       id: id,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
+      savedVehicles: savedVehicles ?? this.savedVehicles,
     );
   }
 
@@ -27,6 +33,13 @@ class AuthUser {
       id: (json['id'] ?? '').toString(),
       fullName: (json['fullName'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
+      savedVehicles:
+          ((json['savedVehicles'] as List<dynamic>?) ?? const <dynamic>[])
+              .whereType<Map<String, dynamic>>()
+              .map(SavedVehicleProfile.fromJson)
+              .where((SavedVehicleProfile item) {
+        return item.brand.isNotEmpty && item.model.isNotEmpty;
+      }).toList(growable: false),
     );
   }
 }

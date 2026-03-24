@@ -29,6 +29,11 @@ class BookingItem {
     required this.basePrice,
     required this.price,
     this.status = BookingStatus.upcoming,
+    this.messageCount = 0,
+    this.unreadForCustomerCount = 0,
+    this.lastMessagePreview = '',
+    this.lastMessageSenderRole = '',
+    this.lastMessageAt,
     this.cancelReasonId = '',
     this.cancelledByRole = '',
     this.cancelledAt,
@@ -46,6 +51,11 @@ class BookingItem {
   final int basePrice;
   final int price;
   final BookingStatus status;
+  final int messageCount;
+  final int unreadForCustomerCount;
+  final String lastMessagePreview;
+  final String lastMessageSenderRole;
+  final DateTime? lastMessageAt;
   final String cancelReasonId;
   final String cancelledByRole;
   final DateTime? cancelledAt;
@@ -72,6 +82,12 @@ class BookingItem {
           : _toInt(json['basePrice']),
       price: _toInt(json['price']),
       status: _statusFromString((json['status'] ?? '').toString()),
+      messageCount: _toInt(json['messageCount']),
+      unreadForCustomerCount: _toInt(json['unreadForCustomerCount']),
+      lastMessagePreview: (json['lastMessagePreview'] ?? '').toString(),
+      lastMessageSenderRole: (json['lastMessageSenderRole'] ?? '').toString(),
+      lastMessageAt:
+          DateTime.tryParse((json['lastMessageAt'] ?? '').toString()),
       cancelReasonId: (json['cancelReasonId'] ?? '').toString().trim(),
       cancelledByRole: (json['cancelledByRole'] ?? '').toString().trim(),
       cancelledAt: DateTime.tryParse((json['cancelledAt'] ?? '').toString()),
@@ -91,6 +107,11 @@ class BookingItem {
     int? basePrice,
     int? price,
     BookingStatus? status,
+    int? messageCount,
+    int? unreadForCustomerCount,
+    String? lastMessagePreview,
+    String? lastMessageSenderRole,
+    DateTime? lastMessageAt,
     String? cancelReasonId,
     String? cancelledByRole,
     DateTime? cancelledAt,
@@ -108,6 +129,13 @@ class BookingItem {
       basePrice: basePrice ?? this.basePrice,
       price: price ?? this.price,
       status: status ?? this.status,
+      messageCount: messageCount ?? this.messageCount,
+      unreadForCustomerCount:
+          unreadForCustomerCount ?? this.unreadForCustomerCount,
+      lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+      lastMessageSenderRole:
+          lastMessageSenderRole ?? this.lastMessageSenderRole,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       cancelReasonId: cancelReasonId ?? this.cancelReasonId,
       cancelledByRole: cancelledByRole ?? this.cancelledByRole,
       cancelledAt: cancelledAt ?? this.cancelledAt,

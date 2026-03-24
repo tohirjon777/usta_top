@@ -17,10 +17,12 @@ Future<void> main() async {
   final String usersFilePath =
       Platform.environment['USERS_FILE'] ?? 'data/users.json';
   final String authSessionsFilePath =
-      Platform.environment['AUTH_SESSIONS_FILE'] ??
-          'data/auth_sessions.json';
+      Platform.environment['AUTH_SESSIONS_FILE'] ?? 'data/auth_sessions.json';
   final String bookingsFilePath =
       Platform.environment['BOOKINGS_FILE'] ?? 'data/bookings.json';
+  final String bookingMessagesFilePath =
+      Platform.environment['BOOKING_MESSAGES_FILE'] ??
+          'data/booking_messages.json';
   final String telegramSyncStateFilePath =
       Platform.environment['TELEGRAM_SYNC_STATE_FILE'] ??
           'data/telegram_state.json';
@@ -39,6 +41,7 @@ Future<void> main() async {
   await store.loadWorkshops(workshopsFilePath);
   await store.loadWorkshopLocations(workshopLocationsFilePath);
   await store.loadBookings(bookingsFilePath);
+  await store.loadBookingMessages(bookingMessagesFilePath);
 
   final AppRuntime appRuntime = buildAppRuntime(
     store,
@@ -47,6 +50,7 @@ Future<void> main() async {
     usersFilePath: usersFilePath,
     authSessionsFilePath: authSessionsFilePath,
     bookingsFilePath: bookingsFilePath,
+    bookingMessagesFilePath: bookingMessagesFilePath,
     telegramSyncStateFilePath: telegramSyncStateFilePath,
     adminUsername: adminUsername,
     adminPassword: adminPassword,

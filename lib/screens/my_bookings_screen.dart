@@ -9,6 +9,7 @@ import '../models/booking_item.dart';
 import '../models/vehicle_type.dart';
 import '../providers/booking_provider.dart';
 import '../ui/app_loading_view.dart';
+import 'booking_chat_screen.dart';
 
 class MyBookingsScreen extends StatelessWidget {
   const MyBookingsScreen({super.key});
@@ -91,6 +92,13 @@ class MyBookingsScreen extends StatelessWidget {
                         SnackBar(content: Text(l10n.bookingCancelled)),
                       );
                     },
+                    onOpenChat: () async {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => BookingChatScreen(booking: booking),
+                        ),
+                      );
+                    },
                   ),
                 );
               }),
@@ -106,11 +114,13 @@ class _BookingCard extends StatelessWidget {
     required this.l10n,
     required this.booking,
     required this.onCancel,
+    required this.onOpenChat,
   });
 
   final AppLocalizations l10n;
   final BookingItem booking;
   final VoidCallback onCancel;
+  final VoidCallback onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +160,15 @@ class _BookingCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (booking.messageCount > 0) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                booking.lastMessagePreview,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.secondaryTextOf(context),
+                    ),
+              ),
+            ],
             if (booking.status == BookingStatus.cancelled) ...<Widget>[
               const SizedBox(height: 6),
               Text(
@@ -165,10 +184,36 @@ class _BookingCard extends StatelessWidget {
             ],
             if (booking.status == BookingStatus.upcoming) ...<Widget>[
               const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: onCancel,
-                icon: const Icon(Icons.close, size: 18),
-                label: Text(l10n.cancelBooking),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  OutlinedButton.icon(
+                    onPressed: onOpenChat,
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: Text(
+                      booking.unreadForCustomerCount > 0
+                          ? '${l10n.chatOpen} (${booking.unreadForCustomerCount})'
+                          : l10n.chatOpen,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.close, size: 18),
+                    label: Text(l10n.cancelBooking),
+                  ),
+                ],
+              ),
+            ] else ...<Widget>[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: onOpenChat,
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: Text(
+                  booking.unreadForCustomerCount > 0
+                      ? '${l10n.chatOpen} (${booking.unreadForCustomerCount})'
+                      : l10n.chatOpen,
+                ),
               ),
             ],
           ],

@@ -99,6 +99,18 @@ class AppLocalizations {
       'availableTimes': 'Available times',
       'summary': 'Request summary',
       'serviceLabel': 'Service type: {service}',
+      'vehicleSelectionTitle': 'Vehicle selection',
+      'savedVehiclesTitle': 'Saved vehicles',
+      'uzbekistanGmVehiclesTitle': 'GM Uzbekistan models',
+      'otherPopularVehiclesTitle': 'Other common cars',
+      'popularVehiclesTitle': 'Popular models',
+      'vehicleCatalogMode': 'Choose from list',
+      'vehicleOtherOption': 'Other model',
+      'vehicleBrandField': 'Car brand',
+      'vehicleBrandHint': 'For example, Chevrolet',
+      'vehicleBrandRequired': 'Enter the car brand',
+      'vehicleCatalogModelField': 'Model from list',
+      'vehicleCatalogRequired': 'Choose a model from the list',
       'vehicleModelField': 'Car model',
       'vehicleModelHint': 'For example, Chevrolet Cobalt',
       'vehicleModelRequired': 'Enter the car model',
@@ -113,6 +125,20 @@ class AppLocalizations {
       'vehiclePriceAdjustmentLabel': 'Vehicle adjustment: {adjustment}',
       'totalLabel': 'Total: {total}',
       'confirmBooking': 'Confirm request',
+      'chatWithWorkshop': 'Chat with workshop',
+      'chatOpen': 'Chat',
+      'chatInputHint': 'Write a message about this booking',
+      'chatSend': 'Send',
+      'chatSendFailed': 'Message could not be sent',
+      'chatEmptyTitle': 'No messages yet',
+      'chatEmptySubtitle':
+          'The conversation is attached to this booking. You can start it here.',
+      'chatReplyHint':
+          'Write only about this booking so the technician can respond faster.',
+      'chatSenderYou': 'You',
+      'chatSenderWorkshop': 'Workshop',
+      'chatNewReplyNotice': '{workshop} sent you a new message',
+      'chatUnreadCount': '{count} unread',
       'priceLabel': 'Price: {price}',
       'cancelBooking': 'Cancel request',
       'cancelledByLabel': 'Cancelled by: {actor}',
@@ -278,6 +304,18 @@ class AppLocalizations {
       'availableTimes': 'Mavjud vaqtlar',
       'summary': 'Buyurtma xulosasi',
       'serviceLabel': 'Xizmat turi: {service}',
+      'vehicleSelectionTitle': 'Mashina tanlash',
+      'savedVehiclesTitle': 'Saqlangan mashinalar',
+      'uzbekistanGmVehiclesTitle': 'GM Uzbekistan modellari',
+      'otherPopularVehiclesTitle': 'Boshqa ko\'p uchraydigan mashinalar',
+      'popularVehiclesTitle': 'Ko\'p ishlatiladigan modellar',
+      'vehicleCatalogMode': 'Ro\'yxatdan tanlash',
+      'vehicleOtherOption': 'Boshqa model',
+      'vehicleBrandField': 'Mashina brendi',
+      'vehicleBrandHint': 'Masalan, Chevrolet',
+      'vehicleBrandRequired': 'Mashina brendini kiriting',
+      'vehicleCatalogModelField': 'Ro\'yxatdagi model',
+      'vehicleCatalogRequired': 'Ro\'yxatdan model tanlang',
       'vehicleModelField': 'Mashina modeli',
       'vehicleModelHint': 'Masalan, Chevrolet Cobalt',
       'vehicleModelRequired': 'Mashina modelini kiriting',
@@ -293,6 +331,20 @@ class AppLocalizations {
           'Mashina turi bo\'yicha o\'zgarish: {adjustment}',
       'totalLabel': 'Jami: {total}',
       'confirmBooking': 'Buyurtmani tasdiqlash',
+      'chatWithWorkshop': 'Usta bilan chat',
+      'chatOpen': 'Chat',
+      'chatInputHint': 'Shu zakaz bo\'yicha xabar yozing',
+      'chatSend': 'Yuborish',
+      'chatSendFailed': 'Xabar yuborilmadi',
+      'chatEmptyTitle': 'Hali xabarlar yo\'q',
+      'chatEmptySubtitle':
+          'Suhbat aynan shu zakazga biriktirilgan. Uni shu yerdan boshlashingiz mumkin.',
+      'chatReplyHint':
+          'Faqat shu zakaz bo\'yicha yozing, shunda usta tezroq javob beradi.',
+      'chatSenderYou': 'Siz',
+      'chatSenderWorkshop': 'Usta',
+      'chatNewReplyNotice': '{workshop} sizga yangi xabar yozdi',
+      'chatUnreadCount': '{count} ta o\'qilmagan',
       'priceLabel': 'Narx: {price}',
       'cancelBooking': 'Buyurtmani bekor qilish',
       'cancelledByLabel': 'Bekor qildi: {actor}',
@@ -459,6 +511,18 @@ class AppLocalizations {
       'availableTimes': 'Доступное время',
       'summary': 'Сводка заявки',
       'serviceLabel': 'Тип услуги: {service}',
+      'vehicleSelectionTitle': 'Выбор автомобиля',
+      'savedVehiclesTitle': 'Сохранённые машины',
+      'uzbekistanGmVehiclesTitle': 'Модели GM Uzbekistan',
+      'otherPopularVehiclesTitle': 'Другие распространённые машины',
+      'popularVehiclesTitle': 'Популярные модели',
+      'vehicleCatalogMode': 'Выбрать из списка',
+      'vehicleOtherOption': 'Другая модель',
+      'vehicleBrandField': 'Марка автомобиля',
+      'vehicleBrandHint': 'Например, Chevrolet',
+      'vehicleBrandRequired': 'Введите марку автомобиля',
+      'vehicleCatalogModelField': 'Модель из списка',
+      'vehicleCatalogRequired': 'Выберите модель из списка',
       'vehicleModelField': 'Модель автомобиля',
       'vehicleModelHint': 'Например, Chevrolet Cobalt',
       'vehicleModelRequired': 'Введите модель автомобиля',
@@ -470,10 +534,23 @@ class AppLocalizations {
       'dateLabel': 'Дата: {date}',
       'timeLabel': 'Время: {time}',
       'basePriceLabel': 'Базовая цена: {price}',
-      'vehiclePriceAdjustmentLabel':
-          'Корректировка по типу авто: {adjustment}',
+      'vehiclePriceAdjustmentLabel': 'Корректировка по типу авто: {adjustment}',
       'totalLabel': 'Итого: {total}',
       'confirmBooking': 'Подтвердить заявку',
+      'chatWithWorkshop': 'Чат с мастером',
+      'chatOpen': 'Чат',
+      'chatInputHint': 'Напишите сообщение по этому заказу',
+      'chatSend': 'Отправить',
+      'chatSendFailed': 'Сообщение не отправилось',
+      'chatEmptyTitle': 'Сообщений пока нет',
+      'chatEmptySubtitle':
+          'Диалог привязан именно к этому заказу. Вы можете начать его здесь.',
+      'chatReplyHint':
+          'Пишите только по этому заказу, чтобы мастер ответил быстрее.',
+      'chatSenderYou': 'Вы',
+      'chatSenderWorkshop': 'Мастер',
+      'chatNewReplyNotice': '{workshop} отправил вам новое сообщение',
+      'chatUnreadCount': '{count} непрочитанных',
       'priceLabel': 'Цена: {price}',
       'cancelBooking': 'Отменить заявку',
       'cancelledByLabel': 'Отменил: {actor}',
@@ -668,6 +745,18 @@ class AppLocalizations {
   String get summary => _text('summary');
   String serviceLabel(String service) =>
       _fmt('serviceLabel', <String, Object>{'service': service});
+  String get vehicleSelectionTitle => _text('vehicleSelectionTitle');
+  String get savedVehiclesTitle => _text('savedVehiclesTitle');
+  String get uzbekistanGmVehiclesTitle => _text('uzbekistanGmVehiclesTitle');
+  String get otherPopularVehiclesTitle => _text('otherPopularVehiclesTitle');
+  String get popularVehiclesTitle => _text('popularVehiclesTitle');
+  String get vehicleCatalogMode => _text('vehicleCatalogMode');
+  String get vehicleOtherOption => _text('vehicleOtherOption');
+  String get vehicleBrandField => _text('vehicleBrandField');
+  String get vehicleBrandHint => _text('vehicleBrandHint');
+  String get vehicleBrandRequired => _text('vehicleBrandRequired');
+  String get vehicleCatalogModelField => _text('vehicleCatalogModelField');
+  String get vehicleCatalogRequired => _text('vehicleCatalogRequired');
   String get vehicleModelField => _text('vehicleModelField');
   String get vehicleModelHint => _text('vehicleModelHint');
   String get vehicleModelRequired => _text('vehicleModelRequired');
@@ -692,6 +781,20 @@ class AppLocalizations {
   String totalLabel(String total) =>
       _fmt('totalLabel', <String, Object>{'total': total});
   String get confirmBooking => _text('confirmBooking');
+  String get chatWithWorkshop => _text('chatWithWorkshop');
+  String get chatOpen => _text('chatOpen');
+  String get chatInputHint => _text('chatInputHint');
+  String get chatSend => _text('chatSend');
+  String get chatSendFailed => _text('chatSendFailed');
+  String get chatEmptyTitle => _text('chatEmptyTitle');
+  String get chatEmptySubtitle => _text('chatEmptySubtitle');
+  String get chatReplyHint => _text('chatReplyHint');
+  String get chatSenderYou => _text('chatSenderYou');
+  String get chatSenderWorkshop => _text('chatSenderWorkshop');
+  String chatNewReplyNotice(String workshop) =>
+      _fmt('chatNewReplyNotice', <String, Object>{'workshop': workshop});
+  String chatUnreadCount(int count) =>
+      _fmt('chatUnreadCount', <String, Object>{'count': count});
   String priceLabel(String price) =>
       _fmt('priceLabel', <String, Object>{'price': price});
 
@@ -713,7 +816,8 @@ class AppLocalizations {
       _text('cancellationReasonCustomerRequest');
   String get cancellationActorCustomer => _text('cancellationActorCustomer');
   String get cancellationActorAdmin => _text('cancellationActorAdmin');
-  String get cancellationActorOwnerPanel => _text('cancellationActorOwnerPanel');
+  String get cancellationActorOwnerPanel =>
+      _text('cancellationActorOwnerPanel');
   String get cancellationActorOwnerTelegram =>
       _text('cancellationActorOwnerTelegram');
   String get noBookingsYet => _text('noBookingsYet');

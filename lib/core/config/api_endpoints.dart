@@ -112,6 +112,10 @@ abstract final class ApiEndpoints {
   // }
   // Success response sample: { "data": { ...booking object... } }
   static const String bookings = '/bookings';
+  static String bookingMessages(String bookingId) =>
+      '/bookings/$bookingId/messages';
+  static String markBookingMessagesRead(String bookingId) =>
+      '/bookings/$bookingId/messages/read';
 
   // TODO(API): PATCH /bookings/:id/cancel
   // Request body sample:

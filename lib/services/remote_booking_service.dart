@@ -6,7 +6,9 @@ import 'package:http/http.dart' as http;
 
 import '../core/config/api_endpoints.dart';
 import '../core/storage/auth_token_storage.dart';
+import '../models/booking_chat_message.dart';
 import '../models/booking_item.dart';
+import '../models/saved_vehicle_profile.dart';
 import 'api_exception.dart';
 import 'booking_service.dart';
 
@@ -46,7 +48,11 @@ class RemoteBookingService implements BookingService {
   Future<BookingItem> createBooking({
     required String workshopId,
     required String serviceId,
-    required String vehicleModel,
+    required String vehicleBrand,
+    required String vehicleModelName,
+    required String vehicleDisplayName,
+    required String catalogVehicleId,
+    required bool isCustomVehicle,
     required String vehicleTypeId,
     required DateTime dateTime,
   }) async {
@@ -58,7 +64,16 @@ class RemoteBookingService implements BookingService {
       payload: <String, Object>{
         'workshopId': workshopId,
         'serviceId': serviceId,
-        'vehicleModel': vehicleModel,
+        'vehicleBrand': normalizeVehicleBrand(vehicleBrand),
+        'vehicleModelName': normalizeVehicleModelName(vehicleModelName),
+        'vehicleModel': vehicleDisplayName.isEmpty
+            ? formatVehicleDisplayName(
+                brand: vehicleBrand,
+                model: vehicleModelName,
+              )
+            : vehicleDisplayName,
+        'catalogVehicleId': catalogVehicleId,
+        'isCustomVehicle': isCustomVehicle,
         'vehicleTypeId': vehicleTypeId,
         'dateTime': dateTime.toUtc().toIso8601String(),
       },
@@ -86,6 +101,57 @@ class RemoteBookingService implements BookingService {
     }
 
     return BookingItem.fromJson(data);
+  }
+
+  @override
+  Future<List<BookingChatMessage>> fetchBookingMessages({
+    required String bookingId,
+  }) async {
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.get,
+      path: ApiEndpoints.bookingMessages(bookingId),
+    );
+
+    final dynamic data = body['data'];
+    if (data is! List) {
+      return <BookingChatMessage>[];
+    }
+
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(BookingChatMessage.fromJson)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<BookingChatMessage> sendBookingMessage({
+    required String bookingId,
+    required String text,
+  }) async {
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.post,
+      path: ApiEndpoints.bookingMessages(bookingId),
+      payload: <String, Object>{
+        'text': normalizeBookingChatText(text),
+      },
+    );
+
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Server chat xabarini qaytarmadi');
+    }
+
+    return BookingChatMessage.fromJson(data);
+  }
+
+  @override
+  Future<void> markBookingMessagesRead({
+    required String bookingId,
+  }) async {
+    await _request(
+      method: _HttpMethod.patch,
+      path: ApiEndpoints.markBookingMessagesRead(bookingId),
+    );
   }
 
   Future<Map<String, dynamic>> _request({

@@ -43,6 +43,36 @@ class UserNotificationsService {
     );
   }
 
+  Future<void> sendBookingChatNotification({
+    required UserModel user,
+    required BookingModel booking,
+    required BookingChatMessageModel message,
+  }) async {
+    final List<String> tokens = user.pushTokens
+        .map((PushTokenModel item) => item.token.trim())
+        .where((String item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (tokens.isEmpty) {
+      throw const FirebasePushException(
+        'Foydalanuvchi uchun push token topilmadi',
+      );
+    }
+
+    await _firebasePushService.sendToTokens(
+      tokens: tokens,
+      title: 'Usta Top: ustadan yangi xabar',
+      body:
+          '${booking.workshopName} sizning ${booking.serviceName} zakazingiz bo‘yicha yozdi: ${bookingChatPreview(message.text)}',
+      data: <String, String>{
+        'type': 'booking_chat',
+        'screen': 'bookings',
+        'bookingId': booking.id,
+        'workshopId': booking.workshopId,
+      },
+    );
+  }
+
   String _titleForBookingStatus(BookingModel booking) {
     switch (booking.status) {
       case BookingStatus.completed:

@@ -87,6 +87,26 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
     );
   }
 
+  Future<void> sendChatMessageNotification({
+    required WorkshopModel workshop,
+    required BookingModel booking,
+    required BookingChatMessageModel message,
+  }) {
+    return _sendToWorkshop(
+      workshop: workshop,
+      text: '''
+Usta Top: mijozdan yangi chat xabari
+
+Avtoservis: ${workshop.name}
+Zakaz ID: ${booking.id}
+Mijoz: ${_safeValue(booking.customerName)}
+Telefon: ${_safeValue(booking.customerPhone)}
+Xizmat: ${booking.serviceName}
+Xabar: ${bookingChatPreview(message.text, maxLength: 220)}
+''',
+    );
+  }
+
   Future<void> _sendToWorkshop({
     required WorkshopModel workshop,
     required String text,
@@ -231,7 +251,8 @@ Bu test xabar. Endi yangi zakaz tushganda yoki status o‘zgarganda shu chatga b
   }
 
   String _vehicleSummary(BookingModel booking) {
-    final String vehicleType = vehicleTypePricingById(booking.vehicleTypeId).label(
+    final String vehicleType =
+        vehicleTypePricingById(booking.vehicleTypeId).label(
       'uz',
     );
     final String model = booking.vehicleModel.trim();

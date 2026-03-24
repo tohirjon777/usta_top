@@ -1,4 +1,8 @@
+import 'dart:collection';
+
+import '../models/booking_chat_message.dart';
 import '../models/booking_item.dart';
+import '../models/saved_vehicle_profile.dart';
 import '../models/vehicle_type.dart';
 import '../services/api_exception.dart';
 import '../services/booking_service.dart';
@@ -11,11 +15,33 @@ class BookingProvider extends BookingController {
   }) : _service = service;
 
   final BookingService? _service;
+  final Map<String, List<BookingChatMessage>> _messagesByBookingId =
+      <String, List<BookingChatMessage>>{};
+  final Set<String> _loadingMessageBookings = <String>{};
+  final Set<String> _sendingMessageBookings = <String>{};
+  final Map<String, String?> _messageErrors = <String, String?>{};
   bool _isLoading = false;
   String? _errorMessage;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  UnmodifiableListView<BookingChatMessage> messagesForBooking(
+      String bookingId) {
+    return UnmodifiableListView<BookingChatMessage>(
+      _messagesByBookingId[bookingId] ?? const <BookingChatMessage>[],
+    );
+  }
+
+  bool isLoadingMessages(String bookingId) {
+    return _loadingMessageBookings.contains(bookingId);
+  }
+
+  bool isSendingMessage(String bookingId) {
+    return _sendingMessageBookings.contains(bookingId);
+  }
+
+  String? messageError(String bookingId) => _messageErrors[bookingId];
 
   void seedIfEmpty(List<BookingItem> items) {
     if (bookings.isNotEmpty) {
@@ -65,12 +91,20 @@ class BookingProvider extends BookingController {
     required String masterName,
     required String serviceId,
     required String serviceName,
-    required String vehicleModel,
+    required String vehicleBrand,
+    required String vehicleModelName,
+    required String catalogVehicleId,
+    required bool isCustomVehicle,
     required String vehicleTypeId,
     required DateTime dateTime,
     required int basePrice,
   }) async {
     _errorMessage = null;
+
+    final String vehicleDisplayName = formatVehicleDisplayName(
+      brand: vehicleBrand,
+      model: vehicleModelName,
+    );
 
     try {
       if (_service == null) {
@@ -81,7 +115,7 @@ class BookingProvider extends BookingController {
           masterName: masterName,
           serviceId: serviceId,
           serviceName: serviceName,
-          vehicleModel: vehicleModel,
+          vehicleModel: vehicleDisplayName,
           vehicleTypeId: vehicleTypeId,
           dateTime: dateTime,
           basePrice: basePrice,
@@ -98,7 +132,11 @@ class BookingProvider extends BookingController {
       final BookingItem created = await _service.createBooking(
         workshopId: workshopId,
         serviceId: serviceId,
-        vehicleModel: vehicleModel,
+        vehicleBrand: vehicleBrand,
+        vehicleModelName: vehicleModelName,
+        vehicleDisplayName: vehicleDisplayName,
+        catalogVehicleId: catalogVehicleId,
+        isCustomVehicle: isCustomVehicle,
         vehicleTypeId: vehicleTypeId,
         dateTime: dateTime,
       );
@@ -112,6 +150,107 @@ class BookingProvider extends BookingController {
       _errorMessage = 'Buyurtma yaratishda xatolik yuz berdi';
       notifyListeners();
       rethrow;
+    }
+  }
+
+  Future<void> loadBookingMessages(
+    String bookingId, {
+    bool markRead = true,
+  }) async {
+    _messageErrors.remove(bookingId);
+    _loadingMessageBookings.add(bookingId);
+    notifyListeners();
+
+    try {
+      if (_service == null) {
+        final List<BookingChatMessage> localMessages =
+            _messagesByBookingId[bookingId] ?? const <BookingChatMessage>[];
+        _messagesByBookingId[bookingId] = List<BookingChatMessage>.unmodifiable(
+          localMessages,
+        );
+        _markBookingMessagesReadLocally(bookingId);
+        return;
+      }
+
+      final List<BookingChatMessage> messages =
+          await _service.fetchBookingMessages(
+        bookingId: bookingId,
+      );
+      _messagesByBookingId[bookingId] =
+          List<BookingChatMessage>.unmodifiable(messages);
+
+      if (markRead) {
+        await _service.markBookingMessagesRead(bookingId: bookingId);
+        _markBookingMessagesReadLocally(bookingId);
+      } else {
+        _syncBookingPreviewFromMessages(bookingId, messages);
+      }
+    } on ApiException catch (error) {
+      _messageErrors[bookingId] = error.message;
+    } catch (_) {
+      _messageErrors[bookingId] = 'Chat xabarlarini yuklab bo\'lmadi';
+    } finally {
+      _loadingMessageBookings.remove(bookingId);
+      notifyListeners();
+    }
+  }
+
+  Future<bool> sendBookingMessage({
+    required String bookingId,
+    required String text,
+  }) async {
+    final String normalizedText = normalizeBookingChatText(text);
+    if (normalizedText.isEmpty) {
+      _messageErrors[bookingId] = 'Xabar matnini kiriting';
+      notifyListeners();
+      return false;
+    }
+
+    _messageErrors.remove(bookingId);
+    _sendingMessageBookings.add(bookingId);
+    notifyListeners();
+
+    try {
+      if (_service == null) {
+        final BookingChatMessage localMessage = BookingChatMessage(
+          id: 'msg-${DateTime.now().microsecondsSinceEpoch}',
+          bookingId: bookingId,
+          senderRole: BookingChatSenderRole.customer,
+          senderName: 'Siz',
+          text: normalizedText,
+          createdAt: DateTime.now(),
+        );
+        final List<BookingChatMessage> next = <BookingChatMessage>[
+          ...(_messagesByBookingId[bookingId] ?? const <BookingChatMessage>[]),
+          localMessage,
+        ];
+        _messagesByBookingId[bookingId] =
+            List<BookingChatMessage>.unmodifiable(next);
+        _syncBookingPreviewFromMessages(bookingId, next);
+        return true;
+      }
+
+      final BookingChatMessage sent = await _service.sendBookingMessage(
+        bookingId: bookingId,
+        text: normalizedText,
+      );
+      final List<BookingChatMessage> next = <BookingChatMessage>[
+        ...(_messagesByBookingId[bookingId] ?? const <BookingChatMessage>[]),
+        sent,
+      ];
+      _messagesByBookingId[bookingId] =
+          List<BookingChatMessage>.unmodifiable(next);
+      _syncBookingPreviewFromMessages(bookingId, next);
+      return true;
+    } on ApiException catch (error) {
+      _messageErrors[bookingId] = error.message;
+      return false;
+    } catch (_) {
+      _messageErrors[bookingId] = 'Xabar yuborishda xatolik yuz berdi';
+      return false;
+    } finally {
+      _sendingMessageBookings.remove(bookingId);
+      notifyListeners();
     }
   }
 
@@ -138,5 +277,45 @@ class BookingProvider extends BookingController {
       notifyListeners();
       return false;
     }
+  }
+
+  void _markBookingMessagesReadLocally(String bookingId) {
+    final int index = bookings
+        .toList()
+        .indexWhere((BookingItem item) => item.id == bookingId);
+    if (index < 0) {
+      return;
+    }
+    final BookingItem booking = bookings[index];
+    upsertBooking(
+      booking.copyWith(
+        unreadForCustomerCount: 0,
+      ),
+    );
+  }
+
+  void _syncBookingPreviewFromMessages(
+    String bookingId,
+    List<BookingChatMessage> messages,
+  ) {
+    final int index = bookings
+        .toList()
+        .indexWhere((BookingItem item) => item.id == bookingId);
+    if (index < 0) {
+      return;
+    }
+    final BookingItem booking = bookings[index];
+    final BookingChatMessage? latest = messages.isEmpty ? null : messages.last;
+    upsertBooking(
+      booking.copyWith(
+        messageCount: messages.length,
+        unreadForCustomerCount: 0,
+        lastMessagePreview: latest?.text ?? booking.lastMessagePreview,
+        lastMessageSenderRole: latest == null
+            ? booking.lastMessageSenderRole
+            : bookingChatSenderRoleName(latest.senderRole),
+        lastMessageAt: latest?.createdAt ?? booking.lastMessageAt,
+      ),
+    );
   }
 }

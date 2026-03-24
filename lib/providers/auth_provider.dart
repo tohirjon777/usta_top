@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/storage/auth_token_storage.dart';
+import '../models/saved_vehicle_profile.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -263,6 +264,21 @@ class AuthProvider extends ChangeNotifier {
     _accessToken = null;
     _currentUser = null;
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  void rememberVehicleProfile(SavedVehicleProfile vehicle) {
+    final AuthUser? currentUser = _currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    _currentUser = currentUser.copyWith(
+      savedVehicles: SavedVehicleProfile.upsert(
+        currentUser.savedVehicles,
+        vehicle: vehicle,
+      ),
+    );
     notifyListeners();
   }
 

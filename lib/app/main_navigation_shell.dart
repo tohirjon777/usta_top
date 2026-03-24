@@ -28,7 +28,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   static const Duration _bookingRefreshInterval = Duration(seconds: 20);
 
   int _currentIndex = 0;
-  final Map<String, String> _bookingFingerprints = <String, String>{};
+  final Map<String, BookingItem> _bookingSnapshots = <String, BookingItem>{};
   late final _LifecycleObserver _lifecycleObserver;
   Timer? _bookingRefreshTimer;
 
@@ -119,8 +119,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final NotificationSettingsProvider notificationSettingsProvider =
         context.read<NotificationSettingsProvider>();
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Map<String, String> previousFingerprints =
-        Map<String, String>.from(_bookingFingerprints);
+    final Map<String, BookingItem> previousSnapshots =
+        Map<String, BookingItem>.from(_bookingSnapshots);
 
     await bookingProvider.loadBookings(silent: true);
     if (!mounted) {
@@ -128,27 +128,56 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     }
 
     final List<BookingItem> bookings = bookingProvider.bookings.toList();
-    _bookingFingerprints
+    _bookingSnapshots
       ..clear()
       ..addEntries(
         bookings.map(
-          (BookingItem booking) => MapEntry<String, String>(
+          (BookingItem booking) => MapEntry<String, BookingItem>(
             booking.id,
-            _bookingFingerprint(booking),
+            booking,
           ),
         ),
       );
 
     if (!notifyOnTelegramCancellation ||
-        previousFingerprints.isEmpty ||
+        previousSnapshots.isEmpty ||
         !notificationSettingsProvider.isEnabled) {
       return;
     }
 
-    final List<BookingItem> telegramCancelled = bookings.where((BookingItem item) {
-      final String? previous = previousFingerprints[item.id];
+    final List<BookingItem> ownerReplies = bookings.where((BookingItem item) {
+      final BookingItem? previous = previousSnapshots[item.id];
       return previous != null &&
-          previous != _bookingFingerprint(item) &&
+          item.lastMessageSenderRole == 'workshop_owner' &&
+          item.unreadForCustomerCount > previous.unreadForCustomerCount;
+    }).toList(growable: false);
+
+    if (ownerReplies.isNotEmpty) {
+      final BookingItem latest = ownerReplies.first;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.chatNewReplyNotice(latest.salonName)),
+          action: SnackBarAction(
+            label: l10n.view,
+            onPressed: () {
+              if (!mounted) {
+                return;
+              }
+              setState(() {
+                _currentIndex = 2;
+              });
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    final List<BookingItem> telegramCancelled =
+        bookings.where((BookingItem item) {
+      final BookingItem? previous = previousSnapshots[item.id];
+      return previous != null &&
+          _bookingFingerprint(previous) != _bookingFingerprint(item) &&
           item.status == BookingStatus.cancelled &&
           item.cancelledByRole == 'owner_telegram';
     }).toList(growable: false);
@@ -181,7 +210,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
 
   String _bookingFingerprint(BookingItem booking) {
-    return '${booking.status.name}|${booking.cancelledByRole}|${booking.cancelReasonId}';
+    return '${booking.status.name}|${booking.cancelledByRole}|${booking.cancelReasonId}|${booking.messageCount}|${booking.unreadForCustomerCount}|${booking.lastMessageSenderRole}|${booking.lastMessageAt?.toIso8601String() ?? ''}';
   }
 
   @override

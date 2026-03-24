@@ -467,14 +467,15 @@ class OwnerController {
         );
       }
 
-      final bool isConnected = refreshedWorkshop.telegramChatId.trim().isNotEmpty &&
-          refreshedWorkshop.telegramLinkCode.trim().isEmpty;
+      final bool isConnected =
+          refreshedWorkshop.telegramChatId.trim().isNotEmpty &&
+              refreshedWorkshop.telegramLinkCode.trim().isEmpty;
       if (isConnected) {
-        final bool linkedNow =
-            workshop.telegramChatId.trim() != refreshedWorkshop.telegramChatId.trim() ||
-                workshop.telegramChatLabel.trim() !=
-                    refreshedWorkshop.telegramChatLabel.trim() ||
-                workshop.telegramLinkCode.trim().isNotEmpty;
+        final bool linkedNow = workshop.telegramChatId.trim() !=
+                refreshedWorkshop.telegramChatId.trim() ||
+            workshop.telegramChatLabel.trim() !=
+                refreshedWorkshop.telegramChatLabel.trim() ||
+            workshop.telegramLinkCode.trim().isNotEmpty;
         return Response.seeOther(
           _ownerBookingsUri(
             lang: lang,
@@ -623,6 +624,8 @@ class OwnerController {
               BookingStatus.completed => 'status-completed',
               BookingStatus.cancelled => 'status-cancelled',
             };
+            final BookingChatSummaryModel chatSummary =
+                _store.chatSummaryForBooking(item.id);
             return '''
 <article class="booking-card">
   <div class="booking-head">
@@ -665,9 +668,12 @@ class OwnerController {
     </div>
   </div>
 
+  ${chatSummary.messageCount == 0 ? '' : '<div class="chat-preview"><span>${_escapeHtml(_text(lang, 'chatPreviewLabel'))}</span><strong>${_escapeHtml(chatSummary.lastMessagePreview)}</strong></div>'}
+
 	  <div class="booking-footer">
 	    <div class="quick-links">
 	      ${item.customerPhone.isEmpty ? '' : '<a class="ghost-btn" href="tel:${_escapeHtml(item.customerPhone)}">${_escapeHtml(_text(lang, 'callCustomer'))}</a>'}
+        ${_chatLinkHtml(item, lang, status, chatSummary)}
 	    </div>
 	    <div class="quick-links">
 	      ${_statusActionsHtml(item, lang, status)}
@@ -1060,8 +1066,42 @@ class OwnerController {
       font-size: 13px;
     }
 
+    .chat-preview {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(88, 67, 40, 0.1);
+      background: rgba(255, 247, 238, 0.92);
+      display: grid;
+      gap: 6px;
+    }
+
+    .chat-preview span {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
     .booking-footer {
       justify-content: space-between;
+    }
+
+    .chat-btn {
+      position: relative;
+    }
+
+    .chat-badge {
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--accent-strong);
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
     }
 
     .status-pill {
@@ -1213,7 +1253,8 @@ class OwnerController {
               ? item.copyWith(price: nextPrice)
               : item)
           .toList(growable: false);
-      final WorkshopModel updated = workshop.copyWith(services: updatedServices);
+      final WorkshopModel updated =
+          workshop.copyWith(services: updatedServices);
       _store.updateWorkshop(workshopId: workshop.id, workshop: updated);
       await _store.saveWorkshops(workshopsFilePath);
 
@@ -1269,7 +1310,7 @@ class OwnerController {
               workshopId: workshopId,
               bookingId: bookingId,
               status: nextStatus,
-      );
+            );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
       await _notifyUserAboutStatusChange(
@@ -1438,7 +1479,9 @@ class OwnerController {
 <div class="telegram-code">${_escapeHtml(workshop.telegramLinkCode)}</div>
 <ol class="telegram-steps">
   <li>${_escapeHtml(_text(lang, 'telegramStepOpenBot'))}</li>
-  <li>${_escapeHtml(_text(lang, 'telegramStepSendCode', <String, Object>{'code': workshop.telegramLinkCode}))}</li>
+  <li>${_escapeHtml(_text(lang, 'telegramStepSendCode', <String, Object>{
+                'code': workshop.telegramLinkCode
+              }))}</li>
   <li>${_escapeHtml(_text(lang, 'telegramStepCheck'))}</li>
 </ol>
 '''
@@ -1501,8 +1544,8 @@ class OwnerController {
   }
 
   String _vehicleSummary(BookingModel booking, String lang) {
-    final String vehicleType = vehicleTypePricingById(booking.vehicleTypeId)
-        .label(lang);
+    final String vehicleType =
+        vehicleTypePricingById(booking.vehicleTypeId).label(lang);
     final String vehicleModel = booking.vehicleModel.trim();
     if (vehicleModel.isEmpty) {
       return vehicleType;
@@ -1799,7 +1842,8 @@ class OwnerController {
               actor: 'Telegram tugmasi',
             );
           } on Exception catch (error) {
-            stderr.writeln('Telegram callback status xabari yuborilmadi: $error');
+            stderr
+                .writeln('Telegram callback status xabari yuborilmadi: $error');
           }
           await _notifyUserAboutStatusChange(
             updated,
@@ -1868,7 +1912,8 @@ class OwnerController {
     }
 
     if (parts.length == 3 && parts.first == 'c') {
-      final String reasonId = _telegramCancellationReasonFromShortCode(parts[1]);
+      final String reasonId =
+          _telegramCancellationReasonFromShortCode(parts[1]);
       final String bookingId = parts[2].trim();
       if (reasonId.isEmpty || bookingId.isEmpty) {
         return null;
@@ -2017,6 +2062,23 @@ class OwnerController {
     return '$completeForm$cancelForm';
   }
 
+  String _chatLinkHtml(
+    BookingModel booking,
+    String lang,
+    String status,
+    BookingChatSummaryModel summary,
+  ) {
+    final String badge = summary.unreadForOwnerCount <= 0
+        ? ''
+        : '<span class="chat-badge">${_escapeHtml(summary.unreadForOwnerCount.toString())}</span>';
+    return '''
+<a class="ghost-btn chat-btn" href="${_escapeHtml(_ownerChatUri(booking.id, lang: lang, status: status).toString())}">
+  ${_escapeHtml(_text(lang, 'chatButton'))}
+  $badge
+</a>
+''';
+  }
+
   String _statusActionForm(
     BookingModel booking,
     BookingStatus nextStatus,
@@ -2044,11 +2106,14 @@ class OwnerController {
       now.add(workshopCancellationLeadTime),
     );
     if (!canCancel) {
-      return '<span class="muted">${_escapeHtml(_text(lang, 'cancelGuardHint', <String, Object>{'minutes': workshopCancellationLeadTime.inMinutes}))}</span>';
+      return '<span class="muted">${_escapeHtml(_text(lang, 'cancelGuardHint', <String, Object>{
+            'minutes': workshopCancellationLeadTime.inMinutes
+          }))}</span>';
     }
 
     final String options = bookingCancellationReasons
-        .where((BookingCancellationReason item) => item.id != 'customer_request')
+        .where(
+            (BookingCancellationReason item) => item.id != 'customer_request')
         .map(
           (BookingCancellationReason item) =>
               '<option value="${_escapeHtml(item.id)}">${_escapeHtml(item.label(lang))}</option>',
@@ -2137,6 +2202,24 @@ class OwnerController {
       params['error'] = error.trim();
     }
     return Uri(path: '/owner/bookings', queryParameters: params);
+  }
+
+  Uri _ownerChatUri(
+    String bookingId, {
+    String? lang,
+    String? status,
+  }) {
+    final Map<String, String> params = <String, String>{
+      'lang': _normalizeLang(lang),
+    };
+    final String normalizedStatus = _normalizeStatus(status);
+    if (normalizedStatus != 'all') {
+      params['status'] = normalizedStatus;
+    }
+    return Uri(
+      path: '/owner/bookings/${Uri.encodeComponent(bookingId)}/chat',
+      queryParameters: params,
+    );
   }
 
   String _flashHtml({
@@ -2311,6 +2394,8 @@ class OwnerController {
       'basePriceLabel': 'Bazaviy narx',
       'createdLabel': 'Tushgan vaqt',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
+      'chatButton': 'Chat',
+      'chatPreviewLabel': 'Oxirgi xabar',
       'servicePricingEyebrow': 'Narx boshqaruvi',
       'servicePricingTitle': 'Xizmat narxlarini o‘zingiz belgilang',
       'servicePricingDescription':
@@ -2345,18 +2430,15 @@ class OwnerController {
           'Har bir workshop profili o‘z Telegram chatiga faqat o‘z zakazlarini oladi.',
       'telegramConnected': 'Telegram ulangan',
       'telegramPending': 'Telegram hali ulanmagan',
-      'telegramConnectedBody':
-          'Zakaz xabarlari {chat} chatiga yuborilmoqda.',
+      'telegramConnectedBody': 'Zakaz xabarlari {chat} chatiga yuborilmoqda.',
       'telegramPendingBody':
           'Botga link kod yuborib, keyin shu yerda tekshirishni bosing.',
       'telegramBotNotConfiguredShort': 'Telegram bot o‘chiq',
       'telegramBotNotConfiguredBody':
           'Backendda TELEGRAM_BOT_TOKEN yoqilmagani uchun bot ulanishi hozir ishlamaydi.',
       'telegramStepOpenBot': 'Telegram botni oching.',
-      'telegramStepSendCode':
-          'Botga quyidagi xabarni yuboring: /start {code}',
-      'telegramStepCheck':
-          'Keyin bu sahifada “Tekshirish” tugmasini bosing.',
+      'telegramStepSendCode': 'Botga quyidagi xabarni yuboring: /start {code}',
+      'telegramStepCheck': 'Keyin bu sahifada “Tekshirish” tugmasini bosing.',
       'telegramGenerateCode': 'Bog‘lash kodini yaratish',
       'telegramRegenerateCode': 'Yangi kod yaratish',
       'telegramCheck': 'Tekshirish',
@@ -2365,12 +2447,9 @@ class OwnerController {
           'Bog‘lash kodi yaratildi: {code}. Uni botga yuboring.',
       'telegramLinkedNow':
           'Telegram ulandi. Endi zakazlar {chat} chatiga boradi.',
-      'telegramAlreadyConnected':
-          'Telegram allaqachon ulangan: {chat}.',
-      'telegramStillWaiting':
-          'Botda hali {code} kodi bilan xabar topilmadi.',
-      'telegramCodeMissing':
-          'Avval Telegram bog‘lash kodini yarating.',
+      'telegramAlreadyConnected': 'Telegram allaqachon ulangan: {chat}.',
+      'telegramStillWaiting': 'Botda hali {code} kodi bilan xabar topilmadi.',
+      'telegramCodeMissing': 'Avval Telegram bog‘lash kodini yarating.',
       'telegramCodeMissingBody':
           'Pastdagi tugma orqali yangi bog‘lash kodini yarating.',
       'telegramDisconnected': 'Telegram ulanishi uzildi.',
@@ -2430,6 +2509,8 @@ class OwnerController {
       'basePriceLabel': 'Базовая цена',
       'createdLabel': 'Время поступления',
       'callCustomer': 'Позвонить клиенту',
+      'chatButton': 'Чат',
+      'chatPreviewLabel': 'Последнее сообщение',
       'servicePricingEyebrow': 'Управление ценами',
       'servicePricingTitle': 'Устанавливайте цены на услуги сами',
       'servicePricingDescription':
@@ -2474,24 +2555,18 @@ class OwnerController {
       'telegramStepOpenBot': 'Откройте Telegram-бота.',
       'telegramStepSendCode':
           'Отправьте боту следующее сообщение: /start {code}',
-      'telegramStepCheck':
-          'Потом нажмите кнопку «Проверить» на этой странице.',
+      'telegramStepCheck': 'Потом нажмите кнопку «Проверить» на этой странице.',
       'telegramGenerateCode': 'Создать код привязки',
       'telegramRegenerateCode': 'Создать новый код',
       'telegramCheck': 'Проверить',
       'telegramDisconnect': 'Отключить Telegram',
-      'telegramCodeCreated':
-          'Код привязки создан: {code}. Отправьте его боту.',
+      'telegramCodeCreated': 'Код привязки создан: {code}. Отправьте его боту.',
       'telegramLinkedNow':
           'Telegram подключен. Теперь заказы будут приходить в чат {chat}.',
-      'telegramAlreadyConnected':
-          'Telegram уже подключен: {chat}.',
-      'telegramStillWaiting':
-          'Бот пока не получил сообщение с кодом {code}.',
-      'telegramCodeMissing':
-          'Сначала создайте код привязки Telegram.',
-      'telegramCodeMissingBody':
-          'Создайте новый код привязки кнопкой ниже.',
+      'telegramAlreadyConnected': 'Telegram уже подключен: {chat}.',
+      'telegramStillWaiting': 'Бот пока не получил сообщение с кодом {code}.',
+      'telegramCodeMissing': 'Сначала создайте код привязки Telegram.',
+      'telegramCodeMissingBody': 'Создайте новый код привязки кнопкой ниже.',
       'telegramDisconnected': 'Подключение Telegram отключено.',
       'telegramBotNotConfigured':
           'Токен Telegram-бота не настроен. Перезапустите backend с токеном.',
@@ -2549,13 +2624,16 @@ class OwnerController {
       'basePriceLabel': 'Base price',
       'createdLabel': 'Received at',
       'callCustomer': 'Call customer',
+      'chatButton': 'Chat',
+      'chatPreviewLabel': 'Latest message',
       'servicePricingEyebrow': 'Price control',
       'servicePricingTitle': 'Set your own service prices',
       'servicePricingDescription':
           'Update prices here only for the services that belong to your workshop.',
       'servicePricingHint':
           'The saved price appears in the app on the next refresh, and new bookings will use that base price immediately.',
-      'servicePricingEmpty': 'No services have been added to this workshop yet.',
+      'servicePricingEmpty':
+          'No services have been added to this workshop yet.',
       'serviceDurationMinutes': '{minutes} min',
       'serviceCurrentPriceLabel': 'Current price: {price}',
       'serviceNewPriceLabel': 'New price',
@@ -2583,18 +2661,15 @@ class OwnerController {
           'Each workshop profile receives only its own orders in its own Telegram chat.',
       'telegramConnected': 'Telegram connected',
       'telegramPending': 'Telegram not connected yet',
-      'telegramConnectedBody':
-          'Order notifications are being sent to {chat}.',
+      'telegramConnectedBody': 'Order notifications are being sent to {chat}.',
       'telegramPendingBody':
           'Send the link code to the bot, then press check on this page.',
       'telegramBotNotConfiguredShort': 'Telegram bot is off',
       'telegramBotNotConfiguredBody':
           'The bot cannot connect until TELEGRAM_BOT_TOKEN is set on the backend.',
       'telegramStepOpenBot': 'Open the Telegram bot.',
-      'telegramStepSendCode':
-          'Send this message to the bot: /start {code}',
-      'telegramStepCheck':
-          'Then press the "Check" button on this page.',
+      'telegramStepSendCode': 'Send this message to the bot: /start {code}',
+      'telegramStepCheck': 'Then press the "Check" button on this page.',
       'telegramGenerateCode': 'Create link code',
       'telegramRegenerateCode': 'Create new code',
       'telegramCheck': 'Check',
@@ -2603,12 +2678,10 @@ class OwnerController {
           'A link code was created: {code}. Send it to the bot.',
       'telegramLinkedNow':
           'Telegram connected. Orders will now arrive in {chat}.',
-      'telegramAlreadyConnected':
-          'Telegram is already connected: {chat}.',
+      'telegramAlreadyConnected': 'Telegram is already connected: {chat}.',
       'telegramStillWaiting':
           'The bot has not received a message with code {code} yet.',
-      'telegramCodeMissing':
-          'Create a Telegram link code first.',
+      'telegramCodeMissing': 'Create a Telegram link code first.',
       'telegramCodeMissingBody':
           'Create a new link code with the button below.',
       'telegramDisconnected': 'Telegram connection was removed.',

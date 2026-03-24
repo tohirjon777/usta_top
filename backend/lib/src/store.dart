@@ -11,8 +11,10 @@ class InMemoryStore {
     required List<UserModel> users,
     required List<WorkshopModel> workshops,
     required List<BookingModel> bookings,
-  })  : _workshops = workshops,
-        _bookings = bookings {
+    required List<BookingChatMessageModel> bookingMessages,
+  })  : _workshops = List<WorkshopModel>.from(workshops),
+        _bookings = List<BookingModel>.from(bookings),
+        _bookingMessages = List<BookingChatMessageModel>.from(bookingMessages) {
     for (final UserModel user in users) {
       _usersById[user.id] = user;
       _usersByPhone[_normalizePhone(user.phone)] = user;
@@ -175,12 +177,14 @@ class InMemoryStore {
       users: users,
       workshops: workshops,
       bookings: bookings,
+      bookingMessages: const <BookingChatMessageModel>[],
     );
   }
 
   final Random _random = Random();
   final List<WorkshopModel> _workshops;
   final List<BookingModel> _bookings;
+  final List<BookingChatMessageModel> _bookingMessages;
   final Map<String, UserModel> _usersByPhone = <String, UserModel>{};
   final Map<String, UserModel> _usersById = <String, UserModel>{};
   final Map<String, String> _tokenToUserId = <String, String>{};
@@ -374,6 +378,86 @@ class InMemoryStore {
     return updated;
   }
 
+  UserModel? rememberUserVehicle({
+    required String userId,
+    required String brand,
+    required String model,
+    required String vehicleTypeId,
+    String catalogVehicleId = '',
+    required bool isCustom,
+  }) {
+    final UserModel? current = _usersById[userId];
+    if (current == null) {
+      return null;
+    }
+
+    final String normalizedBrand = normalizeSavedVehicleBrand(brand);
+    final String normalizedModel = normalizeSavedVehicleModelName(model);
+    if (normalizedBrand.isEmpty || normalizedModel.isEmpty) {
+      throw StateError('Mashina brandi va modeli majburiy');
+    }
+
+    final DateTime now = DateTime.now();
+    final List<SavedVehicleModel> nextVehicles = <SavedVehicleModel>[];
+    SavedVehicleModel? matched;
+
+    for (final SavedVehicleModel item in current.savedVehicles) {
+      final bool isSameVehicle =
+          item.brand.toLowerCase() == normalizedBrand.toLowerCase() &&
+              item.model.toLowerCase() == normalizedModel.toLowerCase();
+      if (isSameVehicle) {
+        matched = item.copyWith(
+          brand: normalizedBrand,
+          model: normalizedModel,
+          vehicleTypeId: vehicleTypePricingById(vehicleTypeId).id,
+          catalogVehicleId: catalogVehicleId.trim(),
+          isCustom: isCustom,
+          usageCount: item.usageCount + 1,
+          lastUsedAt: now,
+        );
+      } else {
+        nextVehicles.add(item);
+      }
+    }
+
+    nextVehicles.insert(
+      0,
+      matched ??
+          SavedVehicleModel(
+            id: _newId('veh'),
+            brand: normalizedBrand,
+            model: normalizedModel,
+            vehicleTypeId: vehicleTypePricingById(vehicleTypeId).id,
+            catalogVehicleId: catalogVehicleId.trim(),
+            isCustom: isCustom,
+            usageCount: 1,
+            lastUsedAt: now,
+          ),
+    );
+
+    nextVehicles.sort((SavedVehicleModel a, SavedVehicleModel b) {
+      final int usageOrder = b.usageCount.compareTo(a.usageCount);
+      if (usageOrder != 0) {
+        return usageOrder;
+      }
+      final DateTime aTime =
+          a.lastUsedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime bTime =
+          b.lastUsedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+
+    final List<SavedVehicleModel> trimmed = nextVehicles.take(8).toList(
+          growable: false,
+        );
+    final UserModel updated = current.copyWith(
+      savedVehicles: List<SavedVehicleModel>.unmodifiable(trimmed),
+    );
+    _usersById[userId] = updated;
+    _usersByPhone[_normalizePhone(updated.phone)] = updated;
+    return updated;
+  }
+
   Future<void> loadUsers(String filePath) async {
     final File file = File(filePath);
     if (!await file.exists()) {
@@ -495,6 +579,44 @@ class InMemoryStore {
 
     final List<Map<String, Object>> data = _bookings
         .map((BookingModel item) => item.toStorageJson())
+        .toList(growable: false);
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
+  }
+
+  Future<void> loadBookingMessages(String filePath) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    final String trimmed = raw.trim();
+    _bookingMessages.clear();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(trimmed);
+    if (decoded is! List) {
+      throw const FormatException('Booking messages file list bo\'lishi kerak');
+    }
+
+    final List<BookingChatMessageModel> messages = decoded
+        .whereType<Map<String, dynamic>>()
+        .map(BookingChatMessageModel.fromJson)
+        .where((BookingChatMessageModel item) {
+      return item.bookingId.isNotEmpty && item.text.isNotEmpty;
+    }).toList(growable: false);
+    _bookingMessages.addAll(messages);
+  }
+
+  Future<void> saveBookingMessages(String filePath) async {
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final List<Map<String, Object>> data = _bookingMessages
+        .map((BookingChatMessageModel item) => item.toJson())
         .toList(growable: false);
     const JsonEncoder encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString('${encoder.convert(data)}\n');
@@ -701,6 +823,39 @@ class InMemoryStore {
     return List<BookingModel>.unmodifiable(items);
   }
 
+  BookingModel? bookingById(String bookingId) {
+    for (final BookingModel item in _bookings) {
+      if (item.id == bookingId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  BookingModel? bookingForUser({
+    required String userId,
+    required String bookingId,
+  }) {
+    for (final BookingModel item in _bookings) {
+      if (item.id == bookingId && item.userId == userId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  BookingModel? bookingForWorkshop({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    for (final BookingModel item in _bookings) {
+      if (item.id == bookingId && item.workshopId == workshopId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
   List<BookingModel> bookings({
     String? workshopId,
     BookingStatus? status,
@@ -722,11 +877,181 @@ class InMemoryStore {
     return List<BookingModel>.unmodifiable(items);
   }
 
+  List<BookingChatMessageModel> bookingMessagesForUser({
+    required String userId,
+    required String bookingId,
+  }) {
+    final BookingModel? booking = bookingForUser(
+      userId: userId,
+      bookingId: bookingId,
+    );
+    if (booking == null) {
+      throw StateError('Buyurtma topilmadi');
+    }
+    return _messagesForBooking(booking.id);
+  }
+
+  List<BookingChatMessageModel> bookingMessagesForWorkshop({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    final BookingModel? booking = bookingForWorkshop(
+      workshopId: workshopId,
+      bookingId: bookingId,
+    );
+    if (booking == null) {
+      throw StateError('Zakaz topilmadi');
+    }
+    return _messagesForBooking(booking.id);
+  }
+
+  BookingChatMessageModel createCustomerBookingMessage({
+    required String userId,
+    required String bookingId,
+    required String text,
+  }) {
+    final UserModel? user = _usersById[userId];
+    if (user == null) {
+      throw StateError('Foydalanuvchi topilmadi');
+    }
+
+    final BookingModel? booking = bookingForUser(
+      userId: userId,
+      bookingId: bookingId,
+    );
+    if (booking == null) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    return _appendBookingMessage(
+      bookingId: booking.id,
+      senderRole: BookingChatSenderRole.customer,
+      senderName: user.fullName.trim().isEmpty ? user.phone : user.fullName,
+      text: text,
+    );
+  }
+
+  BookingChatMessageModel createWorkshopBookingMessage({
+    required String workshopId,
+    required String bookingId,
+    required String text,
+  }) {
+    final WorkshopModel? workshop = workshopById(workshopId);
+    if (workshop == null) {
+      throw StateError('Workshop topilmadi');
+    }
+
+    final BookingModel? booking = bookingForWorkshop(
+      workshopId: workshopId,
+      bookingId: bookingId,
+    );
+    if (booking == null) {
+      throw StateError('Zakaz topilmadi');
+    }
+
+    final String senderName =
+        workshop.master.trim().isEmpty ? workshop.name : workshop.master;
+    return _appendBookingMessage(
+      bookingId: booking.id,
+      senderRole: BookingChatSenderRole.workshopOwner,
+      senderName: senderName,
+      text: text,
+    );
+  }
+
+  int markBookingMessagesReadForCustomer({
+    required String userId,
+    required String bookingId,
+  }) {
+    final BookingModel? booking = bookingForUser(
+      userId: userId,
+      bookingId: bookingId,
+    );
+    if (booking == null) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final DateTime now = DateTime.now();
+    int updatedCount = 0;
+    for (int i = 0; i < _bookingMessages.length; i++) {
+      final BookingChatMessageModel message = _bookingMessages[i];
+      if (message.bookingId != booking.id ||
+          message.isFromCustomer ||
+          message.readByCustomerAt != null) {
+        continue;
+      }
+      _bookingMessages[i] = message.copyWith(readByCustomerAt: now);
+      updatedCount += 1;
+    }
+    return updatedCount;
+  }
+
+  int markBookingMessagesReadForWorkshop({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    final BookingModel? booking = bookingForWorkshop(
+      workshopId: workshopId,
+      bookingId: bookingId,
+    );
+    if (booking == null) {
+      throw StateError('Zakaz topilmadi');
+    }
+
+    final DateTime now = DateTime.now();
+    int updatedCount = 0;
+    for (int i = 0; i < _bookingMessages.length; i++) {
+      final BookingChatMessageModel message = _bookingMessages[i];
+      if (message.bookingId != booking.id ||
+          !message.isFromCustomer ||
+          message.readByOwnerAt != null) {
+        continue;
+      }
+      _bookingMessages[i] = message.copyWith(readByOwnerAt: now);
+      updatedCount += 1;
+    }
+    return updatedCount;
+  }
+
+  BookingChatSummaryModel chatSummaryForBooking(String bookingId) {
+    final List<BookingChatMessageModel> messages =
+        _messagesForBooking(bookingId);
+    if (messages.isEmpty) {
+      return const BookingChatSummaryModel();
+    }
+
+    final BookingChatMessageModel latest = messages.last;
+    int unreadForCustomerCount = 0;
+    int unreadForOwnerCount = 0;
+    for (final BookingChatMessageModel item in messages) {
+      if (item.isFromCustomer) {
+        if (item.readByOwnerAt == null) {
+          unreadForOwnerCount += 1;
+        }
+      } else if (item.readByCustomerAt == null) {
+        unreadForCustomerCount += 1;
+      }
+    }
+
+    return BookingChatSummaryModel(
+      messageCount: messages.length,
+      unreadForCustomerCount: unreadForCustomerCount,
+      unreadForOwnerCount: unreadForOwnerCount,
+      lastMessagePreview: bookingChatPreview(latest.text),
+      lastMessageSenderRole: bookingChatSenderRoleName(latest.senderRole),
+      lastMessageAt: latest.createdAt,
+    );
+  }
+
   BookingModel createBooking({
     required String userId,
     required String workshopId,
     required String serviceId,
     required String vehicleModel,
+    String vehicleBrand = '',
+    String vehicleModelName = '',
+    String catalogVehicleId = '',
+    bool isCustomVehicle = false,
     required String vehicleTypeId,
     required DateTime dateTime,
   }) {
@@ -749,7 +1074,18 @@ class InMemoryStore {
     if (dateTime.isBefore(now.subtract(const Duration(minutes: 1)))) {
       throw StateError('Sana kelajakdagi vaqt bo\'lishi kerak');
     }
-    final String normalizedVehicleModel = vehicleModel.trim();
+    final String normalizedVehicleBrand = normalizeSavedVehicleBrand(
+      vehicleBrand,
+    );
+    final String normalizedVehicleModelName = normalizeSavedVehicleModelName(
+      vehicleModelName,
+    );
+    final String normalizedVehicleModel = vehicleModel.trim().isEmpty
+        ? formatSavedVehicleDisplayName(
+            brand: normalizedVehicleBrand,
+            model: normalizedVehicleModelName,
+          )
+        : vehicleModel.trim();
     if (normalizedVehicleModel.isEmpty) {
       throw StateError('Mashina modeli ko\'rsatilishi kerak');
     }
@@ -779,6 +1115,17 @@ class InMemoryStore {
       createdAt: now,
     );
     _bookings.insert(0, booking);
+    if (normalizedVehicleBrand.isNotEmpty &&
+        normalizedVehicleModelName.isNotEmpty) {
+      rememberUserVehicle(
+        userId: userId,
+        brand: normalizedVehicleBrand,
+        model: normalizedVehicleModelName,
+        vehicleTypeId: vehicleType.id,
+        catalogVehicleId: catalogVehicleId,
+        isCustom: isCustomVehicle,
+      );
+    }
     return booking;
   }
 
@@ -953,10 +1300,53 @@ class InMemoryStore {
       case BookingStatus.upcoming:
         return;
       case BookingStatus.completed:
-        throw StateError('Yakunlangan zakaz statusini qayta o‘zgartirib bo‘lmaydi');
+        throw StateError(
+            'Yakunlangan zakaz statusini qayta o‘zgartirib bo‘lmaydi');
       case BookingStatus.cancelled:
-        throw StateError('Bekor qilingan zakaz statusini qayta o‘zgartirib bo‘lmaydi');
+        throw StateError(
+            'Bekor qilingan zakaz statusini qayta o‘zgartirib bo‘lmaydi');
     }
+  }
+
+  List<BookingChatMessageModel> _messagesForBooking(String bookingId) {
+    final List<BookingChatMessageModel> items = _bookingMessages
+        .where((BookingChatMessageModel item) => item.bookingId == bookingId)
+        .toList(growable: false)
+      ..sort((BookingChatMessageModel a, BookingChatMessageModel b) {
+        return a.createdAt.compareTo(b.createdAt);
+      });
+    return List<BookingChatMessageModel>.unmodifiable(items);
+  }
+
+  BookingChatMessageModel _appendBookingMessage({
+    required String bookingId,
+    required BookingChatSenderRole senderRole,
+    required String senderName,
+    required String text,
+  }) {
+    final String normalizedText = normalizeBookingChatText(text);
+    if (normalizedText.isEmpty) {
+      throw StateError('Xabar matni majburiy');
+    }
+    if (normalizedText.length > 1000) {
+      throw StateError('Xabar 1000 belgidan oshmasligi kerak');
+    }
+
+    final DateTime now = DateTime.now();
+    final BookingChatMessageModel message = BookingChatMessageModel(
+      id: _newId('msg'),
+      bookingId: bookingId,
+      senderRole: senderRole,
+      senderName: senderName.trim().isEmpty ? 'Usta Top' : senderName.trim(),
+      text: normalizedText,
+      createdAt: now,
+      readByCustomerAt:
+          senderRole == BookingChatSenderRole.customer ? now : null,
+      readByOwnerAt:
+          senderRole == BookingChatSenderRole.workshopOwner ? now : null,
+    );
+    _bookingMessages.add(message);
+    return message;
   }
 
   String _normalizePhone(String raw) {
