@@ -14,6 +14,8 @@ Future<void> main() async {
           'data/workshop_locations.json';
   final String workshopsFilePath =
       Platform.environment['WORKSHOPS_FILE'] ?? 'data/workshops.json';
+  final String reviewsFilePath =
+      Platform.environment['REVIEWS_FILE'] ?? 'data/reviews.json';
   final String usersFilePath =
       Platform.environment['USERS_FILE'] ?? 'data/users.json';
   final String authSessionsFilePath =
@@ -40,6 +42,7 @@ Future<void> main() async {
   await store.loadAuthSessions(authSessionsFilePath);
   await store.loadWorkshops(workshopsFilePath);
   await store.loadWorkshopLocations(workshopLocationsFilePath);
+  await store.loadReviews(reviewsFilePath);
   await store.loadBookings(bookingsFilePath);
   await store.loadBookingMessages(bookingMessagesFilePath);
 
@@ -47,6 +50,7 @@ Future<void> main() async {
     store,
     workshopLocationsFilePath: workshopLocationsFilePath,
     workshopsFilePath: workshopsFilePath,
+    reviewsFilePath: reviewsFilePath,
     usersFilePath: usersFilePath,
     authSessionsFilePath: authSessionsFilePath,
     bookingsFilePath: bookingsFilePath,

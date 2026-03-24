@@ -1,3 +1,5 @@
+import 'salon_review.dart';
+
 class SalonService {
   const SalonService({
     required this.id,
@@ -48,6 +50,7 @@ class Salon {
     required this.isOpen,
     required this.badge,
     required this.services,
+    this.reviews = const <SalonReview>[],
   });
 
   final String id;
@@ -63,6 +66,7 @@ class Salon {
   final bool isOpen;
   final String badge;
   final List<SalonService> services;
+  final List<SalonReview> reviews;
 
   factory Salon.fromJson(Map<String, dynamic> json) {
     // TODO(API): workshop object kalitlari:
@@ -75,6 +79,15 @@ class Salon {
             .map(SalonService.fromJson)
             .toList(growable: false)
         : <SalonService>[];
+    final dynamic rawReviews = json['reviews'];
+    final List<SalonReview> parsedReviews = rawReviews is List
+        ? rawReviews
+            .whereType<Map<String, dynamic>>()
+            .map(SalonReview.fromJson)
+            .where((SalonReview item) {
+        return item.serviceId.isNotEmpty && item.comment.isNotEmpty;
+      }).toList(growable: false)
+        : <SalonReview>[];
 
     return Salon(
       id: (json['id'] ?? '').toString(),
@@ -90,6 +103,7 @@ class Salon {
       isOpen: json['isOpen'] == true,
       badge: (json['badge'] ?? '').toString(),
       services: parsedServices,
+      reviews: parsedReviews,
     );
   }
 
@@ -112,6 +126,40 @@ class Salon {
         .map((SalonService service) => service.name)
         .toSet()
         .toList();
+  }
+
+  Salon copyWith({
+    String? id,
+    String? name,
+    String? master,
+    double? rating,
+    int? reviewCount,
+    String? address,
+    String? description,
+    double? distanceKm,
+    double? latitude,
+    double? longitude,
+    bool? isOpen,
+    String? badge,
+    List<SalonService>? services,
+    List<SalonReview>? reviews,
+  }) {
+    return Salon(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      master: master ?? this.master,
+      rating: rating ?? this.rating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      address: address ?? this.address,
+      description: description ?? this.description,
+      distanceKm: distanceKm ?? this.distanceKm,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isOpen: isOpen ?? this.isOpen,
+      badge: badge ?? this.badge,
+      services: services ?? this.services,
+      reviews: reviews ?? this.reviews,
+    );
   }
 
   static int _toInt(Object? value) {

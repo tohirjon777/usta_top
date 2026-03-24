@@ -12,9 +12,11 @@ class InMemoryStore {
     required List<WorkshopModel> workshops,
     required List<BookingModel> bookings,
     required List<BookingChatMessageModel> bookingMessages,
+    required List<WorkshopReviewModel> reviews,
   })  : _workshops = List<WorkshopModel>.from(workshops),
         _bookings = List<BookingModel>.from(bookings),
-        _bookingMessages = List<BookingChatMessageModel>.from(bookingMessages) {
+        _bookingMessages = List<BookingChatMessageModel>.from(bookingMessages),
+        _reviews = List<WorkshopReviewModel>.from(reviews) {
     for (final UserModel user in users) {
       _usersById[user.id] = user;
       _usersByPhone[_normalizePhone(user.phone)] = user;
@@ -173,11 +175,12 @@ class InMemoryStore {
       ),
     ];
 
-    return InMemoryStore(
+      return InMemoryStore(
       users: users,
       workshops: workshops,
       bookings: bookings,
       bookingMessages: const <BookingChatMessageModel>[],
+      reviews: const <WorkshopReviewModel>[],
     );
   }
 
@@ -185,6 +188,7 @@ class InMemoryStore {
   final List<WorkshopModel> _workshops;
   final List<BookingModel> _bookings;
   final List<BookingChatMessageModel> _bookingMessages;
+  final List<WorkshopReviewModel> _reviews;
   final Map<String, UserModel> _usersByPhone = <String, UserModel>{};
   final Map<String, UserModel> _usersById = <String, UserModel>{};
   final Map<String, String> _tokenToUserId = <String, String>{};
@@ -622,6 +626,46 @@ class InMemoryStore {
     await file.writeAsString('${encoder.convert(data)}\n');
   }
 
+  Future<void> loadReviews(String filePath) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String raw = await file.readAsString();
+    final String trimmed = raw.trim();
+    _reviews.clear();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(trimmed);
+    if (decoded is! List) {
+      throw const FormatException('Reviews file list bo\'lishi kerak');
+    }
+
+    final List<WorkshopReviewModel> reviews = decoded
+        .whereType<Map<String, dynamic>>()
+        .map(WorkshopReviewModel.fromJson)
+        .where((WorkshopReviewModel item) {
+      return item.workshopId.isNotEmpty &&
+          item.serviceId.isNotEmpty &&
+          item.comment.isNotEmpty;
+    }).toList(growable: false);
+    _reviews.addAll(reviews);
+  }
+
+  Future<void> saveReviews(String filePath) async {
+    final File file = File(filePath);
+    await file.parent.create(recursive: true);
+
+    final List<Map<String, Object>> data = _reviews
+        .map((WorkshopReviewModel item) => item.toJson())
+        .toList(growable: false);
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString('${encoder.convert(data)}\n');
+  }
+
   List<WorkshopModel> workshops({String? query}) {
     final String q = (query ?? '').trim();
     if (q.isEmpty) {
@@ -875,6 +919,129 @@ class InMemoryStore {
         return b.createdAt.compareTo(a.createdAt);
       });
     return List<BookingModel>.unmodifiable(items);
+  }
+
+  List<WorkshopReviewModel> reviewsForWorkshop({
+    required String workshopId,
+    String? serviceId,
+  }) {
+    final String normalizedWorkshopId = workshopId.trim();
+    final String normalizedServiceId = (serviceId ?? '').trim();
+    final List<WorkshopReviewModel> items = _reviews.where(
+      (WorkshopReviewModel item) {
+        if (item.workshopId != normalizedWorkshopId) {
+          return false;
+        }
+        if (normalizedServiceId.isNotEmpty && item.serviceId != normalizedServiceId) {
+          return false;
+        }
+        return true;
+      },
+    ).toList(growable: false)
+      ..sort((WorkshopReviewModel a, WorkshopReviewModel b) {
+        return b.createdAt.compareTo(a.createdAt);
+      });
+    return List<WorkshopReviewModel>.unmodifiable(items);
+  }
+
+  WorkshopReviewModel? reviewById(String reviewId) {
+    final String normalizedReviewId = reviewId.trim();
+    if (normalizedReviewId.isEmpty) {
+      return null;
+    }
+    for (final WorkshopReviewModel item in _reviews) {
+      if (item.id == normalizedReviewId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  WorkshopReviewModel createWorkshopReview({
+    required String userId,
+    required String workshopId,
+    required String serviceId,
+    required int rating,
+    required String comment,
+  }) {
+    final UserModel? user = _usersById[userId];
+    if (user == null) {
+      throw StateError('Foydalanuvchi topilmadi');
+    }
+
+    final int workshopIndex = _workshops.indexWhere(
+      (WorkshopModel item) => item.id == workshopId,
+    );
+    if (workshopIndex < 0) {
+      throw StateError('Servis topilmadi');
+    }
+
+    final WorkshopModel workshop = _workshops[workshopIndex];
+    final ServiceModel? service = workshop.getServiceById(serviceId);
+    if (service == null) {
+      throw StateError('Xizmat topilmadi');
+    }
+
+    final int normalizedRating = rating.clamp(1, 5);
+    final String normalizedComment = normalizeWorkshopReviewText(comment);
+    if (normalizedComment.length < 3) {
+      throw StateError('Sharh kamida 3 ta belgidan iborat bo\'lsin');
+    }
+
+    final WorkshopReviewModel review = WorkshopReviewModel(
+      id: _newId('rv'),
+      workshopId: workshop.id,
+      serviceId: service.id,
+      serviceName: service.name,
+      userId: user.id,
+      customerName: user.fullName.trim().isEmpty ? user.phone : user.fullName,
+      customerPhone: user.phone,
+      rating: normalizedRating,
+      comment: normalizedComment,
+      createdAt: DateTime.now(),
+    );
+    _reviews.add(review);
+
+    final int currentCount = workshop.reviewCount;
+    final double nextRating = currentCount <= 0
+        ? normalizedRating.toDouble()
+        : ((workshop.rating * currentCount) + normalizedRating) /
+            (currentCount + 1);
+    _workshops[workshopIndex] = workshop.copyWith(
+      rating: double.parse(nextRating.toStringAsFixed(1)),
+      reviewCount: currentCount + 1,
+    );
+    return review;
+  }
+
+  WorkshopReviewModel replyToWorkshopReview({
+    required String workshopId,
+    required String reviewId,
+    required String reply,
+    required String source,
+  }) {
+    final String normalizedWorkshopId = workshopId.trim();
+    final String normalizedReviewId = reviewId.trim();
+    final String normalizedReply = normalizeWorkshopReviewText(reply);
+    if (normalizedReply.length < 2) {
+      throw StateError('Javob kamida 2 ta belgidan iborat bo\'lsin');
+    }
+
+    final int index = _reviews.indexWhere((WorkshopReviewModel item) {
+      return item.id == normalizedReviewId &&
+          item.workshopId == normalizedWorkshopId;
+    });
+    if (index < 0) {
+      throw StateError('Sharh topilmadi');
+    }
+
+    final WorkshopReviewModel updated = _reviews[index].copyWith(
+      ownerReply: normalizedReply,
+      ownerReplyAt: DateTime.now(),
+      ownerReplySource: source.trim(),
+    );
+    _reviews[index] = updated;
+    return updated;
   }
 
   List<BookingChatMessageModel> bookingMessagesForUser({

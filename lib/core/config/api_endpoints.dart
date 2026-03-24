@@ -85,6 +85,7 @@ abstract final class ApiEndpoints {
   // TODO(API): GET /workshops/:id
   // Success response sample: { "data": { ...workshop object... } }
   static String workshopById(String id) => '/workshops/$id';
+  static String workshopReviews(String id) => '/workshops/$id/reviews';
 
   // TODO(API): GET /bookings
   // Success response sample:

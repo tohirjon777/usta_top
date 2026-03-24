@@ -145,34 +145,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       return;
     }
 
-    final List<BookingItem> ownerReplies = bookings.where((BookingItem item) {
-      final BookingItem? previous = previousSnapshots[item.id];
-      return previous != null &&
-          item.lastMessageSenderRole == 'workshop_owner' &&
-          item.unreadForCustomerCount > previous.unreadForCustomerCount;
-    }).toList(growable: false);
-
-    if (ownerReplies.isNotEmpty) {
-      final BookingItem latest = ownerReplies.first;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.chatNewReplyNotice(latest.salonName)),
-          action: SnackBarAction(
-            label: l10n.view,
-            onPressed: () {
-              if (!mounted) {
-                return;
-              }
-              setState(() {
-                _currentIndex = 2;
-              });
-            },
-          ),
-        ),
-      );
-      return;
-    }
-
     final List<BookingItem> telegramCancelled =
         bookings.where((BookingItem item) {
       final BookingItem? previous = previousSnapshots[item.id];
@@ -210,7 +182,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
 
   String _bookingFingerprint(BookingItem booking) {
-    return '${booking.status.name}|${booking.cancelledByRole}|${booking.cancelReasonId}|${booking.messageCount}|${booking.unreadForCustomerCount}|${booking.lastMessageSenderRole}|${booking.lastMessageAt?.toIso8601String() ?? ''}';
+    return '${booking.status.name}|${booking.cancelledByRole}|${booking.cancelReasonId}';
   }
 
   @override

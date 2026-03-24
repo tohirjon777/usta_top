@@ -107,6 +107,28 @@ Xabar: ${bookingChatPreview(message.text, maxLength: 220)}
     );
   }
 
+  Future<void> sendNewReviewNotification({
+    required WorkshopModel workshop,
+    required WorkshopReviewModel review,
+  }) {
+    return _sendToWorkshop(
+      workshop: workshop,
+      text: '''
+Usta Top: yangi sharh qoldirildi
+
+Avtoservis: ${workshop.name}
+Sharh ID: ${review.id}
+Mijoz: ${_safeValue(review.customerName)}
+Telefon: ${_safeValue(review.customerPhone)}
+Xizmat: ${review.serviceName}
+Baho: ${_ratingStars(review.rating)} (${review.rating}/5)
+Sharh: ${workshopReviewPreview(review.comment, maxLength: 320)}
+
+Telegramdan javob berish uchun shu xabarga reply qiling.
+''',
+    );
+  }
+
   Future<void> _sendToWorkshop({
     required WorkshopModel workshop,
     required String text,
@@ -260,6 +282,11 @@ Xabar: ${bookingChatPreview(message.text, maxLength: 220)}
       return vehicleType;
     }
     return '$model • $vehicleType';
+  }
+
+  String _ratingStars(int rating) {
+    final int normalized = rating.clamp(1, 5);
+    return List<String>.filled(normalized, '★').join();
   }
 
   String _cancellationReason(BookingModel booking) {

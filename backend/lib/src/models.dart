@@ -449,6 +449,139 @@ class BookingModel {
   }
 }
 
+class WorkshopReviewModel {
+  const WorkshopReviewModel({
+    required this.id,
+    required this.workshopId,
+    required this.serviceId,
+    required this.serviceName,
+    required this.userId,
+    required this.customerName,
+    required this.customerPhone,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+    this.ownerReply = '',
+    this.ownerReplyAt,
+    this.ownerReplySource = '',
+  });
+
+  final String id;
+  final String workshopId;
+  final String serviceId;
+  final String serviceName;
+  final String userId;
+  final String customerName;
+  final String customerPhone;
+  final int rating;
+  final String comment;
+  final DateTime createdAt;
+  final String ownerReply;
+  final DateTime? ownerReplyAt;
+  final String ownerReplySource;
+
+  bool get hasOwnerReply => ownerReply.trim().isNotEmpty;
+
+  WorkshopReviewModel copyWith({
+    String? id,
+    String? workshopId,
+    String? serviceId,
+    String? serviceName,
+    String? userId,
+    String? customerName,
+    String? customerPhone,
+    int? rating,
+    String? comment,
+    DateTime? createdAt,
+    String? ownerReply,
+    DateTime? ownerReplyAt,
+    String? ownerReplySource,
+  }) {
+    return WorkshopReviewModel(
+      id: id ?? this.id,
+      workshopId: workshopId ?? this.workshopId,
+      serviceId: serviceId ?? this.serviceId,
+      serviceName: serviceName ?? this.serviceName,
+      userId: userId ?? this.userId,
+      customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
+      rating: rating ?? this.rating,
+      comment: comment ?? this.comment,
+      createdAt: createdAt ?? this.createdAt,
+      ownerReply: ownerReply ?? this.ownerReply,
+      ownerReplyAt: ownerReplyAt ?? this.ownerReplyAt,
+      ownerReplySource: ownerReplySource ?? this.ownerReplySource,
+    );
+  }
+
+  factory WorkshopReviewModel.fromJson(Map<String, dynamic> json) {
+    return WorkshopReviewModel(
+      id: (json['id'] ?? '').toString().trim(),
+      workshopId: (json['workshopId'] ?? '').toString().trim(),
+      serviceId: (json['serviceId'] ?? '').toString().trim(),
+      serviceName: (json['serviceName'] ?? '').toString().trim(),
+      userId: (json['userId'] ?? '').toString().trim(),
+      customerName: (json['customerName'] ?? '').toString().trim(),
+      customerPhone: (json['customerPhone'] ?? '').toString().trim(),
+      rating: _jsonToInt(json['rating']).clamp(1, 5),
+      comment: normalizeWorkshopReviewText((json['comment'] ?? '').toString()),
+      createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
+          DateTime.now(),
+      ownerReply:
+          normalizeWorkshopReviewText((json['ownerReply'] ?? '').toString()),
+      ownerReplyAt:
+          DateTime.tryParse((json['ownerReplyAt'] ?? '').toString()),
+      ownerReplySource: (json['ownerReplySource'] ?? '').toString().trim(),
+    );
+  }
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'id': id,
+      'workshopId': workshopId,
+      'serviceId': serviceId,
+      'serviceName': serviceName,
+      'userId': userId,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': createdAt.toUtc().toIso8601String(),
+      if (ownerReply.isNotEmpty) 'ownerReply': ownerReply,
+      if (ownerReplyAt != null)
+        'ownerReplyAt': ownerReplyAt!.toUtc().toIso8601String(),
+      if (ownerReplySource.isNotEmpty) 'ownerReplySource': ownerReplySource,
+    };
+  }
+
+  Map<String, Object> toPublicJson() {
+    return <String, Object>{
+      'id': id,
+      'workshopId': workshopId,
+      'serviceId': serviceId,
+      'serviceName': serviceName,
+      'customerName': customerName,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': createdAt.toUtc().toIso8601String(),
+      if (ownerReply.isNotEmpty) 'ownerReply': ownerReply,
+      if (ownerReplyAt != null)
+        'ownerReplyAt': ownerReplyAt!.toUtc().toIso8601String(),
+      if (ownerReplySource.isNotEmpty) 'ownerReplySource': ownerReplySource,
+    };
+  }
+}
+
+int _jsonToInt(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse('$value') ?? 0;
+}
+
 class BookingChatMessageModel {
   const BookingChatMessageModel({
     required this.id,
@@ -628,6 +761,28 @@ String normalizeBookingChatText(String raw) {
       .map((String line) => line.trimRight())
       .join('\n')
       .trim();
+}
+
+String normalizeWorkshopReviewText(String raw) {
+  return raw
+      .replaceAll('\r\n', '\n')
+      .split('\n')
+      .map((String line) => line.trimRight())
+      .join('\n')
+      .trim();
+}
+
+String workshopReviewPreview(
+  String raw, {
+  int maxLength = 96,
+}) {
+  final String normalized = normalizeWorkshopReviewText(
+    raw,
+  ).replaceAll(RegExp(r'\s+'), ' ');
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return '${normalized.substring(0, maxLength - 3)}...';
 }
 
 String bookingChatPreview(

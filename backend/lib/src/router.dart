@@ -9,7 +9,6 @@ import 'controllers/auth_controller.dart';
 import 'controllers/booking_controller.dart';
 import 'controllers/health_controller.dart';
 import 'controllers/owner_controller.dart';
-import 'controllers/owner_chat_controller.dart';
 import 'controllers/workshop_controller.dart';
 import 'firebase_push.dart';
 import 'http_helpers.dart';
@@ -31,25 +30,25 @@ class AppRuntime {
 
 AppRuntime buildAppRuntime(
   InMemoryStore store, {
-  required String workshopLocationsFilePath,
-  required String workshopsFilePath,
-  required String usersFilePath,
-  required String authSessionsFilePath,
-  required String bookingsFilePath,
-  required String bookingMessagesFilePath,
-  required String telegramSyncStateFilePath,
-  required String adminUsername,
-  required String adminPassword,
-  required String telegramBotToken,
-  required String firebaseServiceAccountFilePath,
-}) {
+    required String workshopLocationsFilePath,
+    required String workshopsFilePath,
+    required String reviewsFilePath,
+    required String usersFilePath,
+    required String authSessionsFilePath,
+    required String bookingsFilePath,
+    required String bookingMessagesFilePath,
+    required String telegramSyncStateFilePath,
+    required String adminUsername,
+    required String adminPassword,
+    required String telegramBotToken,
+    required String firebaseServiceAccountFilePath,
+  }) {
   final HealthController healthController = HealthController();
   final AuthController authController = AuthController(
     store,
     usersFilePath: usersFilePath,
     sessionsFilePath: authSessionsFilePath,
   );
-  final WorkshopController workshopController = WorkshopController(store);
   final TelegramBotService telegramBotService = TelegramBotService(
     botToken: telegramBotToken,
   );
@@ -60,6 +59,12 @@ AppRuntime buildAppRuntime(
       WorkshopNotificationsService(telegramBotService);
   final UserNotificationsService userNotificationsService =
       UserNotificationsService(firebasePushService);
+  final WorkshopController workshopController = WorkshopController(
+    store,
+    workshopsFilePath: workshopsFilePath,
+    reviewsFilePath: reviewsFilePath,
+    notificationsService: notificationsService,
+  );
   final BookingController bookingController = BookingController(
     store,
     bookingsFilePath: bookingsFilePath,
@@ -92,18 +97,12 @@ AppRuntime buildAppRuntime(
     ownerAuthService: ownerAuthService,
     bookingsFilePath: bookingsFilePath,
     workshopsFilePath: workshopsFilePath,
+    reviewsFilePath: reviewsFilePath,
     telegramSyncStateFilePath: telegramSyncStateFilePath,
     telegramBotService: telegramBotService,
     notificationsService: notificationsService,
     userNotificationsService: userNotificationsService,
   );
-  final OwnerChatController ownerChatController = OwnerChatController(
-    store,
-    ownerAuthService: ownerAuthService,
-    messagesFilePath: bookingMessagesFilePath,
-    userNotificationsService: userNotificationsService,
-  );
-
   final Router router = Router()
     ..options('/<ignored|.*>', optionsHandler)
     ..get('/health', healthController.health)
@@ -119,8 +118,6 @@ AppRuntime buildAppRuntime(
     ..post('/owner/login', ownerController.login)
     ..post('/owner/logout', ownerController.logout)
     ..get('/owner/bookings', ownerController.bookingsPage)
-    ..get('/owner/bookings/<id>/chat', ownerChatController.chatPage)
-    ..post('/owner/bookings/<id>/chat', ownerChatController.sendMessage)
     ..post('/owner/telegram/generate', ownerController.generateTelegramLinkCode)
     ..post('/owner/telegram/check', ownerController.checkTelegramLink)
     ..post('/owner/telegram/disconnect', ownerController.disconnectTelegram)
@@ -143,11 +140,9 @@ AppRuntime buildAppRuntime(
     ..patch('/auth/me/password', authController.updatePassword)
     ..get('/workshops', workshopController.list)
     ..get('/workshops/<id>', workshopController.byId)
+    ..post('/workshops/<id>/reviews', workshopController.createReview)
     ..get('/bookings', bookingController.list)
     ..post('/bookings', bookingController.create)
-    ..get('/bookings/<id>/messages', bookingController.listMessages)
-    ..post('/bookings/<id>/messages', bookingController.sendMessage)
-    ..patch('/bookings/<id>/messages/read', bookingController.markMessagesRead)
     ..patch('/bookings/<id>/cancel', bookingController.cancel);
 
   final Handler handler = Pipeline()
@@ -166,6 +161,7 @@ Handler buildHandler(
   InMemoryStore store, {
   required String workshopLocationsFilePath,
   required String workshopsFilePath,
+  required String reviewsFilePath,
   required String usersFilePath,
   required String authSessionsFilePath,
   required String bookingsFilePath,
@@ -180,6 +176,7 @@ Handler buildHandler(
     store,
     workshopLocationsFilePath: workshopLocationsFilePath,
     workshopsFilePath: workshopsFilePath,
+    reviewsFilePath: reviewsFilePath,
     usersFilePath: usersFilePath,
     authSessionsFilePath: authSessionsFilePath,
     bookingsFilePath: bookingsFilePath,

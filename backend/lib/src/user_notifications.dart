@@ -73,6 +73,37 @@ class UserNotificationsService {
     );
   }
 
+  Future<void> sendWorkshopReviewReplyNotification({
+    required UserModel user,
+    required WorkshopModel workshop,
+    required WorkshopReviewModel review,
+  }) async {
+    final List<String> tokens = user.pushTokens
+        .map((PushTokenModel item) => item.token.trim())
+        .where((String item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (tokens.isEmpty) {
+      throw const FirebasePushException(
+        'Foydalanuvchi uchun push token topilmadi',
+      );
+    }
+
+    await _firebasePushService.sendToTokens(
+      tokens: tokens,
+      title: 'Usta Top: sharhingizga javob keldi',
+      body:
+          '${workshop.name} sizning ${review.serviceName} bo‘yicha sharhingizga javob berdi: ${workshopReviewPreview(review.ownerReply)}',
+      data: <String, String>{
+        'type': 'workshop_review_reply',
+        'screen': 'workshop',
+        'workshopId': workshop.id,
+        'reviewId': review.id,
+        'serviceId': review.serviceId,
+      },
+    );
+  }
+
   String _titleForBookingStatus(BookingModel booking) {
     switch (booking.status) {
       case BookingStatus.completed:

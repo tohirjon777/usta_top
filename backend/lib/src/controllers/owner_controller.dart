@@ -19,6 +19,7 @@ class OwnerController {
     required this.ownerAuthService,
     required this.bookingsFilePath,
     required this.workshopsFilePath,
+    required this.reviewsFilePath,
     required this.telegramSyncStateFilePath,
     required this.telegramBotService,
     required this.notificationsService,
@@ -29,6 +30,7 @@ class OwnerController {
   final OwnerAuthService ownerAuthService;
   final String bookingsFilePath;
   final String workshopsFilePath;
+  final String reviewsFilePath;
   final String telegramSyncStateFilePath;
   final TelegramBotService telegramBotService;
   final WorkshopNotificationsService notificationsService;
@@ -624,8 +626,6 @@ class OwnerController {
               BookingStatus.completed => 'status-completed',
               BookingStatus.cancelled => 'status-cancelled',
             };
-            final BookingChatSummaryModel chatSummary =
-                _store.chatSummaryForBooking(item.id);
             return '''
 <article class="booking-card">
   <div class="booking-head">
@@ -667,13 +667,9 @@ class OwnerController {
       <strong>${_escapeHtml(_formatDateTime(item.createdAt))}</strong>
     </div>
   </div>
-
-  ${chatSummary.messageCount == 0 ? '' : '<div class="chat-preview"><span>${_escapeHtml(_text(lang, 'chatPreviewLabel'))}</span><strong>${_escapeHtml(chatSummary.lastMessagePreview)}</strong></div>'}
-
 	  <div class="booking-footer">
 	    <div class="quick-links">
 	      ${item.customerPhone.isEmpty ? '' : '<a class="ghost-btn" href="tel:${_escapeHtml(item.customerPhone)}">${_escapeHtml(_text(lang, 'callCustomer'))}</a>'}
-        ${_chatLinkHtml(item, lang, status, chatSummary)}
 	    </div>
 	    <div class="quick-links">
 	      ${_statusActionsHtml(item, lang, status)}
@@ -1594,6 +1590,7 @@ class OwnerController {
       final List<WorkshopModel> newlyLinked = <WorkshopModel>[];
       bool workshopsChanged = false;
       bool bookingsChanged = false;
+      bool reviewsChanged = false;
 
       for (final Map<String, dynamic> update in updates) {
         final int updateId = _toInt(update['update_id']);
@@ -1625,6 +1622,12 @@ class OwnerController {
             newlyLinked.add(updated);
             break;
           }
+
+          final bool handledReviewReply =
+              await _handleTelegramReviewReply(message);
+          if (handledReviewReply) {
+            reviewsChanged = true;
+          }
         }
 
         final _TelegramCallbackAction? callbackAction =
@@ -1645,6 +1648,9 @@ class OwnerController {
       }
       if (bookingsChanged) {
         await _store.saveBookings(bookingsFilePath);
+      }
+      if (reviewsChanged) {
+        await _store.saveReviews(reviewsFilePath);
       }
       if (nextProcessedUpdateId != nextUpdateId) {
         await _saveTelegramNextUpdateId(nextProcessedUpdateId);
@@ -1713,6 +1719,10 @@ class OwnerController {
         chatId: chatId,
         chatLabel: _telegramChatLabelFromChat(rawChat),
         text: text,
+        replyToText:
+            (rawMessage['reply_to_message'] as Map<String, dynamic>?)?['text']
+                    ?.toString() ??
+                '',
       );
     }
     return null;
@@ -2039,6 +2049,71 @@ class OwnerController {
     return int.tryParse('$value') ?? 0;
   }
 
+  Future<bool> _handleTelegramReviewReply(
+    _TelegramIncomingMessage message,
+  ) async {
+    final String reviewId = _reviewIdFromText(message.replyToText);
+    if (reviewId.isEmpty) {
+      return false;
+    }
+
+    final WorkshopModel? workshop = _telegramWorkshopByChatId(message.chatId);
+    if (workshop == null) {
+      return false;
+    }
+
+    final WorkshopReviewModel? review = _store.reviewById(reviewId);
+    if (review == null || review.workshopId != workshop.id) {
+      return false;
+    }
+
+    try {
+      final WorkshopReviewModel updated = _store.replyToWorkshopReview(
+        workshopId: workshop.id,
+        reviewId: review.id,
+        reply: message.text,
+        source: 'owner_telegram',
+      );
+      await _notifyUserAboutReviewReply(
+        workshop: workshop,
+        review: updated,
+      );
+      return true;
+    } on StateError {
+      return false;
+    }
+  }
+
+  Future<void> _notifyUserAboutReviewReply({
+    required WorkshopModel workshop,
+    required WorkshopReviewModel review,
+  }) async {
+    final UserModel? user = _store.userById(review.userId);
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await userNotificationsService.sendWorkshopReviewReplyNotification(
+        user: user,
+        workshop: workshop,
+        review: review,
+      );
+    } on Exception {
+      // Push sozlanmagan bo'lsa Telegram javob oqimini to'xtatmaymiz.
+    }
+  }
+
+  String _reviewIdFromText(String raw) {
+    final RegExpMatch? match =
+        RegExp(r'Sharh ID:\s*(rv-[A-Za-z0-9\-]+)', caseSensitive: false)
+            .firstMatch(raw);
+    if (match == null) {
+      return '';
+    }
+    return (match.group(1) ?? '').trim();
+  }
+
   String _statusActionsHtml(
     BookingModel booking,
     String lang,
@@ -2060,23 +2135,6 @@ class OwnerController {
       status: status,
     );
     return '$completeForm$cancelForm';
-  }
-
-  String _chatLinkHtml(
-    BookingModel booking,
-    String lang,
-    String status,
-    BookingChatSummaryModel summary,
-  ) {
-    final String badge = summary.unreadForOwnerCount <= 0
-        ? ''
-        : '<span class="chat-badge">${_escapeHtml(summary.unreadForOwnerCount.toString())}</span>';
-    return '''
-<a class="ghost-btn chat-btn" href="${_escapeHtml(_ownerChatUri(booking.id, lang: lang, status: status).toString())}">
-  ${_escapeHtml(_text(lang, 'chatButton'))}
-  $badge
-</a>
-''';
   }
 
   String _statusActionForm(
@@ -2202,24 +2260,6 @@ class OwnerController {
       params['error'] = error.trim();
     }
     return Uri(path: '/owner/bookings', queryParameters: params);
-  }
-
-  Uri _ownerChatUri(
-    String bookingId, {
-    String? lang,
-    String? status,
-  }) {
-    final Map<String, String> params = <String, String>{
-      'lang': _normalizeLang(lang),
-    };
-    final String normalizedStatus = _normalizeStatus(status);
-    if (normalizedStatus != 'all') {
-      params['status'] = normalizedStatus;
-    }
-    return Uri(
-      path: '/owner/bookings/${Uri.encodeComponent(bookingId)}/chat',
-      queryParameters: params,
-    );
   }
 
   String _flashHtml({
@@ -2696,11 +2736,13 @@ class _TelegramIncomingMessage {
     required this.chatId,
     required this.chatLabel,
     required this.text,
+    this.replyToText = '',
   });
 
   final String chatId;
   final String chatLabel;
   final String text;
+  final String replyToText;
 }
 
 class _TelegramCallbackAction {

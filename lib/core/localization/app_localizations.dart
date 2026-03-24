@@ -139,6 +139,24 @@ class AppLocalizations {
       'chatSenderWorkshop': 'Workshop',
       'chatNewReplyNotice': '{workshop} sent you a new message',
       'chatUnreadCount': '{count} unread',
+      'writeReview': 'Write review',
+      'sendReview': 'Send review',
+      'reviewsTitle': 'Customer reviews',
+      'reviewsCount': '{count} reviews',
+      'allServicesLabel': 'All services',
+      'reviewsEmptyTitle': 'No reviews yet',
+      'reviewsEmptySubtitle':
+          'Be the first to leave a review about a service in this workshop.',
+      'reviewSheetSubtitle':
+          'Choose the service, rate it, and write a short honest review.',
+      'serviceSelectLabel': 'Service',
+      'ratingLabel': 'Rating: {rating}/5',
+      'commentLabel': 'Comment',
+      'reviewHint': 'Describe what you liked or what should improve',
+      'reviewCommentValidation': 'Review must be at least 3 characters long',
+      'reviewSubmitFailed': 'Review could not be sent',
+      'reviewSubmitSuccess': 'Your review was published',
+      'workshopReplyLabel': 'Workshop reply',
       'priceLabel': 'Price: {price}',
       'cancelBooking': 'Cancel request',
       'cancelledByLabel': 'Cancelled by: {actor}',
@@ -345,6 +363,25 @@ class AppLocalizations {
       'chatSenderWorkshop': 'Usta',
       'chatNewReplyNotice': '{workshop} sizga yangi xabar yozdi',
       'chatUnreadCount': '{count} ta o\'qilmagan',
+      'writeReview': 'Sharh yozish',
+      'sendReview': 'Sharh yuborish',
+      'reviewsTitle': 'Mijozlar fikri',
+      'reviewsCount': '{count} ta sharh',
+      'allServicesLabel': 'Barcha xizmatlar',
+      'reviewsEmptyTitle': 'Hali sharhlar yo\'q',
+      'reviewsEmptySubtitle':
+          'Bu servis bo\'yicha birinchi bo\'lib fikr qoldiring.',
+      'reviewSheetSubtitle':
+          'Xizmatni tanlang, baho bering va qisqa halol fikr yozing.',
+      'serviceSelectLabel': 'Xizmat',
+      'ratingLabel': 'Baho: {rating}/5',
+      'commentLabel': 'Sharh',
+      'reviewHint': 'Nima yoqqani yoki nimani yaxshilash kerakligini yozing',
+      'reviewCommentValidation':
+          'Sharh kamida 3 ta belgidan iborat bo\'lsin',
+      'reviewSubmitFailed': 'Sharh yuborilmadi',
+      'reviewSubmitSuccess': 'Sharhingiz joylandi',
+      'workshopReplyLabel': 'Servis javobi',
       'priceLabel': 'Narx: {price}',
       'cancelBooking': 'Buyurtmani bekor qilish',
       'cancelledByLabel': 'Bekor qildi: {actor}',
@@ -551,6 +588,25 @@ class AppLocalizations {
       'chatSenderWorkshop': 'Мастер',
       'chatNewReplyNotice': '{workshop} отправил вам новое сообщение',
       'chatUnreadCount': '{count} непрочитанных',
+      'writeReview': 'Оставить отзыв',
+      'sendReview': 'Отправить отзыв',
+      'reviewsTitle': 'Отзывы клиентов',
+      'reviewsCount': '{count} отзывов',
+      'allServicesLabel': 'Все услуги',
+      'reviewsEmptyTitle': 'Отзывов пока нет',
+      'reviewsEmptySubtitle':
+          'Станьте первым, кто оставит отзыв об услуге в этом сервисе.',
+      'reviewSheetSubtitle':
+          'Выберите услугу, поставьте оценку и оставьте короткий честный отзыв.',
+      'serviceSelectLabel': 'Услуга',
+      'ratingLabel': 'Оценка: {rating}/5',
+      'commentLabel': 'Отзыв',
+      'reviewHint': 'Напишите, что понравилось и что можно улучшить',
+      'reviewCommentValidation':
+          'Отзыв должен быть не короче 3 символов',
+      'reviewSubmitFailed': 'Не удалось отправить отзыв',
+      'reviewSubmitSuccess': 'Ваш отзыв опубликован',
+      'workshopReplyLabel': 'Ответ сервиса',
       'priceLabel': 'Цена: {price}',
       'cancelBooking': 'Отменить заявку',
       'cancelledByLabel': 'Отменил: {actor}',
@@ -795,6 +851,24 @@ class AppLocalizations {
       _fmt('chatNewReplyNotice', <String, Object>{'workshop': workshop});
   String chatUnreadCount(int count) =>
       _fmt('chatUnreadCount', <String, Object>{'count': count});
+  String get writeReview => _text('writeReview');
+  String get sendReview => _text('sendReview');
+  String get reviewsTitle => _text('reviewsTitle');
+  String reviewsCount(int count) =>
+      _fmt('reviewsCount', <String, Object>{'count': count});
+  String get allServicesLabel => _text('allServicesLabel');
+  String get reviewsEmptyTitle => _text('reviewsEmptyTitle');
+  String get reviewsEmptySubtitle => _text('reviewsEmptySubtitle');
+  String get reviewSheetSubtitle => _text('reviewSheetSubtitle');
+  String get serviceSelectLabel => _text('serviceSelectLabel');
+  String ratingLabel(int rating) =>
+      _fmt('ratingLabel', <String, Object>{'rating': rating});
+  String get commentLabel => _text('commentLabel');
+  String get reviewHint => _text('reviewHint');
+  String get reviewCommentValidation => _text('reviewCommentValidation');
+  String get reviewSubmitFailed => _text('reviewSubmitFailed');
+  String get reviewSubmitSuccess => _text('reviewSubmitSuccess');
+  String get workshopReplyLabel => _text('workshopReplyLabel');
   String priceLabel(String price) =>
       _fmt('priceLabel', <String, Object>{'price': price});
 

@@ -38,6 +38,15 @@ class WorkshopProvider extends ChangeNotifier {
     return List<Salon>.unmodifiable(filtered);
   }
 
+  Salon? workshopById(String id) {
+    for (final Salon workshop in _workshops) {
+      if (workshop.id == id) {
+        return workshop;
+      }
+    }
+    return null;
+  }
+
   Future<void> loadWorkshops() async {
     _isLoading = true;
     _errorMessage = null;
@@ -61,6 +70,58 @@ class WorkshopProvider extends ChangeNotifier {
       return;
     }
     _query = value;
+    notifyListeners();
+  }
+
+  Future<Salon?> refreshWorkshopById(String id) async {
+    try {
+      final Salon salon = await _service.fetchWorkshopById(id);
+      _upsertWorkshop(salon);
+      return salon;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _errorMessage = 'Servis ma\'lumotini yangilab bo\'lmadi';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<Salon?> submitReview({
+    required String workshopId,
+    required String serviceId,
+    required int rating,
+    required String comment,
+  }) async {
+    try {
+      final Salon updated = await _service.submitReview(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        rating: rating,
+        comment: comment,
+      );
+      _upsertWorkshop(updated);
+      return updated;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _errorMessage = 'Sharh yuborishda xatolik yuz berdi';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  void _upsertWorkshop(Salon salon) {
+    final int index = _workshops.indexWhere((Salon item) => item.id == salon.id);
+    if (index < 0) {
+      _workshops.insert(0, salon);
+    } else {
+      _workshops[index] = salon;
+    }
     notifyListeners();
   }
 }

@@ -26,8 +26,10 @@ class RemoteWorkshopService implements WorkshopService {
   @override
   Future<List<Salon>> fetchFeaturedWorkshops() async {
     // JSON namunalari: core/config/api_endpoints.dart ichida.
-    final Map<String, dynamic> body =
-        await _request(path: ApiEndpoints.workshops);
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.get,
+      path: ApiEndpoints.workshops,
+    );
     final dynamic data = body['data'];
     if (data is! List) {
       return <Salon>[];
@@ -42,8 +44,10 @@ class RemoteWorkshopService implements WorkshopService {
   @override
   Future<Salon> fetchWorkshopById(String id) async {
     // JSON namunalari: core/config/api_endpoints.dart ichida.
-    final Map<String, dynamic> body =
-        await _request(path: ApiEndpoints.workshopById(id));
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.get,
+      path: ApiEndpoints.workshopById(id),
+    );
     final dynamic data = body['data'];
     if (data is! Map<String, dynamic>) {
       throw const ApiException('Servis ma\'lumoti topilmadi');
@@ -51,7 +55,34 @@ class RemoteWorkshopService implements WorkshopService {
     return Salon.fromJson(data);
   }
 
-  Future<Map<String, dynamic>> _request({required String path}) async {
+  @override
+  Future<Salon> submitReview({
+    required String workshopId,
+    required String serviceId,
+    required int rating,
+    required String comment,
+  }) async {
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.post,
+      path: ApiEndpoints.workshopReviews(workshopId),
+      payload: <String, Object>{
+        'serviceId': serviceId,
+        'rating': rating,
+        'comment': comment.trim(),
+      },
+    );
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Sharh yuborilgandan keyin servis qaytmadi');
+    }
+    return Salon.fromJson(data);
+  }
+
+  Future<Map<String, dynamic>> _request({
+    required _HttpMethod method,
+    required String path,
+    Map<String, Object>? payload,
+  }) async {
     final String? token = await _tokenStorage.getAccessToken();
     if (token == null || token.isEmpty) {
       throw const ApiException('Token topilmadi. Qayta tizimga kiring.');
@@ -62,13 +93,28 @@ class RemoteWorkshopService implements WorkshopService {
     final bool shouldCloseClient = client == null;
 
     try {
-      final http.Response response = await httpClient.get(
-        uri,
-        headers: <String, String>{
-          'authorization': 'Bearer $token',
-          'content-type': 'application/json; charset=utf-8',
-        },
-      ).timeout(timeout);
+      late final http.Response response;
+      switch (method) {
+        case _HttpMethod.get:
+          response = await httpClient.get(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $token',
+              'content-type': 'application/json; charset=utf-8',
+            },
+          ).timeout(timeout);
+        case _HttpMethod.post:
+          response = await httpClient
+              .post(
+                uri,
+                headers: <String, String>{
+                  'authorization': 'Bearer $token',
+                  'content-type': 'application/json; charset=utf-8',
+                },
+                body: jsonEncode(payload ?? <String, Object>{}),
+              )
+              .timeout(timeout);
+      }
 
       final Map<String, dynamic> body = _decodeObject(response.body);
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -119,3 +165,5 @@ class RemoteWorkshopService implements WorkshopService {
     return fallback;
   }
 }
+
+enum _HttpMethod { get, post }
