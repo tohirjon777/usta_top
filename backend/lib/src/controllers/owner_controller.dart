@@ -7,6 +7,7 @@ import 'package:shelf/shelf.dart';
 import '../booking_cancellation.dart';
 import '../models.dart';
 import '../owner_auth.dart';
+import '../review_analytics.dart';
 import '../store.dart';
 import '../telegram_bot.dart';
 import '../user_notifications.dart';
@@ -609,6 +610,14 @@ class OwnerController {
         .where((WorkshopReviewModel item) => !item.hasOwnerReply)
         .length;
     final int repliedReviewCount = reviews.length - pendingReviewCount;
+    final ReviewAnalyticsSummary reviewAnalytics = buildReviewAnalytics(
+      reviews,
+      segmentIdOf: (WorkshopReviewModel review) => review.serviceId,
+      segmentLabelOf: (WorkshopReviewModel review) {
+        final ServiceModel? service = workshop.getServiceById(review.serviceId);
+        return service?.name ?? review.serviceName;
+      },
+    );
 
     final Uri langUzUri = _ownerBookingsUri(lang: 'uz', status: status);
     final Uri langRuUri = _ownerBookingsUri(lang: 'ru', status: status);
@@ -626,6 +635,7 @@ class OwnerController {
     final String reviewInboxCard = _reviewInboxCardHtml(
       workshop: workshop,
       reviews: reviews,
+      analytics: reviewAnalytics,
       pendingReviewCount: pendingReviewCount,
       repliedReviewCount: repliedReviewCount,
       lang: lang,
@@ -932,6 +942,63 @@ class OwnerController {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
+    }
+
+    .review-analytics-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+      gap: 12px;
+    }
+
+    .review-analytics-card {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 12px;
+    }
+
+    .review-analytics-row {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr) 34px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .review-analytics-bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(36, 49, 63, 0.08);
+      overflow: hidden;
+    }
+
+    .review-analytics-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+    }
+
+    .review-analytics-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .review-analytics-item {
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+      display: grid;
+      gap: 6px;
+    }
+
+    .review-analytics-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
     }
 
     .review-list {
@@ -1282,7 +1349,9 @@ class OwnerController {
     @media (max-width: 760px) {
       .wrap { padding: 18px 12px 36px; }
       .summary-grid { grid-template-columns: 1fr; }
-      .stats-grid, .meta-grid { grid-template-columns: 1fr; }
+      .stats-grid, .meta-grid, .review-stat-grid, .review-analytics-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -1645,6 +1714,7 @@ class OwnerController {
   String _reviewInboxCardHtml({
     required WorkshopModel workshop,
     required List<WorkshopReviewModel> reviews,
+    required ReviewAnalyticsSummary analytics,
     required int pendingReviewCount,
     required int repliedReviewCount,
     required String lang,
@@ -1728,10 +1798,62 @@ class OwnerController {
     </div>
   </div>
 
+  ${_reviewAnalyticsSectionHtml(
+      analytics: analytics,
+      lang: lang,
+    )}
+
   <div class="review-list">
     $reviewItems
   </div>
 </section>
+''';
+  }
+
+  String _reviewAnalyticsSectionHtml({
+    required ReviewAnalyticsSummary analytics,
+    required String lang,
+  }) {
+    final String ratingRows = analytics.starBuckets.map((ReviewStarBucket bucket) {
+      final double widthPercent = bucket.share <= 0 ? 0 : bucket.share * 100;
+      return '''
+<div class="review-analytics-row">
+  <span>${_escapeHtml(_text(lang, 'reviewAnalyticsStars', <String, Object>{'stars': bucket.stars}))}</span>
+  <div class="review-analytics-bar"><div class="review-analytics-fill" style="width: ${widthPercent.toStringAsFixed(1)}%;"></div></div>
+  <strong>${bucket.count}</strong>
+</div>
+''';
+    }).join();
+
+    final String topSegments = analytics.topSegments.isEmpty
+        ? '<div class="muted">${_escapeHtml(_text(lang, 'reviewAnalyticsEmpty'))}</div>'
+        : analytics.topSegments.map((ReviewSegmentSummary segment) {
+            return '''
+<div class="review-analytics-item">
+  <strong>${_escapeHtml(segment.label)}</strong>
+  <div class="review-analytics-meta">
+    <span>${_escapeHtml(_text(lang, 'reviewAnalyticsCount', <String, Object>{'count': segment.reviewCount}))}</span>
+    <span>${segment.averageRating.toStringAsFixed(1)} / 5</span>
+  </div>
+</div>
+''';
+          }).join();
+
+    return '''
+<div class="review-analytics-grid">
+  <div class="review-analytics-card">
+    <div class="eyebrow">${_escapeHtml(_text(lang, 'reviewAnalyticsEyebrow'))}</div>
+    <strong>${analytics.totalReviews == 0 ? '0.0' : analytics.averageRating.toStringAsFixed(1)} / 5</strong>
+    <div class="muted">${_escapeHtml(_text(lang, 'reviewAnalyticsSummary', <String, Object>{'count': analytics.totalReviews}))}</div>
+    $ratingRows
+  </div>
+  <div class="review-analytics-card">
+    <div class="eyebrow">${_escapeHtml(_text(lang, 'reviewAnalyticsTopTitle'))}</div>
+    <div class="review-analytics-list">
+      $topSegments
+    </div>
+  </div>
+</div>
 ''';
   }
 
@@ -2767,6 +2889,13 @@ class OwnerController {
       'reviewAnsweredBadge': 'Javob berilgan',
       'reviewReplySourceTelegram': 'Telegram orqali',
       'reviewReplySourcePanel': 'Panel orqali',
+      'reviewAnalyticsEyebrow': 'Reyting rasmi',
+      'reviewAnalyticsSummary': '{count} ta public sharh',
+      'reviewAnalyticsTopTitle': 'Eng ko‘p sharhlangan xizmatlar',
+      'reviewAnalyticsEmpty':
+          'Sharhlar ko‘paygach, xizmatlar kesimidagi statistika shu yerda chiqadi.',
+      'reviewAnalyticsCount': '{count} ta sharh',
+      'reviewAnalyticsStars': '{stars} yulduz',
       'servicePricingEyebrow': 'Narx boshqaruvi',
       'servicePricingTitle': 'Xizmat narxlarini o‘zingiz belgilang',
       'servicePricingDescription':
@@ -2901,6 +3030,13 @@ class OwnerController {
       'reviewAnsweredBadge': 'Ответ дан',
       'reviewReplySourceTelegram': 'Через Telegram',
       'reviewReplySourcePanel': 'Через панель',
+      'reviewAnalyticsEyebrow': 'Снимок рейтинга',
+      'reviewAnalyticsSummary': '{count} видимых отзывов',
+      'reviewAnalyticsTopTitle': 'Самые обсуждаемые услуги',
+      'reviewAnalyticsEmpty':
+          'Когда отзывов станет больше, здесь появится статистика по услугам.',
+      'reviewAnalyticsCount': '{count} отзывов',
+      'reviewAnalyticsStars': '{stars} звезды',
       'servicePricingEyebrow': 'Управление ценами',
       'servicePricingTitle': 'Устанавливайте цены на услуги сами',
       'servicePricingDescription':
@@ -3035,6 +3171,13 @@ class OwnerController {
       'reviewAnsweredBadge': 'Answered',
       'reviewReplySourceTelegram': 'Via Telegram',
       'reviewReplySourcePanel': 'Via panel',
+      'reviewAnalyticsEyebrow': 'Rating snapshot',
+      'reviewAnalyticsSummary': '{count} public reviews',
+      'reviewAnalyticsTopTitle': 'Most reviewed services',
+      'reviewAnalyticsEmpty':
+          'Service-level stats will appear here as more reviews arrive.',
+      'reviewAnalyticsCount': '{count} reviews',
+      'reviewAnalyticsStars': '{stars} stars',
       'servicePricingEyebrow': 'Price control',
       'servicePricingTitle': 'Set your own service prices',
       'servicePricingDescription':

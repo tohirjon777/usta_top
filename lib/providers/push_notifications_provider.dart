@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../models/app_navigation_intent.dart';
 import '../providers/auth_provider.dart';
+import '../providers/app_navigation_provider.dart';
 import '../providers/notification_settings_provider.dart';
 import '../services/auth_service.dart';
 
@@ -29,13 +32,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class PushNotificationsProvider extends ChangeNotifier {
   PushNotificationsProvider({
     required AuthProvider authProvider,
+    required AppNavigationProvider appNavigationProvider,
     required NotificationSettingsProvider notificationSettingsProvider,
     required AuthService authService,
   })  : _authProvider = authProvider,
+        _appNavigationProvider = appNavigationProvider,
         _notificationSettingsProvider = notificationSettingsProvider,
         _authService = authService;
 
   final AuthProvider _authProvider;
+  final AppNavigationProvider _appNavigationProvider;
   final NotificationSettingsProvider _notificationSettingsProvider;
   final AuthService _authService;
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
@@ -124,7 +130,14 @@ class PushNotificationsProvider extends ChangeNotifier {
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       iOS: DarwinInitializationSettings(),
     );
-    await _localNotificationsPlugin.initialize(settings);
+    await _localNotificationsPlugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (
+        NotificationResponse response,
+      ) {
+        _handleNotificationPayload(response.payload);
+      },
+    );
     await _localNotificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -258,11 +271,53 @@ class PushNotificationsProvider extends ChangeNotifier {
       notification.title,
       notification.body,
       details,
+      payload: _encodePayload(message.data),
     );
   }
 
   void _handleMessageOpened(RemoteMessage message) {
-    // Keyinchalik bookings tabni to'g'ridan-to'g'ri ochish uchun shu hook tayyor.
+    _queueNavigationIntent(AppNavigationIntent.fromPushData(message.data));
+  }
+
+  void _handleNotificationPayload(String? payload) {
+    if (payload == null || payload.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      final dynamic decoded = jsonDecode(payload);
+      if (decoded is Map<String, dynamic>) {
+        _queueNavigationIntent(AppNavigationIntent.fromPushData(decoded));
+      }
+    } on FormatException {
+      // Notification payload o'qilmasa foydalanuvchi oqimini to'xtatmaymiz.
+    }
+  }
+
+  void _queueNavigationIntent(AppNavigationIntent? intent) {
+    if (intent == null) {
+      return;
+    }
+    _appNavigationProvider.queueIntent(intent);
+  }
+
+  String? _encodePayload(Map<String, dynamic> data) {
+    if (data.isEmpty) {
+      return null;
+    }
+
+    final Map<String, String> normalized = <String, String>{};
+    data.forEach((Object? key, Object? value) {
+      final String stringKey = key?.toString().trim() ?? '';
+      if (stringKey.isEmpty) {
+        return;
+      }
+      normalized[stringKey] = value?.toString() ?? '';
+    });
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return jsonEncode(normalized);
   }
 
   bool get _supportsPushNotifications {

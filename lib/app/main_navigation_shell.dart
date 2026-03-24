@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
+import '../models/app_navigation_intent.dart';
 import '../models/booking_cancellation_reason.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
+import '../providers/app_navigation_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/notification_settings_provider.dart';
 import '../providers/workshop_provider.dart';
@@ -33,13 +35,17 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   final Map<String, BookingItem> _bookingSnapshots = <String, BookingItem>{};
   final Set<String> _reviewPromptDismissed = <String>{};
   late final _LifecycleObserver _lifecycleObserver;
+  late final AppNavigationProvider _appNavigationProvider;
   Timer? _bookingRefreshTimer;
   bool _isReviewPromptOpen = false;
+  bool _isHandlingNavigationIntent = false;
 
   @override
   void initState() {
     super.initState();
     _lifecycleObserver = _LifecycleObserver(_handleAppResumed);
+    _appNavigationProvider = context.read<AppNavigationProvider>();
+    _appNavigationProvider.addListener(_handlePendingNavigationIntentChanged);
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -47,22 +53,96 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       }
       context.read<WorkshopProvider>().loadWorkshops();
       _bootstrapBookings();
+      unawaited(_consumePendingNavigationIntent());
     });
   }
 
   @override
   void dispose() {
     _bookingRefreshTimer?.cancel();
+    _appNavigationProvider.removeListener(_handlePendingNavigationIntentChanged);
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
 
+  void _handlePendingNavigationIntentChanged() {
+    unawaited(_consumePendingNavigationIntent());
+  }
+
+  Future<void> _consumePendingNavigationIntent() async {
+    if (!mounted || _isHandlingNavigationIntent) {
+      return;
+    }
+
+    final AppNavigationIntent? intent =
+        _appNavigationProvider.consumePendingIntent();
+    if (intent == null) {
+      return;
+    }
+
+    _isHandlingNavigationIntent = true;
+    try {
+      switch (intent.target) {
+        case AppNavigationTarget.bookings:
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _currentIndex = 2;
+          });
+          break;
+        case AppNavigationTarget.workshopReview:
+        case AppNavigationTarget.workshopReviewComposer:
+          final WorkshopProvider workshopProvider =
+              context.read<WorkshopProvider>();
+          Salon? salon = workshopProvider.workshopById(intent.workshopId);
+          salon ??= await workshopProvider.refreshWorkshopById(intent.workshopId);
+          if (!mounted || salon == null) {
+            return;
+          }
+          await _openSalonDetailRoute(
+            salon: salon,
+            initialReviewServiceId: intent.serviceId,
+            highlightedReviewId: intent.reviewId,
+            autoOpenReviewComposer:
+                intent.target == AppNavigationTarget.workshopReviewComposer,
+            reviewPromptBookingId: intent.bookingId,
+            lockInitialReviewServiceSelection:
+                intent.target == AppNavigationTarget.workshopReviewComposer,
+          );
+          break;
+      }
+    } finally {
+      _isHandlingNavigationIntent = false;
+    }
+  }
+
+  Future<BookingItem?> _openSalonDetailRoute({
+    required Salon salon,
+    String initialReviewServiceId = '',
+    String highlightedReviewId = '',
+    bool autoOpenReviewComposer = false,
+    String reviewPromptBookingId = '',
+    bool lockInitialReviewServiceSelection = false,
+  }) {
+    return Navigator.of(context).push<BookingItem>(
+      MaterialPageRoute<BookingItem>(
+        builder: (_) => SalonDetailScreen(
+          salon: salon,
+          initialReviewServiceId: initialReviewServiceId,
+          highlightedReviewId: highlightedReviewId,
+          autoOpenReviewComposer: autoOpenReviewComposer,
+          reviewPromptBookingId: reviewPromptBookingId,
+          lockInitialReviewServiceSelection: lockInitialReviewServiceSelection,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openSalonDetail(Salon salon) async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final BookingItem? booking = await Navigator.of(context).push<BookingItem>(
-      MaterialPageRoute<BookingItem>(
-        builder: (_) => SalonDetailScreen(salon: salon),
-      ),
+    final BookingItem? booking = await _openSalonDetailRoute(
+      salon: salon,
     );
 
     if (booking == null) {

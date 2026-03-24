@@ -97,6 +97,33 @@ Future<void> main() async {
             ? 'Firebase push: tayyor'
             : 'Firebase push: service account topilmadi ($firebaseServiceAccountFilePath)',
   );
+
+  bool isReviewReminderSyncRunning = false;
+
+  Future<void> syncReviewRemindersSafely() async {
+    if (isReviewReminderSyncRunning) {
+      return;
+    }
+
+    isReviewReminderSyncRunning = true;
+    try {
+      final int sentCount = await appRuntime.reviewReminderService
+          .sendDueReminders();
+      if (sentCount > 0) {
+        stdout.writeln('Review reminder yuborildi: $sentCount');
+      }
+    } on Exception catch (error) {
+      stderr.writeln('Review reminder xatoligi: $error');
+    } finally {
+      isReviewReminderSyncRunning = false;
+    }
+  }
+
+  unawaited(syncReviewRemindersSafely());
+  Timer.periodic(const Duration(minutes: 5), (_) {
+    unawaited(syncReviewRemindersSafely());
+  });
+
   if (telegramBotToken.trim().isEmpty) {
     stdout.writeln('Telegram bot: o‘chiq (TELEGRAM_BOT_TOKEN kiritilmagan)');
     return;

@@ -312,6 +312,7 @@ class BookingModel {
     required this.status,
     required this.createdAt,
     this.completedAt,
+    this.reviewReminderSentAt,
     this.cancelReasonId = '',
     this.cancelledByRole = '',
     this.cancelledAt,
@@ -334,6 +335,7 @@ class BookingModel {
   final BookingStatus status;
   final DateTime createdAt;
   final DateTime? completedAt;
+  final DateTime? reviewReminderSentAt;
   final String cancelReasonId;
   final String cancelledByRole;
   final DateTime? cancelledAt;
@@ -341,6 +343,7 @@ class BookingModel {
   BookingModel copyWith({
     BookingStatus? status,
     DateTime? completedAt,
+    DateTime? reviewReminderSentAt,
     String? cancelReasonId,
     String? cancelledByRole,
     DateTime? cancelledAt,
@@ -363,6 +366,8 @@ class BookingModel {
       status: status ?? this.status,
       createdAt: createdAt,
       completedAt: completedAt ?? this.completedAt,
+      reviewReminderSentAt:
+          reviewReminderSentAt ?? this.reviewReminderSentAt,
       cancelReasonId: cancelReasonId ?? this.cancelReasonId,
       cancelledByRole: cancelledByRole ?? this.cancelledByRole,
       cancelledAt: cancelledAt ?? this.cancelledAt,
@@ -394,6 +399,8 @@ class BookingModel {
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
       completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
+      reviewReminderSentAt:
+          DateTime.tryParse((json['reviewReminderSentAt'] ?? '').toString()),
       cancelReasonId: normalizeBookingCancellationReasonId(
         (json['cancelReasonId'] ?? '').toString(),
       ),
@@ -424,6 +431,8 @@ class BookingModel {
       'createdAt': createdAt.toUtc().toIso8601String(),
       if (completedAt != null)
         'completedAt': completedAt!.toUtc().toIso8601String(),
+      if (reviewReminderSentAt != null)
+        'reviewReminderSentAt': reviewReminderSentAt!.toUtc().toIso8601String(),
       if (cancelReasonId.isNotEmpty) 'cancelReasonId': cancelReasonId,
       if (cancelledByRole.isNotEmpty) 'cancelledByRole': cancelledByRole,
       if (cancelledAt != null)

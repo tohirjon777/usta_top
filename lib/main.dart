@@ -11,6 +11,7 @@ import 'core/storage/theme_mode_storage.dart';
 import 'data/repositories/mock_salon_repository.dart';
 import 'models/booking_item.dart';
 import 'providers/auth_provider.dart';
+import 'providers/app_navigation_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/notification_settings_provider.dart';
@@ -122,11 +123,15 @@ class MyApp extends StatelessWidget {
             storage: context.read<NotificationSettingsStorage>(),
           )..restorePreference(),
         ),
+        ChangeNotifierProvider<AppNavigationProvider>(
+          create: (_) => AppNavigationProvider(),
+        ),
         if (enablePushNotifications)
           ChangeNotifierProvider<PushNotificationsProvider>(
             lazy: false,
             create: (BuildContext context) => PushNotificationsProvider(
               authProvider: context.read<AuthProvider>(),
+              appNavigationProvider: context.read<AppNavigationProvider>(),
               notificationSettingsProvider:
                   context.read<NotificationSettingsProvider>(),
               authService: context.read<AuthService>(),

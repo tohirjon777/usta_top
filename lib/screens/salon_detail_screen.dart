@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_item.dart';
+import '../models/review_analytics.dart';
 import '../models/salon.dart';
 import '../models/salon_review.dart';
 import '../providers/saved_workshops_provider.dart';
@@ -14,9 +17,22 @@ import '../ui/review_composer_sheet.dart';
 import 'booking_screen.dart';
 
 class SalonDetailScreen extends StatefulWidget {
-  const SalonDetailScreen({super.key, required this.salon});
+  const SalonDetailScreen({
+    super.key,
+    required this.salon,
+    this.initialReviewServiceId = '',
+    this.highlightedReviewId = '',
+    this.autoOpenReviewComposer = false,
+    this.reviewPromptBookingId = '',
+    this.lockInitialReviewServiceSelection = false,
+  });
 
   final Salon salon;
+  final String initialReviewServiceId;
+  final String highlightedReviewId;
+  final bool autoOpenReviewComposer;
+  final String reviewPromptBookingId;
+  final bool lockInitialReviewServiceSelection;
 
   @override
   State<SalonDetailScreen> createState() => _SalonDetailScreenState();
@@ -25,18 +41,30 @@ class SalonDetailScreen extends StatefulWidget {
 class _SalonDetailScreenState extends State<SalonDetailScreen> {
   late Salon _salon;
   bool _isRefreshingDetail = false;
-  String _selectedReviewServiceId = '';
+  late String _selectedReviewServiceId;
+  final GlobalKey _reviewsSectionKey = GlobalKey();
+  final Map<String, GlobalKey> _reviewCardKeys = <String, GlobalKey>{};
+  bool _handledInitialReviewNavigation = false;
 
   @override
   void initState() {
     super.initState();
     _salon = widget.salon;
+    _selectedReviewServiceId = widget.initialReviewServiceId.trim();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
-      _reloadWorkshop();
+      unawaited(_initializeDetail());
     });
+  }
+
+  Future<void> _initializeDetail() async {
+    await _reloadWorkshop();
+    if (!mounted) {
+      return;
+    }
+    await _applyInitialReviewNavigation();
   }
 
   List<SalonReview> get _visibleReviews {
@@ -48,6 +76,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         .where((SalonReview item) => item.serviceId == _selectedReviewServiceId)
         .toList(growable: false);
   }
+
+  ReviewAnalytics get _reviewAnalytics => ReviewAnalytics.fromSalon(
+        reviews: _salon.reviews,
+        services: _salon.services,
+      );
 
   Future<void> _openBooking({
     required BuildContext context,
@@ -93,13 +126,24 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   Future<void> _openReviewComposer({
     SalonService? preselectedService,
+    String? preselectedServiceId,
+    String? bookingId,
+    bool lockServiceSelection = false,
+    String? title,
+    String? subtitle,
   }) async {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final String? effectiveServiceId =
+        preselectedService?.id ?? _normalizedValue(preselectedServiceId);
     final Salon? updated = await showWorkshopReviewComposerSheet(
       context: context,
       salon: _salon,
       l10n: l10n,
-      preselectedServiceId: preselectedService?.id,
+      preselectedServiceId: effectiveServiceId,
+      bookingId: _normalizedValue(bookingId),
+      lockServiceSelection: lockServiceSelection,
+      title: title,
+      subtitle: subtitle,
     );
     if (!mounted || updated == null) {
       return;
@@ -108,8 +152,122 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       _salon = updated;
       _selectedReviewServiceId = updated.reviews.isEmpty
           ? ''
-          : (preselectedService?.id ?? _selectedReviewServiceId);
+          : (effectiveServiceId ?? _selectedReviewServiceId);
     });
+  }
+
+  Future<void> _applyInitialReviewNavigation() async {
+    if (!mounted || _handledInitialReviewNavigation) {
+      return;
+    }
+
+    _handledInitialReviewNavigation = true;
+    final String highlightedReviewId = widget.highlightedReviewId.trim();
+    if (highlightedReviewId.isNotEmpty) {
+      final SalonReview? target = _reviewById(highlightedReviewId);
+      if (target != null && target.serviceId.isNotEmpty) {
+        setState(() {
+          _selectedReviewServiceId = target.serviceId;
+        });
+      }
+      await _scrollToReviewSection();
+      await _scrollToHighlightedReview(highlightedReviewId);
+      return;
+    }
+
+    final String initialServiceId = widget.initialReviewServiceId.trim();
+    if (initialServiceId.isNotEmpty) {
+      setState(() {
+        _selectedReviewServiceId = initialServiceId;
+      });
+    }
+
+    if (widget.autoOpenReviewComposer) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      final String? serviceName = _serviceNameById(initialServiceId);
+      await _scrollToReviewSection();
+      await _openReviewComposer(
+        preselectedServiceId: initialServiceId,
+        bookingId: widget.reviewPromptBookingId,
+        lockServiceSelection: widget.lockInitialReviewServiceSelection,
+        title: l10n.reviewReminderTitle,
+        subtitle: serviceName == null
+            ? l10n.reviewSheetSubtitle
+            : l10n.reviewReminderSubtitle(serviceName, _salon.name),
+      );
+      return;
+    }
+
+    if (initialServiceId.isNotEmpty) {
+      await _scrollToReviewSection();
+    }
+  }
+
+  Future<void> _scrollToReviewSection() async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!mounted) {
+      return;
+    }
+
+    final BuildContext? sectionContext = _reviewsSectionKey.currentContext;
+    if (sectionContext == null || !sectionContext.mounted) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      sectionContext,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
+  }
+
+  Future<void> _scrollToHighlightedReview(String reviewId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!mounted) {
+      return;
+    }
+
+    final BuildContext? reviewContext = _reviewCardKeys[reviewId]?.currentContext;
+    if (reviewContext == null || !reviewContext.mounted) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      reviewContext,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.12,
+    );
+  }
+
+  SalonReview? _reviewById(String reviewId) {
+    for (final SalonReview review in _salon.reviews) {
+      if (review.id == reviewId) {
+        return review;
+      }
+    }
+    return null;
+  }
+
+  String? _serviceNameById(String serviceId) {
+    final String normalizedServiceId = serviceId.trim();
+    if (normalizedServiceId.isEmpty) {
+      return null;
+    }
+    for (final SalonService service in _salon.services) {
+      if (service.id == normalizedServiceId) {
+        return service.name;
+      }
+    }
+    return null;
+  }
+
+  String? _normalizedValue(String? value) {
+    final String normalized = (value ?? '').trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  GlobalKey _reviewKey(String reviewId) {
+    return _reviewCardKeys.putIfAbsent(reviewId, GlobalKey.new);
   }
 
   @override
@@ -310,6 +468,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             ),
             const SizedBox(height: 20),
             Row(
+              key: _reviewsSectionKey,
               children: <Widget>[
                 Expanded(
                   child: Text(
@@ -327,6 +486,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               ],
             ),
             const SizedBox(height: 10),
+            _ReviewAnalyticsCard(
+              analytics: _reviewAnalytics,
+              l10n: l10n,
+            ),
+            const SizedBox(height: 12),
             if (_salon.reviews.isNotEmpty)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -374,7 +538,12 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               ..._visibleReviews.map(
                 (SalonReview review) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _ReviewCard(review: review, l10n: l10n),
+                  child: _ReviewCard(
+                    key: _reviewKey(review.id),
+                    review: review,
+                    l10n: l10n,
+                    isHighlighted: review.id == widget.highlightedReviewId,
+                  ),
                 ),
               ),
             const SizedBox(height: 10),
@@ -428,16 +597,29 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
 class _ReviewCard extends StatelessWidget {
   const _ReviewCard({
+    super.key,
     required this.review,
     required this.l10n,
+    this.isHighlighted = false,
   });
 
   final SalonReview review;
   final AppLocalizations l10n;
+  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: isHighlighted ? 3 : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: isHighlighted
+              ? AppColors.primaryToneOf(context).withValues(alpha: 0.35)
+              : Colors.transparent,
+          width: 1.4,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -519,6 +701,192 @@ class _ReviewCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ReviewAnalyticsCard extends StatelessWidget {
+  const _ReviewAnalyticsCard({
+    required this.analytics,
+    required this.l10n,
+  });
+
+  final ReviewAnalytics analytics;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              l10n.reviewAnalyticsTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.reviewAnalyticsSubtitle,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.secondaryTextOf(context),
+                  ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _AnalyticsMetric(
+                    label: l10n.reviewAverageLabel,
+                    value: analytics.totalReviews == 0
+                        ? '0.0'
+                        : analytics.averageRating.toStringAsFixed(1),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AnalyticsMetric(
+                    label: l10n.reviewsCount(analytics.totalReviews),
+                    value: '${analytics.totalReviews}',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ...analytics.starBuckets.map(
+              (ReviewStarBucket bucket) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _StarDistributionRow(
+                  label: l10n.reviewStarsLabel(bucket.stars),
+                  count: bucket.count,
+                  share: bucket.share,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              l10n.reviewTopServicesTitle,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            if (analytics.topServices.isEmpty)
+              Text(
+                l10n.reviewTopServicesEmpty,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.secondaryTextOf(context),
+                    ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: analytics.topServices.map((ReviewServiceSummary item) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.chipBackgroundOf(context),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${item.serviceName} • ${item.reviewCount} • ${item.averageRating.toStringAsFixed(1)}★',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  );
+                }).toList(growable: false),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AnalyticsMetric extends StatelessWidget {
+  const _AnalyticsMetric({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.chipBackgroundOf(context),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryTextOf(context),
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StarDistributionRow extends StatelessWidget {
+  const _StarDistributionRow({
+    required this.label,
+    required this.count,
+    required this.share,
+  });
+
+  final String label;
+  final int count;
+  final double share;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        SizedBox(
+          width: 74,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: share,
+              minHeight: 9,
+              backgroundColor: AppColors.chipBackgroundOf(context),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                AppColors.primaryToneOf(context),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 28,
+          child: Text(
+            '$count',
+            textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryTextOf(context),
+                ),
+          ),
+        ),
+      ],
     );
   }
 }

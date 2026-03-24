@@ -14,6 +14,7 @@ import 'controllers/workshop_controller.dart';
 import 'firebase_push.dart';
 import 'http_helpers.dart';
 import 'owner_auth.dart';
+import 'review_reminder_service.dart';
 import 'store.dart';
 import 'telegram_bot.dart';
 import 'user_notifications.dart';
@@ -23,10 +24,12 @@ class AppRuntime {
   const AppRuntime({
     required this.handler,
     required this.ownerController,
+    required this.reviewReminderService,
   });
 
   final Handler handler;
   final OwnerController ownerController;
+  final ReviewReminderService reviewReminderService;
 }
 
 AppRuntime buildAppRuntime(
@@ -60,6 +63,12 @@ AppRuntime buildAppRuntime(
       WorkshopNotificationsService(telegramBotService);
   final UserNotificationsService userNotificationsService =
       UserNotificationsService(firebasePushService);
+  final ReviewReminderService reviewReminderService = ReviewReminderService(
+    store,
+    bookingsFilePath: bookingsFilePath,
+    userNotificationsService: userNotificationsService,
+    reminderDelay: const Duration(minutes: 90),
+  );
   final WorkshopController workshopController = WorkshopController(
     store,
     workshopsFilePath: workshopsFilePath,
@@ -167,6 +176,7 @@ AppRuntime buildAppRuntime(
   return AppRuntime(
     handler: handler,
     ownerController: ownerController,
+    reviewReminderService: reviewReminderService,
   );
 }
 

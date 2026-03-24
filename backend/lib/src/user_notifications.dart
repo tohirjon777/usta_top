@@ -9,16 +9,20 @@ class UserNotificationsService {
 
   bool get isConfigured => _firebasePushService.isConfigured;
 
+  List<String> _tokensForUser(UserModel user) {
+    return user.pushTokens
+        .map((PushTokenModel item) => item.token.trim())
+        .where((String item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
   Future<void> sendBookingStatusNotification({
     required UserModel user,
     required BookingModel booking,
     required String actor,
   }) async {
-    final List<String> tokens = user.pushTokens
-        .map((PushTokenModel item) => item.token.trim())
-        .where((String item) => item.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
+    final List<String> tokens = _tokensForUser(user);
     if (tokens.isEmpty) {
       throw const FirebasePushException(
         'Foydalanuvchi uchun push token topilmadi',
@@ -48,11 +52,7 @@ class UserNotificationsService {
     required BookingModel booking,
     required BookingChatMessageModel message,
   }) async {
-    final List<String> tokens = user.pushTokens
-        .map((PushTokenModel item) => item.token.trim())
-        .where((String item) => item.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
+    final List<String> tokens = _tokensForUser(user);
     if (tokens.isEmpty) {
       throw const FirebasePushException(
         'Foydalanuvchi uchun push token topilmadi',
@@ -78,11 +78,7 @@ class UserNotificationsService {
     required WorkshopModel workshop,
     required WorkshopReviewModel review,
   }) async {
-    final List<String> tokens = user.pushTokens
-        .map((PushTokenModel item) => item.token.trim())
-        .where((String item) => item.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
+    final List<String> tokens = _tokensForUser(user);
     if (tokens.isEmpty) {
       throw const FirebasePushException(
         'Foydalanuvchi uchun push token topilmadi',
@@ -100,6 +96,33 @@ class UserNotificationsService {
         'workshopId': workshop.id,
         'reviewId': review.id,
         'serviceId': review.serviceId,
+      },
+    );
+  }
+
+  Future<void> sendReviewReminderNotification({
+    required UserModel user,
+    required BookingModel booking,
+    required WorkshopModel workshop,
+  }) async {
+    final List<String> tokens = _tokensForUser(user);
+    if (tokens.isEmpty) {
+      throw const FirebasePushException(
+        'Foydalanuvchi uchun push token topilmadi',
+      );
+    }
+
+    await _firebasePushService.sendToTokens(
+      tokens: tokens,
+      title: 'Usta Top: sharh qoldirish vaqti bo‘ldi',
+      body:
+          '${workshop.name} dagi ${booking.serviceName} xizmati yakunlandi. Qisqa sharh yozib qo‘ying.',
+      data: <String, String>{
+        'type': 'review_reminder',
+        'screen': 'workshop_review',
+        'workshopId': workshop.id,
+        'serviceId': booking.serviceId,
+        'bookingId': booking.id,
       },
     );
   }

@@ -4,6 +4,7 @@ import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
 import '../models.dart';
+import '../review_analytics.dart';
 import '../store.dart';
 import '../workshop_notifications.dart';
 
@@ -104,6 +105,20 @@ class AdminReviewsController {
     final int hiddenCount = allEntries
         .where((_AdminReviewEntry item) => item.review.isHidden)
         .length;
+    final ReviewAnalyticsSummary analytics = buildReviewAnalytics(
+      allEntries
+          .where((_AdminReviewEntry item) => !item.review.isHidden)
+          .map((_AdminReviewEntry item) => item.review),
+      segmentIdOf: (WorkshopReviewModel review) =>
+          '${review.workshopId}:${review.serviceId}',
+      segmentLabelOf: (WorkshopReviewModel review) {
+        final WorkshopModel? workshop = _store.workshopById(review.workshopId);
+        final String workshopName = workshop?.name.trim().isNotEmpty == true
+            ? workshop!.name
+            : review.workshopId;
+        return '$workshopName • ${review.serviceName}';
+      },
+    );
 
     final Uri workshopsUri = _adminWorkshopsUri(lang: lang);
     final Uri bookingsUri = _adminBookingsUri(lang: lang);
@@ -137,6 +152,10 @@ class AdminReviewsController {
       final bool selected = workshop.id == workshopId;
       return '<option value="${_escapeHtml(workshop.id)}"${selected ? ' selected' : ''}>${_escapeHtml(workshop.name)}</option>';
     }).join();
+    final String analyticsHtml = _analyticsSectionHtml(
+      lang: lang,
+      analytics: analytics,
+    );
 
     final String reviewCards = filtered.isEmpty
         ? '''
@@ -441,6 +460,72 @@ class AdminReviewsController {
       align-items: end;
     }
 
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 14px;
+    }
+
+    .analytics-card {
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+      display: grid;
+      gap: 12px;
+    }
+
+    .analytics-card h3 {
+      margin: 0;
+    }
+
+    .analytics-row {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr) 34px;
+      gap: 10px;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .analytics-bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(36, 49, 63, 0.08);
+      overflow: hidden;
+    }
+
+    .analytics-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+    }
+
+    .analytics-segments {
+      display: grid;
+      gap: 10px;
+    }
+
+    .analytics-segment {
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 6px;
+    }
+
+    .analytics-segment strong {
+      display: block;
+    }
+
+    .analytics-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
     .field {
       display: grid;
       gap: 8px;
@@ -561,14 +646,14 @@ class AdminReviewsController {
     }
 
     @media (max-width: 1100px) {
-      .filter-grid, .stats-grid {
+      .filter-grid, .stats-grid, .analytics-grid {
         grid-template-columns: 1fr 1fr;
       }
     }
 
     @media (max-width: 760px) {
       .wrap { padding: 18px 12px 36px; }
-      .filter-grid, .stats-grid {
+      .filter-grid, .stats-grid, .analytics-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -628,6 +713,8 @@ class AdminReviewsController {
     </section>
 
     ${_flashHtml(message: message, error: error)}
+
+    $analyticsHtml
 
     <section class="card">
       <div class="eyebrow">${_escapeHtml(_text(lang, 'filterEyebrow'))}</div>
@@ -1070,6 +1157,58 @@ ${_normalizeReplyStatus(replyStatus) == 'all' ? '' : '<input type="hidden" name=
     }
   }
 
+  String _analyticsSectionHtml({
+    required String lang,
+    required ReviewAnalyticsSummary analytics,
+  }) {
+    final String ratingRows = analytics.starBuckets.map((ReviewStarBucket bucket) {
+      final double widthPercent = bucket.share <= 0 ? 0 : bucket.share * 100;
+      return '''
+<div class="analytics-row">
+  <span>${_escapeHtml(_text(lang, 'analyticsStars', <String, Object>{'stars': bucket.stars}))}</span>
+  <div class="analytics-bar"><div class="analytics-fill" style="width: ${widthPercent.toStringAsFixed(1)}%;"></div></div>
+  <strong>${bucket.count}</strong>
+</div>
+''';
+    }).join();
+
+    final String topSegments = analytics.topSegments.isEmpty
+        ? '<div class="muted">${_escapeHtml(_text(lang, 'analyticsSegmentsEmpty'))}</div>'
+        : analytics.topSegments.map((ReviewSegmentSummary segment) {
+            return '''
+<div class="analytics-segment">
+  <strong>${_escapeHtml(segment.label)}</strong>
+  <div class="analytics-meta">
+    <span>${_escapeHtml(_text(lang, 'analyticsReviewCount', <String, Object>{'count': segment.reviewCount}))}</span>
+    <span>${segment.averageRating.toStringAsFixed(1)} / 5</span>
+  </div>
+</div>
+''';
+          }).join();
+
+    return '''
+<section class="card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsEyebrow'))}</div>
+  <h2>${_escapeHtml(_text(lang, 'analyticsTitle'))}</h2>
+  <p class="muted">${_escapeHtml(_text(lang, 'analyticsDescription'))}</p>
+  <div class="analytics-grid">
+    <div class="analytics-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsAverageLabel'))}</div>
+      <h3>${analytics.totalReviews == 0 ? '0.0' : analytics.averageRating.toStringAsFixed(1)} / 5</h3>
+      <div class="muted">${_escapeHtml(_text(lang, 'analyticsVisibleReviews', <String, Object>{'count': analytics.totalReviews}))}</div>
+      $ratingRows
+    </div>
+    <div class="analytics-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsSegmentsTitle'))}</div>
+      <div class="analytics-segments">
+        $topSegments
+      </div>
+    </div>
+  </div>
+</section>
+''';
+  }
+
   String _text(
     String lang,
     String key, [
@@ -1155,6 +1294,17 @@ ${_normalizeReplyStatus(replyStatus) == 'all' ? '' : '<input type="hidden" name=
       'workshopLink': 'Workshop kartasi',
       'bookingsLink': 'Workshop zakazlari',
       'ownerLink': 'Owner login',
+      'analyticsEyebrow': 'Sharh Statistikasi',
+      'analyticsTitle': 'Public reyting va eng faol xizmatlar',
+      'analyticsDescription':
+          'Yashirilmagan sharhlar bo‘yicha joriy holat. Qaysi xizmatlar eng ko‘p fikr olayotgani shu yerda ko‘rinadi.',
+      'analyticsAverageLabel': 'O‘rtacha baho',
+      'analyticsVisibleReviews': '{count} ta public sharh',
+      'analyticsSegmentsTitle': 'Eng ko‘p sharhlangan xizmatlar',
+      'analyticsSegmentsEmpty':
+          'Xizmatlar statistikasi hali shakllanmagan.',
+      'analyticsReviewCount': '{count} ta sharh',
+      'analyticsStars': '{stars} yulduz',
     },
     'ru': <String, String>{
       'pageTitle': 'Панель отзывов Usta Top',
@@ -1222,6 +1372,17 @@ ${_normalizeReplyStatus(replyStatus) == 'all' ? '' : '<input type="hidden" name=
       'workshopLink': 'Карточка workshop',
       'bookingsLink': 'Заказы workshop',
       'ownerLink': 'Owner login',
+      'analyticsEyebrow': 'Статистика отзывов',
+      'analyticsTitle': 'Публичный рейтинг и самые обсуждаемые услуги',
+      'analyticsDescription':
+          'Текущая картина по видимым отзывам. Здесь видно, какие услуги получают больше всего откликов.',
+      'analyticsAverageLabel': 'Средняя оценка',
+      'analyticsVisibleReviews': '{count} видимых отзывов',
+      'analyticsSegmentsTitle': 'Самые обсуждаемые услуги',
+      'analyticsSegmentsEmpty':
+          'Статистика по услугам пока не сформировалась.',
+      'analyticsReviewCount': '{count} отзывов',
+      'analyticsStars': '{stars} звезды',
     },
     'en': <String, String>{
       'pageTitle': 'Usta Top Reviews Panel',
@@ -1289,6 +1450,17 @@ ${_normalizeReplyStatus(replyStatus) == 'all' ? '' : '<input type="hidden" name=
       'workshopLink': 'Workshop card',
       'bookingsLink': 'Workshop bookings',
       'ownerLink': 'Owner login',
+      'analyticsEyebrow': 'Review Analytics',
+      'analyticsTitle': 'Public rating and busiest services',
+      'analyticsDescription':
+          'A quick view of visible reviews, rating spread, and the services getting the most feedback.',
+      'analyticsAverageLabel': 'Average rating',
+      'analyticsVisibleReviews': '{count} public reviews',
+      'analyticsSegmentsTitle': 'Most reviewed services',
+      'analyticsSegmentsEmpty':
+          'Service analytics will appear here once reviews arrive.',
+      'analyticsReviewCount': '{count} reviews',
+      'analyticsStars': '{stars} stars',
     },
   };
 }

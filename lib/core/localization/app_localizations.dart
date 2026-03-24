@@ -144,6 +144,13 @@ class AppLocalizations {
       'reviewsTitle': 'Customer reviews',
       'reviewsCount': '{count} reviews',
       'allServicesLabel': 'All services',
+      'reviewAnalyticsTitle': 'Review snapshot',
+      'reviewAnalyticsSubtitle':
+          'See the rating mix and which services get mentioned most.',
+      'reviewAverageLabel': 'Average rating',
+      'reviewTopServicesTitle': 'Most reviewed services',
+      'reviewTopServicesEmpty': 'Service review stats will appear here.',
+      'reviewStarsLabel': '{stars} stars',
       'reviewsEmptyTitle': 'No reviews yet',
       'reviewsEmptySubtitle':
           'Be the first to leave a review about a service in this workshop.',
@@ -159,6 +166,9 @@ class AppLocalizations {
       'completedReviewTitle': 'Service completed',
       'completedReviewSubtitle':
           'Your {service} at {workshop} is done. Leave a short review for the technician.',
+      'reviewReminderTitle': 'How was the service?',
+      'reviewReminderSubtitle':
+          'You have not rated {service} at {workshop} yet. Leave a quick review for the technician.',
       'reviewSubmittedLabel': 'Review sent',
       'workshopReplyLabel': 'Workshop reply',
       'priceLabel': 'Price: {price}',
@@ -372,6 +382,14 @@ class AppLocalizations {
       'reviewsTitle': 'Mijozlar fikri',
       'reviewsCount': '{count} ta sharh',
       'allServicesLabel': 'Barcha xizmatlar',
+      'reviewAnalyticsTitle': 'Sharh statistikasi',
+      'reviewAnalyticsSubtitle':
+          'Baholar taqsimoti va eng ko‘p tilga olinayotgan xizmatlarni ko‘ring.',
+      'reviewAverageLabel': 'O‘rtacha baho',
+      'reviewTopServicesTitle': 'Eng ko‘p sharhlangan xizmatlar',
+      'reviewTopServicesEmpty':
+          'Xizmatlar bo‘yicha statistika shu yerda chiqadi.',
+      'reviewStarsLabel': '{stars} yulduz',
       'reviewsEmptyTitle': 'Hali sharhlar yo\'q',
       'reviewsEmptySubtitle':
           'Bu servis bo\'yicha birinchi bo\'lib fikr qoldiring.',
@@ -388,6 +406,9 @@ class AppLocalizations {
       'completedReviewTitle': 'Servis yakunlandi',
       'completedReviewSubtitle':
           '{workshop} dagi {service} xizmati bajarildi. Usta ishi haqida qisqa sharh qoldiring.',
+      'reviewReminderTitle': 'Servis qanday o‘tdi?',
+      'reviewReminderSubtitle':
+          '{workshop} dagi {service} xizmati uchun hali baho qoldirmadingiz. Usta uchun qisqa sharh yozing.',
       'reviewSubmittedLabel': 'Sharhingiz yuborilgan',
       'workshopReplyLabel': 'Servis javobi',
       'priceLabel': 'Narx: {price}',
@@ -601,6 +622,14 @@ class AppLocalizations {
       'reviewsTitle': 'Отзывы клиентов',
       'reviewsCount': '{count} отзывов',
       'allServicesLabel': 'Все услуги',
+      'reviewAnalyticsTitle': 'Статистика отзывов',
+      'reviewAnalyticsSubtitle':
+          'Посмотрите распределение оценок и услуги, о которых пишут чаще всего.',
+      'reviewAverageLabel': 'Средняя оценка',
+      'reviewTopServicesTitle': 'Самые обсуждаемые услуги',
+      'reviewTopServicesEmpty':
+          'Статистика по услугам появится здесь, когда накопятся отзывы.',
+      'reviewStarsLabel': '{stars} звезды',
       'reviewsEmptyTitle': 'Отзывов пока нет',
       'reviewsEmptySubtitle':
           'Станьте первым, кто оставит отзыв об услуге в этом сервисе.',
@@ -617,6 +646,9 @@ class AppLocalizations {
       'completedReviewTitle': 'Услуга завершена',
       'completedReviewSubtitle':
           'Услуга {service} в {workshop} выполнена. Оставьте короткий отзыв о работе мастера.',
+      'reviewReminderTitle': 'Как прошёл сервис?',
+      'reviewReminderSubtitle':
+          'Вы ещё не оценили услугу {service} в {workshop}. Оставьте короткий отзыв мастеру.',
       'reviewSubmittedLabel': 'Отзыв отправлен',
       'workshopReplyLabel': 'Ответ сервиса',
       'priceLabel': 'Цена: {price}',
@@ -869,6 +901,13 @@ class AppLocalizations {
   String reviewsCount(int count) =>
       _fmt('reviewsCount', <String, Object>{'count': count});
   String get allServicesLabel => _text('allServicesLabel');
+  String get reviewAnalyticsTitle => _text('reviewAnalyticsTitle');
+  String get reviewAnalyticsSubtitle => _text('reviewAnalyticsSubtitle');
+  String get reviewAverageLabel => _text('reviewAverageLabel');
+  String get reviewTopServicesTitle => _text('reviewTopServicesTitle');
+  String get reviewTopServicesEmpty => _text('reviewTopServicesEmpty');
+  String reviewStarsLabel(int stars) =>
+      _fmt('reviewStarsLabel', <String, Object>{'stars': stars});
   String get reviewsEmptyTitle => _text('reviewsEmptyTitle');
   String get reviewsEmptySubtitle => _text('reviewsEmptySubtitle');
   String get reviewSheetSubtitle => _text('reviewSheetSubtitle');
@@ -883,6 +922,14 @@ class AppLocalizations {
   String get completedReviewTitle => _text('completedReviewTitle');
   String completedReviewSubtitle(String service, String workshop) => _fmt(
         'completedReviewSubtitle',
+        <String, Object>{
+          'service': service,
+          'workshop': workshop,
+        },
+      );
+  String get reviewReminderTitle => _text('reviewReminderTitle');
+  String reviewReminderSubtitle(String service, String workshop) => _fmt(
+        'reviewReminderSubtitle',
         <String, Object>{
           'service': service,
           'workshop': workshop,

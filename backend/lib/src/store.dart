@@ -921,6 +921,45 @@ class InMemoryStore {
     return List<BookingModel>.unmodifiable(items);
   }
 
+  List<BookingModel> bookingsAwaitingReviewReminder({
+    required Duration delay,
+    DateTime? now,
+  }) {
+    final DateTime effectiveNow = now ?? DateTime.now();
+    final List<BookingModel> items = _bookings.where((BookingModel item) {
+      if (item.status != BookingStatus.completed ||
+          item.completedAt == null ||
+          item.reviewReminderSentAt != null) {
+        return false;
+      }
+      if (reviewByBookingId(item.id) != null) {
+        return false;
+      }
+      return item.completedAt!.add(delay).isBefore(effectiveNow);
+    }).toList(growable: false)
+      ..sort((BookingModel a, BookingModel b) {
+        return a.completedAt!.compareTo(b.completedAt!);
+      });
+    return List<BookingModel>.unmodifiable(items);
+  }
+
+  BookingModel markReviewReminderSent(
+    String bookingId, {
+    DateTime? sentAt,
+  }) {
+    final int index =
+        _bookings.indexWhere((BookingModel item) => item.id == bookingId);
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel updated = _bookings[index].copyWith(
+      reviewReminderSentAt: sentAt ?? DateTime.now(),
+    );
+    _bookings[index] = updated;
+    return updated;
+  }
+
   List<WorkshopReviewModel> reviewsForWorkshop({
     required String workshopId,
     String? serviceId,
@@ -1478,6 +1517,7 @@ class InMemoryStore {
     final BookingModel updated = current.copyWith(
       status: status,
       completedAt: status == BookingStatus.completed ? DateTime.now() : null,
+      reviewReminderSentAt: null,
     );
     _bookings[index] = updated;
     return updated;
@@ -1504,6 +1544,7 @@ class InMemoryStore {
     final BookingModel updated = current.copyWith(
       status: status,
       completedAt: status == BookingStatus.completed ? DateTime.now() : null,
+      reviewReminderSentAt: null,
     );
     _bookings[index] = updated;
     return updated;
