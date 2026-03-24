@@ -5,6 +5,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Flutter loyihada pluginni config fayl kelgandan keyin yoqamiz.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
