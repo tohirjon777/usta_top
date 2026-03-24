@@ -6,9 +6,12 @@ import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_cancellation_reason.dart';
 import '../models/booking_item.dart';
+import '../models/salon.dart';
 import '../models/vehicle_type.dart';
 import '../providers/booking_provider.dart';
+import '../providers/workshop_provider.dart';
 import '../ui/app_loading_view.dart';
+import '../ui/review_composer_sheet.dart';
 
 class MyBookingsScreen extends StatelessWidget {
   const MyBookingsScreen({super.key});
@@ -23,6 +26,37 @@ class MyBookingsScreen extends StatelessWidget {
 
     if (isLoading && bookings.isEmpty) {
       return const SafeArea(child: AppLoadingView());
+    }
+
+    Future<void> openReviewForBooking(BookingItem booking) async {
+      final WorkshopProvider workshopProvider = context.read<WorkshopProvider>();
+      Salon? salon = workshopProvider.workshopById(booking.workshopId);
+      salon ??= await workshopProvider.refreshWorkshopById(booking.workshopId);
+      if (!context.mounted) {
+        return;
+      }
+      if (salon == null) {
+        final String message =
+            workshopProvider.errorMessage ?? l10n.reviewSubmitFailed;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+        return;
+      }
+
+      await showWorkshopReviewComposerSheet(
+        context: context,
+        salon: salon,
+        l10n: l10n,
+        preselectedServiceId: booking.serviceId,
+        bookingId: booking.id,
+        lockServiceSelection: true,
+        title: l10n.completedReviewTitle,
+        subtitle: l10n.completedReviewSubtitle(
+          booking.serviceName,
+          booking.salonName,
+        ),
+      );
     }
 
     return SafeArea(
@@ -91,6 +125,12 @@ class MyBookingsScreen extends StatelessWidget {
                         SnackBar(content: Text(l10n.bookingCancelled)),
                       );
                     },
+                    onWriteReview: booking.status == BookingStatus.completed &&
+                            !booking.hasReview
+                        ? () {
+                            openReviewForBooking(booking);
+                          }
+                        : null,
                   ),
                 );
               }),
@@ -106,11 +146,13 @@ class _BookingCard extends StatelessWidget {
     required this.l10n,
     required this.booking,
     required this.onCancel,
+    this.onWriteReview,
   });
 
   final AppLocalizations l10n;
   final BookingItem booking;
   final VoidCallback onCancel;
+  final VoidCallback? onWriteReview;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +218,39 @@ class _BookingCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ],
+            if (booking.status == BookingStatus.completed) ...<Widget>[
+              const SizedBox(height: 8),
+              if (!booking.hasReview)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      onPressed: onWriteReview,
+                      icon: const Icon(Icons.rate_review_outlined, size: 18),
+                      label: Text(l10n.writeReview),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: AppColors.primaryToneOf(context),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n.reviewSubmittedLabel,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.primaryToneOf(context),
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
             ],
           ],
         ),

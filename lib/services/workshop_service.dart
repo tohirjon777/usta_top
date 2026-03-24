@@ -10,5 +10,6 @@ abstract interface class WorkshopService {
     required String serviceId,
     required int rating,
     required String comment,
+    String? bookingId,
   });
 }

@@ -156,6 +156,10 @@ class AppLocalizations {
       'reviewCommentValidation': 'Review must be at least 3 characters long',
       'reviewSubmitFailed': 'Review could not be sent',
       'reviewSubmitSuccess': 'Your review was published',
+      'completedReviewTitle': 'Service completed',
+      'completedReviewSubtitle':
+          'Your {service} at {workshop} is done. Leave a short review for the technician.',
+      'reviewSubmittedLabel': 'Review sent',
       'workshopReplyLabel': 'Workshop reply',
       'priceLabel': 'Price: {price}',
       'cancelBooking': 'Cancel request',
@@ -381,6 +385,10 @@ class AppLocalizations {
           'Sharh kamida 3 ta belgidan iborat bo\'lsin',
       'reviewSubmitFailed': 'Sharh yuborilmadi',
       'reviewSubmitSuccess': 'Sharhingiz joylandi',
+      'completedReviewTitle': 'Servis yakunlandi',
+      'completedReviewSubtitle':
+          '{workshop} dagi {service} xizmati bajarildi. Usta ishi haqida qisqa sharh qoldiring.',
+      'reviewSubmittedLabel': 'Sharhingiz yuborilgan',
       'workshopReplyLabel': 'Servis javobi',
       'priceLabel': 'Narx: {price}',
       'cancelBooking': 'Buyurtmani bekor qilish',
@@ -606,6 +614,10 @@ class AppLocalizations {
           'Отзыв должен быть не короче 3 символов',
       'reviewSubmitFailed': 'Не удалось отправить отзыв',
       'reviewSubmitSuccess': 'Ваш отзыв опубликован',
+      'completedReviewTitle': 'Услуга завершена',
+      'completedReviewSubtitle':
+          'Услуга {service} в {workshop} выполнена. Оставьте короткий отзыв о работе мастера.',
+      'reviewSubmittedLabel': 'Отзыв отправлен',
       'workshopReplyLabel': 'Ответ сервиса',
       'priceLabel': 'Цена: {price}',
       'cancelBooking': 'Отменить заявку',
@@ -868,6 +880,15 @@ class AppLocalizations {
   String get reviewCommentValidation => _text('reviewCommentValidation');
   String get reviewSubmitFailed => _text('reviewSubmitFailed');
   String get reviewSubmitSuccess => _text('reviewSubmitSuccess');
+  String get completedReviewTitle => _text('completedReviewTitle');
+  String completedReviewSubtitle(String service, String workshop) => _fmt(
+        'completedReviewSubtitle',
+        <String, Object>{
+          'service': service,
+          'workshop': workshop,
+        },
+      );
+  String get reviewSubmittedLabel => _text('reviewSubmittedLabel');
   String get workshopReplyLabel => _text('workshopReplyLabel');
   String priceLabel(String price) =>
       _fmt('priceLabel', <String, Object>{'price': price});

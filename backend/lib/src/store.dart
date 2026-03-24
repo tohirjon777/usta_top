@@ -924,6 +924,7 @@ class InMemoryStore {
   List<WorkshopReviewModel> reviewsForWorkshop({
     required String workshopId,
     String? serviceId,
+    bool includeHidden = false,
   }) {
     final String normalizedWorkshopId = workshopId.trim();
     final String normalizedServiceId = (serviceId ?? '').trim();
@@ -933,6 +934,9 @@ class InMemoryStore {
           return false;
         }
         if (normalizedServiceId.isNotEmpty && item.serviceId != normalizedServiceId) {
+          return false;
+        }
+        if (!includeHidden && item.isHidden) {
           return false;
         }
         return true;
@@ -957,16 +961,50 @@ class InMemoryStore {
     return null;
   }
 
+  WorkshopReviewModel? reviewByBookingId(String bookingId) {
+    final String normalizedBookingId = bookingId.trim();
+    if (normalizedBookingId.isEmpty) {
+      return null;
+    }
+    for (final WorkshopReviewModel item in _reviews) {
+      if (item.bookingId == normalizedBookingId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
   WorkshopReviewModel createWorkshopReview({
     required String userId,
     required String workshopId,
     required String serviceId,
     required int rating,
     required String comment,
+    String bookingId = '',
   }) {
     final UserModel? user = _usersById[userId];
     if (user == null) {
       throw StateError('Foydalanuvchi topilmadi');
+    }
+
+    final String normalizedBookingId = bookingId.trim();
+    if (normalizedBookingId.isNotEmpty) {
+      final BookingModel? booking = bookingForUser(
+        userId: user.id,
+        bookingId: normalizedBookingId,
+      );
+      if (booking == null) {
+        throw StateError('Sharh uchun zakaz topilmadi');
+      }
+      if (booking.status != BookingStatus.completed) {
+        throw StateError('Sharh faqat yakunlangan zakazdan keyin qoldiriladi');
+      }
+      if (booking.workshopId != workshopId || booking.serviceId != serviceId) {
+        throw StateError('Sharh tanlangan zakaz xizmatiga mos emas');
+      }
+      if (reviewByBookingId(normalizedBookingId) != null) {
+        throw StateError('Bu zakaz uchun sharh allaqachon qoldirilgan');
+      }
     }
 
     final int workshopIndex = _workshops.indexWhere(
@@ -999,6 +1037,7 @@ class InMemoryStore {
       rating: normalizedRating,
       comment: normalizedComment,
       createdAt: DateTime.now(),
+      bookingId: normalizedBookingId,
     );
     _reviews.add(review);
 
@@ -1041,6 +1080,83 @@ class InMemoryStore {
       ownerReplySource: source.trim(),
     );
     _reviews[index] = updated;
+    return updated;
+  }
+
+  WorkshopReviewModel setWorkshopReviewHidden({
+    required String workshopId,
+    required String reviewId,
+    required bool hidden,
+    required String actorRole,
+    required String reason,
+  }) {
+    final String normalizedWorkshopId = workshopId.trim();
+    final String normalizedReviewId = reviewId.trim();
+    final String normalizedReason = normalizeWorkshopReviewText(reason);
+    final int workshopIndex = _workshops.indexWhere(
+      (WorkshopModel item) => item.id == normalizedWorkshopId,
+    );
+    if (workshopIndex < 0) {
+      throw StateError('Servis topilmadi');
+    }
+    final int index = _reviews.indexWhere((WorkshopReviewModel item) {
+      return item.id == normalizedReviewId &&
+          item.workshopId == normalizedWorkshopId;
+    });
+    if (index < 0) {
+      throw StateError('Sharh topilmadi');
+    }
+
+    final WorkshopReviewModel current = _reviews[index];
+    if (current.isHidden == hidden) {
+      return current;
+    }
+    final WorkshopReviewModel updated = hidden
+        ? current.copyWith(
+            isHidden: true,
+            hiddenAt: DateTime.now(),
+            hiddenByRole: actorRole.trim(),
+            hiddenReason:
+                normalizedReason.isEmpty ? 'admin_flagged' : normalizedReason,
+          )
+        : WorkshopReviewModel(
+            id: current.id,
+            workshopId: current.workshopId,
+            serviceId: current.serviceId,
+            serviceName: current.serviceName,
+            userId: current.userId,
+            customerName: current.customerName,
+            customerPhone: current.customerPhone,
+            rating: current.rating,
+            comment: current.comment,
+            createdAt: current.createdAt,
+            ownerReply: current.ownerReply,
+            ownerReplyAt: current.ownerReplyAt,
+            ownerReplySource: current.ownerReplySource,
+            isHidden: false,
+            hiddenAt: null,
+            hiddenByRole: '',
+            hiddenReason: '',
+          );
+    _reviews[index] = updated;
+    final WorkshopModel workshop = _workshops[workshopIndex];
+    final int currentCount = workshop.reviewCount;
+    final double currentRating = workshop.rating;
+    late final int nextCount;
+    late final double nextRating;
+    if (hidden) {
+      nextCount = currentCount <= 0 ? 0 : currentCount - 1;
+      nextRating = nextCount <= 0
+          ? 0
+          : (((currentRating * currentCount) - current.rating) / nextCount);
+    } else {
+      nextCount = currentCount + 1;
+      nextRating = (((currentRating * currentCount) + current.rating) / nextCount);
+    }
+    _workshops[workshopIndex] = workshop.copyWith(
+      reviewCount: nextCount,
+      rating: double.parse(nextRating.toStringAsFixed(1)),
+    );
     return updated;
   }
 
@@ -1359,7 +1475,10 @@ class InMemoryStore {
       current: current,
       nextStatus: status,
     );
-    final BookingModel updated = current.copyWith(status: status);
+    final BookingModel updated = current.copyWith(
+      status: status,
+      completedAt: status == BookingStatus.completed ? DateTime.now() : null,
+    );
     _bookings[index] = updated;
     return updated;
   }
@@ -1382,7 +1501,10 @@ class InMemoryStore {
       current: current,
       nextStatus: status,
     );
-    final BookingModel updated = current.copyWith(status: status);
+    final BookingModel updated = current.copyWith(
+      status: status,
+      completedAt: status == BookingStatus.completed ? DateTime.now() : null,
+    );
     _bookings[index] = updated;
     return updated;
   }

@@ -34,6 +34,7 @@ class MockWorkshopService implements WorkshopService {
     required String serviceId,
     required int rating,
     required String comment,
+    String? bookingId,
   }) async {
     final Salon? current = _salonsById[workshopId];
     if (current == null) {

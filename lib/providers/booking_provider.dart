@@ -279,6 +279,30 @@ class BookingProvider extends BookingController {
     }
   }
 
+  void markBookingReviewed(
+    String bookingId, {
+    String? reviewId,
+    DateTime? submittedAt,
+  }) {
+    final int index = bookings
+        .toList()
+        .indexWhere((BookingItem item) => item.id == bookingId);
+    if (index < 0) {
+      return;
+    }
+    final BookingItem booking = bookings[index];
+    upsertBooking(
+      booking.copyWith(
+        reviewId: (reviewId == null || reviewId.trim().isEmpty)
+            ? booking.reviewId.isEmpty
+                ? 'local-review-$bookingId'
+                : booking.reviewId
+            : reviewId.trim(),
+        reviewSubmittedAt: submittedAt ?? DateTime.now(),
+      ),
+    );
+  }
+
   void _markBookingMessagesReadLocally(String bookingId) {
     final int index = bookings
         .toList()

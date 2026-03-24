@@ -192,8 +192,12 @@ class BookingController {
     final BookingChatSummaryModel summary = _store.chatSummaryForBooking(
       booking.id,
     );
+    final WorkshopReviewModel? review = _store.reviewByBookingId(booking.id);
     return <String, Object>{
       ...booking.toJson(),
+      if (review != null) 'reviewId': review.id,
+      if (review != null)
+        'reviewSubmittedAt': review.createdAt.toUtc().toIso8601String(),
       'messageCount': summary.messageCount,
       'unreadForCustomerCount': summary.unreadForCustomerCount,
       'lastMessagePreview': summary.lastMessagePreview,

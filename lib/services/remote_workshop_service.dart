@@ -61,6 +61,7 @@ class RemoteWorkshopService implements WorkshopService {
     required String serviceId,
     required int rating,
     required String comment,
+    String? bookingId,
   }) async {
     final Map<String, dynamic> body = await _request(
       method: _HttpMethod.post,
@@ -69,6 +70,8 @@ class RemoteWorkshopService implements WorkshopService {
         'serviceId': serviceId,
         'rating': rating,
         'comment': comment.trim(),
+        if (bookingId != null && bookingId.trim().isNotEmpty)
+          'bookingId': bookingId.trim(),
       },
     );
     final dynamic data = body['data'];

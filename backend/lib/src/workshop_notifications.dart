@@ -129,6 +129,28 @@ Telegramdan javob berish uchun shu xabarga reply qiling.
     );
   }
 
+  Future<void> sendReviewReplyReminder({
+    required WorkshopModel workshop,
+    required WorkshopReviewModel review,
+  }) {
+    return _sendToWorkshop(
+      workshop: workshop,
+      text: '''
+Usta Top: admin eslatmasi
+
+Avtoservis: ${workshop.name}
+Sharh ID: ${review.id}
+Mijoz: ${_safeValue(review.customerName)}
+Telefon: ${_safeValue(review.customerPhone)}
+Xizmat: ${review.serviceName}
+Baho: ${_ratingStars(review.rating)} (${review.rating}/5)
+Sharh: ${workshopReviewPreview(review.comment, maxLength: 320)}
+
+Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan javob yozing.
+''',
+    );
+  }
+
   Future<void> _sendToWorkshop({
     required WorkshopModel workshop,
     required String text,

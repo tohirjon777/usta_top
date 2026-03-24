@@ -16,6 +16,7 @@ import '../screens/my_bookings_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/saved_salons_screen.dart';
 import '../screens/salon_detail_screen.dart';
+import '../ui/review_composer_sheet.dart';
 
 class MainNavigationShell extends StatefulWidget {
   const MainNavigationShell({super.key});
@@ -26,11 +27,14 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   static const Duration _bookingRefreshInterval = Duration(seconds: 20);
+  static const Duration _recentCompletionPromptWindow = Duration(hours: 24);
 
   int _currentIndex = 0;
   final Map<String, BookingItem> _bookingSnapshots = <String, BookingItem>{};
+  final Set<String> _reviewPromptDismissed = <String>{};
   late final _LifecycleObserver _lifecycleObserver;
   Timer? _bookingRefreshTimer;
+  bool _isReviewPromptOpen = false;
 
   @override
   void initState() {
@@ -139,50 +143,126 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ),
       );
 
-    if (!notifyOnTelegramCancellation ||
-        previousSnapshots.isEmpty ||
-        !notificationSettingsProvider.isEnabled) {
-      return;
+    if (notifyOnTelegramCancellation &&
+        previousSnapshots.isNotEmpty &&
+        notificationSettingsProvider.isEnabled) {
+      final List<BookingItem> telegramCancelled =
+          bookings.where((BookingItem item) {
+        final BookingItem? previous = previousSnapshots[item.id];
+        return previous != null &&
+            _bookingFingerprint(previous) != _bookingFingerprint(item) &&
+            item.status == BookingStatus.cancelled &&
+            item.cancelledByRole == 'owner_telegram';
+      }).toList(growable: false);
+
+      if (telegramCancelled.isNotEmpty) {
+        final BookingItem latest = telegramCancelled.first;
+        final String message = l10n.telegramCancellationNotice(
+          latest.salonName,
+          bookingCancellationReasonLabel(latest.cancelReasonId, l10n),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            action: SnackBarAction(
+              label: l10n.view,
+              onPressed: () {
+                if (!mounted) {
+                  return;
+                }
+                setState(() {
+                  _currentIndex = 2;
+                });
+              },
+            ),
+          ),
+        );
+      }
     }
 
-    final List<BookingItem> telegramCancelled =
-        bookings.where((BookingItem item) {
-      final BookingItem? previous = previousSnapshots[item.id];
-      return previous != null &&
-          _bookingFingerprint(previous) != _bookingFingerprint(item) &&
-          item.status == BookingStatus.cancelled &&
-          item.cancelledByRole == 'owner_telegram';
-    }).toList(growable: false);
-
-    if (telegramCancelled.isEmpty) {
-      return;
-    }
-
-    final BookingItem latest = telegramCancelled.first;
-    final String message = l10n.telegramCancellationNotice(
-      latest.salonName,
-      bookingCancellationReasonLabel(latest.cancelReasonId, l10n),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: SnackBarAction(
-          label: l10n.view,
-          onPressed: () {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _currentIndex = 2;
-            });
-          },
-        ),
-      ),
+    await _maybePromptForCompletedReview(
+      bookings: bookings,
+      previousSnapshots: previousSnapshots,
     );
   }
 
   String _bookingFingerprint(BookingItem booking) {
     return '${booking.status.name}|${booking.cancelledByRole}|${booking.cancelReasonId}';
+  }
+
+  Future<void> _maybePromptForCompletedReview({
+    required List<BookingItem> bookings,
+    required Map<String, BookingItem> previousSnapshots,
+  }) async {
+    if (!mounted || _isReviewPromptOpen) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final List<BookingItem> candidates = bookings.where((BookingItem item) {
+      if (item.status != BookingStatus.completed ||
+          item.hasReview ||
+          _reviewPromptDismissed.contains(item.id)) {
+        return false;
+      }
+
+      final BookingItem? previous = previousSnapshots[item.id];
+      if (previous != null) {
+        return previous.status != BookingStatus.completed;
+      }
+
+      final DateTime? completedAt = item.completedAt;
+      return completedAt != null &&
+          completedAt.isAfter(now.subtract(_recentCompletionPromptWindow));
+    }).toList(growable: false);
+
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    await _openCompletedReviewPrompt(candidates.first);
+  }
+
+  Future<void> _openCompletedReviewPrompt(BookingItem booking) async {
+    if (!mounted || _isReviewPromptOpen) {
+      return;
+    }
+
+    _isReviewPromptOpen = true;
+    try {
+      final WorkshopProvider workshopProvider = context.read<WorkshopProvider>();
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      Salon? salon = workshopProvider.workshopById(booking.workshopId);
+      salon ??= await workshopProvider.refreshWorkshopById(booking.workshopId);
+      if (!mounted || salon == null) {
+        return;
+      }
+
+      final Salon? updated = await showWorkshopReviewComposerSheet(
+        context: context,
+        salon: salon,
+        l10n: l10n,
+        preselectedServiceId: booking.serviceId,
+        bookingId: booking.id,
+        lockServiceSelection: true,
+        title: l10n.completedReviewTitle,
+        subtitle: l10n.completedReviewSubtitle(
+          booking.serviceName,
+          booking.salonName,
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+      if (updated == null) {
+        _reviewPromptDismissed.add(booking.id);
+        return;
+      }
+      _reviewPromptDismissed.remove(booking.id);
+    } finally {
+      _isReviewPromptOpen = false;
+    }
   }
 
   @override

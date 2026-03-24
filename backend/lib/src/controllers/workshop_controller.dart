@@ -50,6 +50,7 @@ class WorkshopController {
     try {
       final Map<String, dynamic> body = await readJsonMap(request);
       final String serviceId = (body['serviceId'] ?? '').toString().trim();
+      final String bookingId = (body['bookingId'] ?? '').toString().trim();
       final int rating = _toInt(body['rating']);
       final String comment = (body['comment'] ?? '').toString();
       if (serviceId.isEmpty) {
@@ -62,6 +63,7 @@ class WorkshopController {
         serviceId: serviceId,
         rating: rating,
         comment: comment,
+        bookingId: bookingId,
       );
       await _store.saveReviews(reviewsFilePath);
       await _store.saveWorkshops(workshopsFilePath);

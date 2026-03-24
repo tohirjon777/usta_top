@@ -85,6 +85,7 @@ class AdminBookingsController {
       workshopId: workshopId,
       status: status,
     );
+    final Uri reviewsUri = _adminReviewsUri(lang: lang);
     final Uri resetUri = _adminBookingsUri(lang: lang);
     final Uri langUzUri = _adminBookingsUri(
       lang: 'uz',
@@ -569,6 +570,7 @@ class AdminBookingsController {
         <div class="tab-row">
           <a class="pill-link" href="${_escapeHtml(workshopsUri.toString())}">${_escapeHtml(_text(lang, 'workshopsTab'))}</a>
           <a class="pill-link active" href="${_escapeHtml(bookingsUri.toString())}">${_escapeHtml(_text(lang, 'bookingsTab'))}</a>
+          <a class="pill-link" href="${_escapeHtml(reviewsUri.toString())}">${_escapeHtml(_text(lang, 'reviewsTab'))}</a>
         </div>
         <a class="pill-link${lang == 'uz' ? ' active' : ''}" href="${_escapeHtml(langUzUri.toString())}">UZ</a>
         <a class="pill-link${lang == 'ru' ? ' active' : ''}" href="${_escapeHtml(langRuUri.toString())}">RU</a>
@@ -923,6 +925,13 @@ class AdminBookingsController {
         },
       );
 
+  Uri _adminReviewsUri({String? lang}) => Uri(
+        path: '/admin/reviews',
+        queryParameters: <String, String>{
+          'lang': _normalizeLang(lang),
+        },
+      );
+
   String _requestPathWithQuery(Request request, {required String lang}) {
     final String path = request.url.path.startsWith('/')
         ? request.url.path
@@ -1041,6 +1050,7 @@ class AdminBookingsController {
       'logout': 'Chiqish',
       'workshopsTab': 'Avtoservislar',
       'bookingsTab': 'Zakazlar',
+      'reviewsTab': 'Sharhlar',
       'heroEyebrow': 'Zakaz Nazorati',
       'heroTitle':
           'Ilovadan tushgan zakazlarni bir joyda kuzating va statusini boshqaring.',
@@ -1106,6 +1116,7 @@ class AdminBookingsController {
       'logout': 'Выйти',
       'workshopsTab': 'Автосервисы',
       'bookingsTab': 'Заказы',
+      'reviewsTab': 'Отзывы',
       'heroEyebrow': 'Контроль Заказов',
       'heroTitle':
           'Следите за заказами из приложения в одном месте и управляйте их статусом.',
@@ -1170,6 +1181,7 @@ class AdminBookingsController {
       'logout': 'Log out',
       'workshopsTab': 'Workshops',
       'bookingsTab': 'Orders',
+      'reviewsTab': 'Reviews',
       'heroEyebrow': 'Order Control',
       'heroTitle':
           'Track orders coming from the app in one place and manage their status.',

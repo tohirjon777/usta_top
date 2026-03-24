@@ -94,6 +94,7 @@ class WorkshopProvider extends ChangeNotifier {
     required String serviceId,
     required int rating,
     required String comment,
+    String? bookingId,
   }) async {
     try {
       final Salon updated = await _service.submitReview(
@@ -101,6 +102,7 @@ class WorkshopProvider extends ChangeNotifier {
         serviceId: serviceId,
         rating: rating,
         comment: comment,
+        bookingId: bookingId,
       );
       _upsertWorkshop(updated);
       return updated;

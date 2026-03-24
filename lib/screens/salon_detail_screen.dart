@@ -10,6 +10,7 @@ import '../models/salon_review.dart';
 import '../providers/saved_workshops_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../services/navigation_launcher.dart';
+import '../ui/review_composer_sheet.dart';
 import 'booking_screen.dart';
 
 class SalonDetailScreen extends StatefulWidget {
@@ -94,17 +95,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     SalonService? preselectedService,
   }) async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Salon? updated = await showModalBottomSheet<Salon>(
+    final Salon? updated = await showWorkshopReviewComposerSheet(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (BuildContext context) {
-        return _ReviewComposerSheet(
-          salon: _salon,
-          l10n: l10n,
-          preselectedServiceId: preselectedService?.id,
-        );
-      },
+      salon: _salon,
+      l10n: l10n,
+      preselectedServiceId: preselectedService?.id,
     );
     if (!mounted || updated == null) {
       return;
@@ -428,196 +423,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         SnackBar(content: Text(l10n.savedWorkshopUpdateFailed)),
       );
     }
-  }
-}
-
-class _ReviewComposerSheet extends StatefulWidget {
-  const _ReviewComposerSheet({
-    required this.salon,
-    required this.l10n,
-    this.preselectedServiceId,
-  });
-
-  final Salon salon;
-  final AppLocalizations l10n;
-  final String? preselectedServiceId;
-
-  @override
-  State<_ReviewComposerSheet> createState() => _ReviewComposerSheetState();
-}
-
-class _ReviewComposerSheetState extends State<_ReviewComposerSheet> {
-  late final TextEditingController _commentController;
-  late String _selectedServiceId;
-  int _rating = 5;
-  bool _isSubmitting = false;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _commentController = TextEditingController();
-    _selectedServiceId = widget.preselectedServiceId?.trim().isNotEmpty == true
-        ? widget.preselectedServiceId!.trim()
-        : widget.salon.services.first.id;
-  }
-
-  @override
-  void dispose() {
-    _commentController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final String comment = normalizeSalonReviewText(_commentController.text);
-    if (comment.length < 3) {
-      setState(() {
-        _errorText = widget.l10n.reviewCommentValidation;
-      });
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-      _errorText = null;
-    });
-
-    final Salon? updated = await context.read<WorkshopProvider>().submitReview(
-          workshopId: widget.salon.id,
-          serviceId: _selectedServiceId,
-          rating: _rating,
-          comment: comment,
-        );
-    if (!mounted) {
-      return;
-    }
-    if (updated == null) {
-      setState(() {
-        _isSubmitting = false;
-        _errorText = context.read<WorkshopProvider>().errorMessage ??
-            widget.l10n.reviewSubmitFailed;
-      });
-      return;
-    }
-
-    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop(updated);
-    messenger.showSnackBar(
-      SnackBar(content: Text(widget.l10n.reviewSubmitSuccess)),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + viewInsets.bottom),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(
-            widget.l10n.writeReview,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.l10n.reviewSheetSubtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.secondaryTextOf(context),
-                ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            key: ValueKey<String>(_selectedServiceId),
-            initialValue: _selectedServiceId,
-            decoration: InputDecoration(
-              labelText: widget.l10n.serviceSelectLabel,
-            ),
-            items: widget.salon.services.map((SalonService service) {
-              return DropdownMenuItem<String>(
-                value: service.id,
-                child: Text(service.name),
-              );
-            }).toList(growable: false),
-            onChanged: _isSubmitting
-                ? null
-                : (String? value) {
-                    if (value == null || value.isEmpty) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedServiceId = value;
-                    });
-                  },
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.l10n.ratingLabel(_rating),
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            children: List<Widget>.generate(5, (int index) {
-              final int star = index + 1;
-              return IconButton.filledTonal(
-                onPressed: _isSubmitting
-                    ? null
-                    : () {
-                        setState(() {
-                          _rating = star;
-                        });
-                      },
-                icon: Icon(
-                  star <= _rating ? Icons.star : Icons.star_border,
-                  color: star <= _rating
-                      ? AppColors.starOf(context)
-                      : AppColors.secondaryTextOf(context),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _commentController,
-            enabled: !_isSubmitting,
-            maxLines: 5,
-            maxLength: 500,
-            decoration: InputDecoration(
-              labelText: widget.l10n.commentLabel,
-              hintText: widget.l10n.reviewHint,
-              errorText: _errorText,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed:
-                      _isSubmitting ? null : () => Navigator.of(context).pop(),
-                  child: Text(widget.l10n.cancel),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(widget.l10n.sendReview),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 }
 

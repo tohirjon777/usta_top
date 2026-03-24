@@ -426,6 +426,7 @@ class AdminController {
       lang: 'en',
     );
     final Uri bookingsUri = _adminBookingsPageUri(lang: lang);
+    final Uri reviewsUri = _adminReviewsPageUri(lang: lang);
 
     final List<WorkshopModel> allWorkshops = _store.workshops();
     final List<WorkshopModel> searchResults = _store.workshops(query: query);
@@ -1262,6 +1263,7 @@ class AdminController {
       <div class="top-actions">
         <a class="pill-link hero-primary" href="${_escapeHtml(refreshUri.toString())}">${_escapeHtml(_text(lang, 'workshopsTab'))}</a>
         <a class="pill-link" href="${_escapeHtml(bookingsUri.toString())}">${_escapeHtml(_text(lang, 'bookingsTab'))}</a>
+        <a class="pill-link" href="${_escapeHtml(reviewsUri.toString())}">${_escapeHtml(_text(lang, 'reviewsTab'))}</a>
         <span class="chip">${_escapeHtml(_text(lang, 'language'))}</span>
         <a class="pill-link${lang == 'uz' ? ' hero-primary' : ''}" href="${_escapeHtml(langUzUri.toString())}">UZ</a>
         <a class="pill-link${lang == 'ru' ? ' hero-primary' : ''}" href="${_escapeHtml(langRuUri.toString())}">RU</a>
@@ -2454,6 +2456,17 @@ class AdminController {
     );
   }
 
+  Uri _adminReviewsPageUri({
+    String? lang,
+  }) {
+    return Uri(
+      path: '/admin/reviews',
+      queryParameters: <String, String>{
+        'lang': _normalizeLang(lang),
+      },
+    );
+  }
+
   Uri _ownerLoginUri({
     String? lang,
     String? workshopId,
@@ -2974,6 +2987,7 @@ class AdminController {
       'language': 'Til',
       'workshopsTab': 'Avtoservislar',
       'bookingsTab': 'Zakazlar',
+      'reviewsTab': 'Sharhlar',
       'ordersButton': 'Zakazlarni ko‘rish',
       'logout': 'Chiqish',
       'adminLoginTitle': 'Admin kirish',
@@ -3169,6 +3183,7 @@ class AdminController {
       'language': 'Язык',
       'workshopsTab': 'Автосервисы',
       'bookingsTab': 'Заказы',
+      'reviewsTab': 'Отзывы',
       'ordersButton': 'Открыть заказы',
       'logout': 'Выйти',
       'adminLoginTitle': 'Вход администратора',
@@ -3362,6 +3377,7 @@ class AdminController {
       'language': 'Language',
       'workshopsTab': 'Workshops',
       'bookingsTab': 'Orders',
+      'reviewsTab': 'Reviews',
       'ordersButton': 'Open orders',
       'logout': 'Log out',
       'adminLoginTitle': 'Admin sign in',

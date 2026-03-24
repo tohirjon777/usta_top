@@ -5,6 +5,7 @@ import 'admin_auth.dart';
 import 'auth_middleware.dart';
 import 'controllers/admin_bookings_controller.dart';
 import 'controllers/admin_controller.dart';
+import 'controllers/admin_reviews_controller.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/booking_controller.dart';
 import 'controllers/health_controller.dart';
@@ -91,6 +92,13 @@ AppRuntime buildAppRuntime(
     notificationsService: notificationsService,
     userNotificationsService: userNotificationsService,
   );
+  final AdminReviewsController adminReviewsController = AdminReviewsController(
+    store,
+    adminAuthService: adminAuthService,
+    reviewsFilePath: reviewsFilePath,
+    workshopsFilePath: workshopsFilePath,
+    notificationsService: notificationsService,
+  );
   final OwnerAuthService ownerAuthService = OwnerAuthService();
   final OwnerController ownerController = OwnerController(
     store,
@@ -112,6 +120,10 @@ AppRuntime buildAppRuntime(
     ..post('/admin/logout', adminController.logout)
     ..get('/admin/workshops', adminController.workshopsPage)
     ..get('/admin/bookings', adminBookingsController.bookingsPage)
+    ..get('/admin/reviews', adminReviewsController.reviewsPage)
+    ..post('/admin/reviews/<id>/hide', adminReviewsController.hideReview)
+    ..post('/admin/reviews/<id>/unhide', adminReviewsController.unhideReview)
+    ..post('/admin/reviews/<id>/remind', adminReviewsController.remindReview)
     ..post('/admin/bookings/<id>/status', adminBookingsController.updateStatus)
     ..get('/owner', ownerController.entry)
     ..get('/owner/login', ownerController.loginPage)

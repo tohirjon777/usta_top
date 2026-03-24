@@ -29,6 +29,9 @@ class BookingItem {
     required this.basePrice,
     required this.price,
     this.status = BookingStatus.upcoming,
+    this.completedAt,
+    this.reviewId = '',
+    this.reviewSubmittedAt,
     this.messageCount = 0,
     this.unreadForCustomerCount = 0,
     this.lastMessagePreview = '',
@@ -51,6 +54,9 @@ class BookingItem {
   final int basePrice;
   final int price;
   final BookingStatus status;
+  final DateTime? completedAt;
+  final String reviewId;
+  final DateTime? reviewSubmittedAt;
   final int messageCount;
   final int unreadForCustomerCount;
   final String lastMessagePreview;
@@ -59,6 +65,8 @@ class BookingItem {
   final String cancelReasonId;
   final String cancelledByRole;
   final DateTime? cancelledAt;
+
+  bool get hasReview => reviewId.trim().isNotEmpty;
 
   factory BookingItem.fromJson(Map<String, dynamic> json) {
     // TODO(API): booking object kalitlari:
@@ -82,6 +90,10 @@ class BookingItem {
           : _toInt(json['basePrice']),
       price: _toInt(json['price']),
       status: _statusFromString((json['status'] ?? '').toString()),
+      completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
+      reviewId: (json['reviewId'] ?? '').toString().trim(),
+      reviewSubmittedAt:
+          DateTime.tryParse((json['reviewSubmittedAt'] ?? '').toString()),
       messageCount: _toInt(json['messageCount']),
       unreadForCustomerCount: _toInt(json['unreadForCustomerCount']),
       lastMessagePreview: (json['lastMessagePreview'] ?? '').toString(),
@@ -107,6 +119,9 @@ class BookingItem {
     int? basePrice,
     int? price,
     BookingStatus? status,
+    DateTime? completedAt,
+    String? reviewId,
+    DateTime? reviewSubmittedAt,
     int? messageCount,
     int? unreadForCustomerCount,
     String? lastMessagePreview,
@@ -129,6 +144,9 @@ class BookingItem {
       basePrice: basePrice ?? this.basePrice,
       price: price ?? this.price,
       status: status ?? this.status,
+      completedAt: completedAt ?? this.completedAt,
+      reviewId: reviewId ?? this.reviewId,
+      reviewSubmittedAt: reviewSubmittedAt ?? this.reviewSubmittedAt,
       messageCount: messageCount ?? this.messageCount,
       unreadForCustomerCount:
           unreadForCustomerCount ?? this.unreadForCustomerCount,

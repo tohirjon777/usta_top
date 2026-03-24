@@ -311,6 +311,7 @@ class BookingModel {
     required this.price,
     required this.status,
     required this.createdAt,
+    this.completedAt,
     this.cancelReasonId = '',
     this.cancelledByRole = '',
     this.cancelledAt,
@@ -332,12 +333,14 @@ class BookingModel {
   final int price;
   final BookingStatus status;
   final DateTime createdAt;
+  final DateTime? completedAt;
   final String cancelReasonId;
   final String cancelledByRole;
   final DateTime? cancelledAt;
 
   BookingModel copyWith({
     BookingStatus? status,
+    DateTime? completedAt,
     String? cancelReasonId,
     String? cancelledByRole,
     DateTime? cancelledAt,
@@ -359,6 +362,7 @@ class BookingModel {
       price: price,
       status: status ?? this.status,
       createdAt: createdAt,
+      completedAt: completedAt ?? this.completedAt,
       cancelReasonId: cancelReasonId ?? this.cancelReasonId,
       cancelledByRole: cancelledByRole ?? this.cancelledByRole,
       cancelledAt: cancelledAt ?? this.cancelledAt,
@@ -389,6 +393,7 @@ class BookingModel {
       status: _bookingStatusFromString((json['status'] ?? '').toString()),
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
+      completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
       cancelReasonId: normalizeBookingCancellationReasonId(
         (json['cancelReasonId'] ?? '').toString(),
       ),
@@ -417,6 +422,8 @@ class BookingModel {
       'price': price,
       'status': status.name,
       'createdAt': createdAt.toUtc().toIso8601String(),
+      if (completedAt != null)
+        'completedAt': completedAt!.toUtc().toIso8601String(),
       if (cancelReasonId.isNotEmpty) 'cancelReasonId': cancelReasonId,
       if (cancelledByRole.isNotEmpty) 'cancelledByRole': cancelledByRole,
       if (cancelledAt != null)
@@ -461,9 +468,14 @@ class WorkshopReviewModel {
     required this.rating,
     required this.comment,
     required this.createdAt,
+    this.bookingId = '',
     this.ownerReply = '',
     this.ownerReplyAt,
     this.ownerReplySource = '',
+    this.isHidden = false,
+    this.hiddenAt,
+    this.hiddenByRole = '',
+    this.hiddenReason = '',
   });
 
   final String id;
@@ -476,11 +488,17 @@ class WorkshopReviewModel {
   final int rating;
   final String comment;
   final DateTime createdAt;
+  final String bookingId;
   final String ownerReply;
   final DateTime? ownerReplyAt;
   final String ownerReplySource;
+  final bool isHidden;
+  final DateTime? hiddenAt;
+  final String hiddenByRole;
+  final String hiddenReason;
 
   bool get hasOwnerReply => ownerReply.trim().isNotEmpty;
+  bool get isVisible => !isHidden;
 
   WorkshopReviewModel copyWith({
     String? id,
@@ -493,9 +511,14 @@ class WorkshopReviewModel {
     int? rating,
     String? comment,
     DateTime? createdAt,
+    String? bookingId,
     String? ownerReply,
     DateTime? ownerReplyAt,
     String? ownerReplySource,
+    bool? isHidden,
+    DateTime? hiddenAt,
+    String? hiddenByRole,
+    String? hiddenReason,
   }) {
     return WorkshopReviewModel(
       id: id ?? this.id,
@@ -508,9 +531,14 @@ class WorkshopReviewModel {
       rating: rating ?? this.rating,
       comment: comment ?? this.comment,
       createdAt: createdAt ?? this.createdAt,
+      bookingId: bookingId ?? this.bookingId,
       ownerReply: ownerReply ?? this.ownerReply,
       ownerReplyAt: ownerReplyAt ?? this.ownerReplyAt,
       ownerReplySource: ownerReplySource ?? this.ownerReplySource,
+      isHidden: isHidden ?? this.isHidden,
+      hiddenAt: hiddenAt ?? this.hiddenAt,
+      hiddenByRole: hiddenByRole ?? this.hiddenByRole,
+      hiddenReason: hiddenReason ?? this.hiddenReason,
     );
   }
 
@@ -527,11 +555,17 @@ class WorkshopReviewModel {
       comment: normalizeWorkshopReviewText((json['comment'] ?? '').toString()),
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
+      bookingId: (json['bookingId'] ?? '').toString().trim(),
       ownerReply:
           normalizeWorkshopReviewText((json['ownerReply'] ?? '').toString()),
       ownerReplyAt:
           DateTime.tryParse((json['ownerReplyAt'] ?? '').toString()),
       ownerReplySource: (json['ownerReplySource'] ?? '').toString().trim(),
+      isHidden: json['isHidden'] == true,
+      hiddenAt: DateTime.tryParse((json['hiddenAt'] ?? '').toString()),
+      hiddenByRole: (json['hiddenByRole'] ?? '').toString().trim(),
+      hiddenReason:
+          normalizeWorkshopReviewText((json['hiddenReason'] ?? '').toString()),
     );
   }
 
@@ -547,10 +581,15 @@ class WorkshopReviewModel {
       'rating': rating,
       'comment': comment,
       'createdAt': createdAt.toUtc().toIso8601String(),
+      if (bookingId.isNotEmpty) 'bookingId': bookingId,
       if (ownerReply.isNotEmpty) 'ownerReply': ownerReply,
       if (ownerReplyAt != null)
         'ownerReplyAt': ownerReplyAt!.toUtc().toIso8601String(),
       if (ownerReplySource.isNotEmpty) 'ownerReplySource': ownerReplySource,
+      if (isHidden) 'isHidden': true,
+      if (hiddenAt != null) 'hiddenAt': hiddenAt!.toUtc().toIso8601String(),
+      if (hiddenByRole.isNotEmpty) 'hiddenByRole': hiddenByRole,
+      if (hiddenReason.isNotEmpty) 'hiddenReason': hiddenReason,
     };
   }
 
@@ -568,6 +607,10 @@ class WorkshopReviewModel {
       if (ownerReplyAt != null)
         'ownerReplyAt': ownerReplyAt!.toUtc().toIso8601String(),
       if (ownerReplySource.isNotEmpty) 'ownerReplySource': ownerReplySource,
+      'isHidden': isHidden,
+      if (hiddenAt != null) 'hiddenAt': hiddenAt!.toUtc().toIso8601String(),
+      if (hiddenByRole.isNotEmpty) 'hiddenByRole': hiddenByRole,
+      if (hiddenReason.isNotEmpty) 'hiddenReason': hiddenReason,
     };
   }
 }
