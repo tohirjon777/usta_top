@@ -122,6 +122,7 @@ AppRuntime buildAppRuntime(
     ..post('/owner/telegram/check', ownerController.checkTelegramLink)
     ..post('/owner/telegram/disconnect', ownerController.disconnectTelegram)
     ..post('/owner/services/<id>/price', ownerController.updateServicePrice)
+    ..post('/owner/reviews/<id>/reply', ownerController.replyReview)
     ..post('/owner/bookings/<id>/status', ownerController.updateStatus)
     ..post('/admin/workshops', adminController.createWorkshop)
     ..post('/admin/workshops/<id>/update', adminController.updateWorkshop)

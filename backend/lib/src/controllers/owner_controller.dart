@@ -596,6 +596,19 @@ class OwnerController {
     final int cancelledCount = _store
         .bookings(workshopId: workshop.id, status: BookingStatus.cancelled)
         .length;
+    final List<WorkshopReviewModel> reviews = _store
+        .reviewsForWorkshop(workshopId: workshop.id)
+        .toList(growable: false)
+      ..sort((WorkshopReviewModel a, WorkshopReviewModel b) {
+        if (a.hasOwnerReply == b.hasOwnerReply) {
+          return b.createdAt.compareTo(a.createdAt);
+        }
+        return a.hasOwnerReply ? 1 : -1;
+      });
+    final int pendingReviewCount = reviews
+        .where((WorkshopReviewModel item) => !item.hasOwnerReply)
+        .length;
+    final int repliedReviewCount = reviews.length - pendingReviewCount;
 
     final Uri langUzUri = _ownerBookingsUri(lang: 'uz', status: status);
     final Uri langRuUri = _ownerBookingsUri(lang: 'ru', status: status);
@@ -607,6 +620,14 @@ class OwnerController {
     );
     final String servicePricingCard = _servicePricingCardHtml(
       workshop: workshop,
+      lang: lang,
+      status: status,
+    );
+    final String reviewInboxCard = _reviewInboxCardHtml(
+      workshop: workshop,
+      reviews: reviews,
+      pendingReviewCount: pendingReviewCount,
+      repliedReviewCount: repliedReviewCount,
       lang: lang,
       status: status,
     );
@@ -894,6 +915,136 @@ class OwnerController {
     .service-pricing-card p {
       color: var(--muted);
       line-height: 1.65;
+    }
+
+    .review-card {
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .review-card p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .review-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .review-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .review-item {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 12px;
+    }
+
+    .review-item.pending-review {
+      border-color: rgba(191, 91, 33, 0.18);
+      background: rgba(255, 248, 241, 0.92);
+    }
+
+    .review-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      flex-wrap: wrap;
+    }
+
+    .review-copy {
+      display: grid;
+      gap: 6px;
+    }
+
+    .review-title-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .review-badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .review-badge.pending {
+      color: var(--yellow);
+      background: var(--yellow-soft);
+    }
+
+    .review-badge.answered {
+      color: var(--mint);
+      background: var(--mint-soft);
+    }
+
+    .review-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .review-stars {
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      font-weight: 800;
+    }
+
+    .review-comment {
+      line-height: 1.7;
+      color: var(--ink);
+      white-space: pre-wrap;
+    }
+
+    .review-reply-box {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(31, 138, 99, 0.14);
+      background: rgba(232, 247, 240, 0.9);
+      display: grid;
+      gap: 8px;
+    }
+
+    .review-reply-box strong {
+      color: var(--mint);
+    }
+
+    .review-reply-meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .review-reply-form {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .review-reply-form textarea {
+      width: 100%;
+      min-height: 108px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      font: inherit;
+      resize: vertical;
+      background: rgba(255, 255, 255, 0.94);
     }
 
     .service-pricing-note {
@@ -1190,6 +1341,7 @@ class OwnerController {
     ${_flashHtml(message: message, error: error)}
 
     $servicePricingCard
+    $reviewInboxCard
 
     <section class="booking-list">
       $bookingCards
@@ -1269,6 +1421,54 @@ class OwnerController {
         ),
       );
     } on FormatException catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.message,
+        ),
+      );
+    }
+  }
+
+  Future<Response> replyReview(Request request, String reviewId) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    try {
+      final WorkshopReviewModel updated = _store.replyToWorkshopReview(
+        workshopId: workshop.id,
+        reviewId: reviewId,
+        reply: form['reply'] ?? '',
+        source: 'owner_panel',
+      );
+      await _store.saveReviews(reviewsFilePath);
+      await _notifyUserAboutReviewReply(
+        workshop: workshop,
+        review: updated,
+      );
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          message: _text(
+            lang,
+            'reviewReplySaved',
+            <String, Object>{'service': updated.serviceName},
+          ),
+        ),
+      );
+    } on StateError catch (error) {
       return Response.seeOther(
         _ownerBookingsUri(
           lang: lang,
@@ -1437,6 +1637,99 @@ class OwnerController {
 
   <div class="service-pricing-list">
     $serviceList
+  </div>
+</section>
+''';
+  }
+
+  String _reviewInboxCardHtml({
+    required WorkshopModel workshop,
+    required List<WorkshopReviewModel> reviews,
+    required int pendingReviewCount,
+    required int repliedReviewCount,
+    required String lang,
+    required String status,
+  }) {
+    final String hiddenFields = '''
+<input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+<input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+''';
+
+    final String reviewItems = reviews.isEmpty
+        ? '<section class="empty-card"><p>${_escapeHtml(_text(lang, 'reviewEmptyBody'))}</p></section>'
+        : reviews.map((WorkshopReviewModel review) {
+            final bool hasReply = review.hasOwnerReply;
+            final String customerLabel =
+                review.customerName.trim().isEmpty ? _text(lang, 'unknownCustomer') : review.customerName;
+            final String phoneLabel =
+                review.customerPhone.trim().isEmpty ? _text(lang, 'noPhone') : review.customerPhone;
+            final String sourceLabel = hasReply
+                ? _reviewReplySourceLabel(review.ownerReplySource, lang)
+                : '';
+            final String replyMeta = review.ownerReplyAt == null
+                ? sourceLabel
+                : '$sourceLabel • ${_formatDateTime(review.ownerReplyAt!)}';
+            final String replyBox = hasReply
+                ? '''
+<div class="review-reply-box">
+  <strong>${_escapeHtml(_text(lang, 'reviewReplyLabel'))}</strong>
+  <div class="review-comment">${_escapeHtml(review.ownerReply)}</div>
+  <div class="review-reply-meta">${_escapeHtml(replyMeta)}</div>
+</div>
+'''
+                : '';
+            return '''
+<article class="review-item${hasReply ? '' : ' pending-review'}">
+  <div class="review-head">
+    <div class="review-copy">
+      <div class="review-title-row">
+        <strong>${_escapeHtml(review.serviceName)}</strong>
+        <span class="review-badge ${hasReply ? 'answered' : 'pending'}">${_escapeHtml(_reviewReplyBadgeLabel(hasReply, lang))}</span>
+      </div>
+      <div class="review-meta">
+        <span>${_escapeHtml(customerLabel)}</span>
+        <span>${_escapeHtml(phoneLabel)}</span>
+        <span>${_escapeHtml(_formatDateTime(review.createdAt))}</span>
+      </div>
+    </div>
+    <div class="review-stars">${_escapeHtml(_reviewStars(review.rating))} ${_escapeHtml(review.rating.toString())}/5</div>
+  </div>
+  <div class="review-comment">${_escapeHtml(review.comment)}</div>
+  $replyBox
+  <form class="review-reply-form" method="post" action="/owner/reviews/${Uri.encodeComponent(review.id)}/reply?lang=${Uri.encodeQueryComponent(lang)}">
+    $hiddenFields
+    <textarea name="reply" placeholder="${_escapeHtml(_text(lang, 'reviewReplyPlaceholder'))}">${_escapeHtml(review.ownerReply)}</textarea>
+    <div class="quick-links">
+      <button class="status-btn" type="submit">${_escapeHtml(_text(lang, hasReply ? 'reviewReplyUpdate' : 'reviewReplySave'))}</button>
+    </div>
+  </form>
+</article>
+''';
+          }).join();
+
+    return '''
+<section class="card review-card">
+  <div>
+    <div class="eyebrow">${_escapeHtml(_text(lang, 'reviewInboxEyebrow'))}</div>
+    <h2>${_escapeHtml(_text(lang, 'reviewInboxTitle'))}</h2>
+    <p>${_escapeHtml(_text(lang, 'reviewInboxDescription'))}</p>
+  </div>
+
+  <div class="review-stat-grid">
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'reviewPendingTitle'))}</div>
+      <strong>$pendingReviewCount</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'reviewPendingHint'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'reviewAnsweredTitle'))}</div>
+      <strong>$repliedReviewCount</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'reviewAnsweredHint'))}</div>
+    </div>
+  </div>
+
+  <div class="review-list">
+    $reviewItems
   </div>
 </section>
 ''';
@@ -2362,6 +2655,25 @@ class OwnerController {
     return '${local.year}-$month-$day $hour:$minute';
   }
 
+  String _reviewStars(int rating) {
+    final int normalized = rating.clamp(1, 5);
+    return List<String>.filled(normalized, '★').join();
+  }
+
+  String _reviewReplyBadgeLabel(bool hasReply, String lang) {
+    return _text(lang, hasReply ? 'reviewAnsweredBadge' : 'reviewPendingBadge');
+  }
+
+  String _reviewReplySourceLabel(String source, String lang) {
+    switch (source.trim()) {
+      case 'owner_telegram':
+        return _text(lang, 'reviewReplySourceTelegram');
+      case 'owner_panel':
+      default:
+        return _text(lang, 'reviewReplySourcePanel');
+    }
+  }
+
   String _text(
     String lang,
     String key, [
@@ -2436,6 +2748,25 @@ class OwnerController {
       'callCustomer': 'Mijozga qo‘ng‘iroq',
       'chatButton': 'Chat',
       'chatPreviewLabel': 'Oxirgi xabar',
+      'reviewInboxEyebrow': 'Sharhlar Inbox',
+      'reviewInboxTitle': 'Mijoz sharhlariga javob bering',
+      'reviewInboxDescription':
+          'Javobsiz sharhlar tepada turadi. Shu paneldan yozilgan javob ilovada ham darhol ko‘rinadi.',
+      'reviewPendingTitle': 'Javobsiz sharhlar',
+      'reviewPendingHint': 'Tez javob berish kerak bo‘lgan fikrlar.',
+      'reviewAnsweredTitle': 'Javob berilgan',
+      'reviewAnsweredHint': 'Usta tomonidan javob yozilgan sharhlar.',
+      'reviewEmptyBody': 'Bu ustaxona uchun hali sharhlar kelmagan.',
+      'reviewReplyLabel': 'Usta javobi',
+      'reviewReplyPlaceholder':
+          'Mijozga qisqa, aniq va professional javob yozing.',
+      'reviewReplySave': 'Javobni yuborish',
+      'reviewReplyUpdate': 'Javobni yangilash',
+      'reviewReplySaved': '{service} bo‘yicha javob saqlandi',
+      'reviewPendingBadge': 'Javob kutilmoqda',
+      'reviewAnsweredBadge': 'Javob berilgan',
+      'reviewReplySourceTelegram': 'Telegram orqali',
+      'reviewReplySourcePanel': 'Panel orqali',
       'servicePricingEyebrow': 'Narx boshqaruvi',
       'servicePricingTitle': 'Xizmat narxlarini o‘zingiz belgilang',
       'servicePricingDescription':
@@ -2551,6 +2882,25 @@ class OwnerController {
       'callCustomer': 'Позвонить клиенту',
       'chatButton': 'Чат',
       'chatPreviewLabel': 'Последнее сообщение',
+      'reviewInboxEyebrow': 'Inbox отзывов',
+      'reviewInboxTitle': 'Отвечайте на отзывы клиентов',
+      'reviewInboxDescription':
+          'Отзывы без ответа показываются сверху. Ответ отсюда сразу появляется и в приложении.',
+      'reviewPendingTitle': 'Без ответа',
+      'reviewPendingHint': 'Отзывы, на которые стоит ответить в первую очередь.',
+      'reviewAnsweredTitle': 'С ответом',
+      'reviewAnsweredHint': 'Отзывы, где мастер уже оставил ответ.',
+      'reviewEmptyBody': 'Для этого автосервиса отзывов пока нет.',
+      'reviewReplyLabel': 'Ответ мастера',
+      'reviewReplyPlaceholder':
+          'Напишите клиенту короткий, понятный и профессиональный ответ.',
+      'reviewReplySave': 'Отправить ответ',
+      'reviewReplyUpdate': 'Обновить ответ',
+      'reviewReplySaved': 'Ответ по услуге {service} сохранен',
+      'reviewPendingBadge': 'Ждёт ответа',
+      'reviewAnsweredBadge': 'Ответ дан',
+      'reviewReplySourceTelegram': 'Через Telegram',
+      'reviewReplySourcePanel': 'Через панель',
       'servicePricingEyebrow': 'Управление ценами',
       'servicePricingTitle': 'Устанавливайте цены на услуги сами',
       'servicePricingDescription':
@@ -2666,6 +3016,25 @@ class OwnerController {
       'callCustomer': 'Call customer',
       'chatButton': 'Chat',
       'chatPreviewLabel': 'Latest message',
+      'reviewInboxEyebrow': 'Review Inbox',
+      'reviewInboxTitle': 'Reply to customer reviews',
+      'reviewInboxDescription':
+          'Unanswered reviews stay at the top. Replies written here appear in the app right away.',
+      'reviewPendingTitle': 'Waiting for reply',
+      'reviewPendingHint': 'Reviews that still need your attention.',
+      'reviewAnsweredTitle': 'Answered',
+      'reviewAnsweredHint': 'Reviews that already have a workshop reply.',
+      'reviewEmptyBody': 'No reviews have arrived for this workshop yet.',
+      'reviewReplyLabel': 'Workshop reply',
+      'reviewReplyPlaceholder':
+          'Write a short, clear, professional reply for the customer.',
+      'reviewReplySave': 'Send reply',
+      'reviewReplyUpdate': 'Update reply',
+      'reviewReplySaved': 'Reply saved for {service}',
+      'reviewPendingBadge': 'Awaiting reply',
+      'reviewAnsweredBadge': 'Answered',
+      'reviewReplySourceTelegram': 'Via Telegram',
+      'reviewReplySourcePanel': 'Via panel',
       'servicePricingEyebrow': 'Price control',
       'servicePricingTitle': 'Set your own service prices',
       'servicePricingDescription':
