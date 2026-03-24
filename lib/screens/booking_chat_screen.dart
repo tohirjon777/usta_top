@@ -24,7 +24,7 @@ class BookingChatScreen extends StatefulWidget {
 
 class _BookingChatScreenState extends State<BookingChatScreen>
     with WidgetsBindingObserver {
-  static const Duration _refreshInterval = Duration(seconds: 8);
+  static const Duration _refreshInterval = Duration(seconds: 12);
 
   late final TextEditingController _messageController;
   late final ScrollController _scrollController;
@@ -40,10 +40,10 @@ class _BookingChatScreenState extends State<BookingChatScreen>
       if (!mounted) {
         return;
       }
-      _loadMessages();
+      unawaited(_loadMessages());
       _refreshTimer = Timer.periodic(
         _refreshInterval,
-        (_) => _loadMessages(),
+        (_) => unawaited(_loadMessages(markRead: false)),
       );
     });
   }
@@ -72,7 +72,9 @@ class _BookingChatScreenState extends State<BookingChatScreen>
     if (!mounted) {
       return;
     }
-    _jumpToBottom();
+    if (markRead) {
+      _jumpToBottom();
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -105,11 +107,15 @@ class _BookingChatScreenState extends State<BookingChatScreen>
       if (!mounted || !_scrollController.hasClients) {
         return;
       }
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
+      final ScrollPosition position = _scrollController.position;
+      if (!position.hasContentDimensions) {
+        return;
+      }
+      final double targetOffset = position.maxScrollExtent;
+      if (targetOffset <= position.pixels) {
+        return;
+      }
+      _scrollController.jumpTo(targetOffset);
     });
   }
 
