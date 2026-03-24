@@ -19,7 +19,9 @@ class BookingController extends ChangeNotifier {
   int get totalBookings => _bookings.length;
 
   int get upcomingBookings => _bookings
-      .where((BookingItem item) => item.status == BookingStatus.upcoming)
+      .where((BookingItem item) =>
+          item.status == BookingStatus.upcoming ||
+          item.status == BookingStatus.accepted)
       .length;
 
   void addBooking(BookingItem booking) {
@@ -35,7 +37,8 @@ class BookingController extends ChangeNotifier {
     }
 
     final BookingItem current = _bookings[index];
-    if (current.status != BookingStatus.upcoming) {
+    if (current.status != BookingStatus.upcoming &&
+        current.status != BookingStatus.accepted) {
       return false;
     }
 

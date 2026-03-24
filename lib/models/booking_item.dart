@@ -1,12 +1,14 @@
 import 'vehicle_type.dart';
 
-enum BookingStatus { upcoming, completed, cancelled }
+enum BookingStatus { upcoming, accepted, completed, cancelled }
 
 extension BookingStatusX on BookingStatus {
   String get label {
     switch (this) {
       case BookingStatus.upcoming:
         return 'Upcoming';
+      case BookingStatus.accepted:
+        return 'Accepted';
       case BookingStatus.completed:
         return 'Completed';
       case BookingStatus.cancelled:
@@ -172,6 +174,8 @@ class BookingItem {
 
   static BookingStatus _statusFromString(String value) {
     switch (value.toLowerCase()) {
+      case 'accepted':
+        return BookingStatus.accepted;
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':

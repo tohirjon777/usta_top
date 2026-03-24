@@ -1,7 +1,7 @@
 import 'booking_cancellation.dart';
 import 'vehicle_types.dart';
 
-enum BookingStatus { upcoming, completed, cancelled }
+enum BookingStatus { upcoming, accepted, completed, cancelled }
 
 enum BookingChatSenderRole { customer, workshopOwner }
 
@@ -454,6 +454,8 @@ class BookingModel {
 
   static BookingStatus _bookingStatusFromString(String raw) {
     switch (raw.toLowerCase()) {
+      case 'accepted':
+        return BookingStatus.accepted;
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':

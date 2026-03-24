@@ -70,6 +70,30 @@ class TelegramBotService {
     );
   }
 
+  Future<void> editMessageText({
+    required String chatId,
+    required int messageId,
+    required String text,
+    Map<String, Object>? replyMarkup,
+  }) async {
+    final String normalizedChatId = _normalizeChatId(chatId);
+    if (messageId <= 0) {
+      throw const TelegramBotException('Telegram message ID topilmadi');
+    }
+
+    await _post(
+      method: 'editMessageText',
+      payload: <String, Object?>{
+        'chat_id': normalizedChatId,
+        'message_id': messageId,
+        'text': text.trim(),
+        'disable_web_page_preview': true,
+        if (replyMarkup != null) 'reply_markup': replyMarkup,
+      },
+      fallbackError: 'Telegram xabari yangilanmadi',
+    );
+  }
+
   Future<Map<String, dynamic>> getMe() async {
     final Map<String, dynamic> decoded = await _get(
       method: 'getMe',

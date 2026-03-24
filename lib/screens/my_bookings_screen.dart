@@ -205,7 +205,8 @@ class _BookingCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (booking.status == BookingStatus.upcoming) ...<Widget>[
+            if (booking.status == BookingStatus.upcoming ||
+                booking.status == BookingStatus.accepted) ...<Widget>[
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -274,6 +275,9 @@ class _StatusBadge extends StatelessWidget {
       case BookingStatus.upcoming:
         foreground = AppColors.primaryToneOf(context);
         background = AppColors.primarySoftOf(context);
+      case BookingStatus.accepted:
+        foreground = AppColors.successForegroundOf(context);
+        background = AppColors.successBackgroundOf(context);
       case BookingStatus.completed:
         foreground = AppColors.successForegroundOf(context);
         background = AppColors.successBackgroundOf(context);
@@ -302,6 +306,8 @@ class _StatusBadge extends StatelessWidget {
     switch (status) {
       case BookingStatus.upcoming:
         return l10n.statusUpcoming;
+      case BookingStatus.accepted:
+        return l10n.statusAccepted;
       case BookingStatus.completed:
         return l10n.statusCompleted;
       case BookingStatus.cancelled:

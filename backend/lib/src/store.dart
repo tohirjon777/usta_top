@@ -1582,6 +1582,7 @@ class InMemoryStore {
   void _ensureCustomerCancellationAllowed(BookingModel booking) {
     switch (booking.status) {
       case BookingStatus.upcoming:
+      case BookingStatus.accepted:
         return;
       case BookingStatus.completed:
         throw StateError('Yakunlangan buyurtmani bekor qilib bo‘lmaydi');
@@ -1629,6 +1630,11 @@ class InMemoryStore {
     switch (current.status) {
       case BookingStatus.upcoming:
         return;
+      case BookingStatus.accepted:
+        if (nextStatus == BookingStatus.completed) {
+          return;
+        }
+        throw StateError('Qabul qilingan zakazni faqat yakunlash mumkin');
       case BookingStatus.completed:
         throw StateError(
             'Yakunlangan zakaz statusini qayta o‘zgartirib bo‘lmaydi');

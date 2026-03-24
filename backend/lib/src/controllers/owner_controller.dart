@@ -591,6 +591,9 @@ class OwnerController {
     final int upcomingCount = _store
         .bookings(workshopId: workshop.id, status: BookingStatus.upcoming)
         .length;
+    final int acceptedCount = _store
+        .bookings(workshopId: workshop.id, status: BookingStatus.accepted)
+        .length;
     final int completedCount = _store
         .bookings(workshopId: workshop.id, status: BookingStatus.completed)
         .length;
@@ -654,6 +657,7 @@ class OwnerController {
             final String statusLabel = _statusLabel(item.status, lang);
             final String statusClass = switch (item.status) {
               BookingStatus.upcoming => 'status-upcoming',
+              BookingStatus.accepted => 'status-accepted',
               BookingStatus.completed => 'status-completed',
               BookingStatus.cancelled => 'status-cancelled',
             };
@@ -889,7 +893,7 @@ class OwnerController {
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .stat-card {
@@ -1330,6 +1334,11 @@ class OwnerController {
       background: var(--yellow-soft);
     }
 
+    .status-accepted {
+      color: var(--mint);
+      background: var(--mint-soft);
+    }
+
     .status-completed {
       color: var(--mint);
       background: var(--mint-soft);
@@ -1368,6 +1377,7 @@ class OwnerController {
       <div class="top-actions">
         <a class="pill-link${status == 'all' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang).toString())}">${_escapeHtml(_text(lang, 'statusAll'))}</a>
         <a class="pill-link${status == 'upcoming' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'upcoming').toString())}">${_escapeHtml(_text(lang, 'statusUpcoming'))}</a>
+        <a class="pill-link${status == 'accepted' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'accepted').toString())}">${_escapeHtml(_text(lang, 'statusAccepted'))}</a>
         <a class="pill-link${status == 'completed' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'completed').toString())}">${_escapeHtml(_text(lang, 'statusCompleted'))}</a>
         <a class="pill-link${status == 'cancelled' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'cancelled').toString())}">${_escapeHtml(_text(lang, 'statusCancelled'))}</a>
         <a class="pill-link${lang == 'uz' ? ' active' : ''}" href="${_escapeHtml(langUzUri.toString())}">UZ</a>
@@ -1390,6 +1400,11 @@ class OwnerController {
             <div class="eyebrow">${_escapeHtml(_text(lang, 'statusUpcoming'))}</div>
             <strong>$upcomingCount</strong>
             <div class="muted">${_escapeHtml(_text(lang, 'upcomingHint'))}</div>
+          </div>
+          <div class="stat-card">
+            <div class="eyebrow">${_escapeHtml(_text(lang, 'statusAccepted'))}</div>
+            <strong>$acceptedCount</strong>
+            <div class="muted">${_escapeHtml(_text(lang, 'acceptedHint'))}</div>
           </div>
           <div class="stat-card">
             <div class="eyebrow">${_escapeHtml(_text(lang, 'statusCompleted'))}</div>
@@ -2239,7 +2254,16 @@ class OwnerController {
           'Bu zakaz allaqachon bekor qilingan',
         );
         return false;
+      case BookingStatus.accepted:
       case BookingStatus.upcoming:
+        if (parsed.kind == 'accept' &&
+            booking.status == BookingStatus.accepted) {
+          await _safeAnswerTelegramCallback(
+            action.callbackQueryId,
+            'Zakaz allaqachon qabul qilingan',
+          );
+          return false;
+        }
         try {
           final BookingModel updated = parsed.kind == 'cancel'
               ? _store.cancelWorkshopBooking(
@@ -2248,17 +2272,29 @@ class OwnerController {
                   reasonId: parsed.reasonId,
                   actorRole: 'owner_telegram',
                 )
+              : parsed.kind == 'accept'
+                  ? _store.updateWorkshopBookingStatus(
+                      workshopId: workshop.id,
+                      bookingId: booking.id,
+                      status: BookingStatus.accepted,
+                    )
               : _store.updateWorkshopBookingStatus(
                   workshopId: workshop.id,
                   bookingId: booking.id,
                   status: BookingStatus.completed,
                 );
-          await _safeClearTelegramButtons(action);
+          await _safeRefreshTelegramBookingMessage(
+            action,
+            workshop: workshop,
+            booking: updated,
+          );
           await _safeAnswerTelegramCallback(
             action.callbackQueryId,
             parsed.kind == 'cancel'
                 ? 'Zakaz bekor qilindi'
-                : 'Zakaz bajarildi deb belgilandi',
+                : parsed.kind == 'accept'
+                    ? 'Zakaz qabul qilindi'
+                    : 'Zakaz bajarildi deb belgilandi',
           );
           try {
             await notificationsService.sendBookingStatusNotification(
@@ -2323,6 +2359,19 @@ class OwnerController {
 
   _TelegramBookingCallback? _parseTelegramBookingCallback(String raw) {
     final List<String> parts = raw.trim().split(':');
+    if (parts.length == 2 && parts.first == 'a') {
+      final String bookingId = parts[1].trim();
+      if (bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'accept',
+        workshopId: '',
+        bookingId: bookingId,
+      );
+    }
+
     if (parts.length == 2 && parts.first == 'd') {
       final String bookingId = parts[1].trim();
       if (bookingId.isEmpty) {
@@ -2361,6 +2410,20 @@ class OwnerController {
 
       return _TelegramBookingCallback(
         kind: 'done',
+        workshopId: workshopId,
+        bookingId: bookingId,
+      );
+    }
+
+    if (parts.length == 3 && parts.first == 'accept') {
+      final String workshopId = parts[1].trim();
+      final String bookingId = parts[2].trim();
+      if (workshopId.isEmpty || bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'accept',
         workshopId: workshopId,
         bookingId: bookingId,
       );
@@ -2454,6 +2517,37 @@ class OwnerController {
     }
   }
 
+  Future<void> _safeRefreshTelegramBookingMessage(
+    _TelegramCallbackAction action, {
+    required WorkshopModel workshop,
+    required BookingModel booking,
+  }) async {
+    try {
+      await telegramBotService.editMessageText(
+        chatId: action.chatId,
+        messageId: action.messageId,
+        text: notificationsService.newBookingText(
+          workshop: workshop,
+          booking: booking,
+          includeStatus: true,
+        ),
+        replyMarkup: notificationsService.bookingActionMarkup(
+          workshop: workshop,
+          booking: booking,
+        ),
+      );
+      if (booking.status == BookingStatus.completed ||
+          booking.status == BookingStatus.cancelled) {
+        await telegramBotService.editMessageReplyMarkup(
+          chatId: action.chatId,
+          messageId: action.messageId,
+        );
+      }
+    } on Exception catch (error) {
+      stderr.writeln('Telegram zakaz xabari yangilanmadi: $error');
+    }
+  }
+
   int _toInt(Object? value) {
     if (value is int) {
       return value;
@@ -2534,10 +2628,19 @@ class OwnerController {
     String lang,
     String status,
   ) {
-    if (booking.status != BookingStatus.upcoming) {
+    if (booking.status == BookingStatus.completed ||
+        booking.status == BookingStatus.cancelled) {
       return '<span class="muted">${_escapeHtml(_text(lang, 'noFurtherActions'))}</span>';
     }
 
+    final String acceptForm = booking.status == BookingStatus.upcoming
+        ? _statusActionForm(
+            booking,
+            BookingStatus.accepted,
+            lang,
+            status,
+          )
+        : '';
     final String completeForm = _statusActionForm(
       booking,
       BookingStatus.completed,
@@ -2549,7 +2652,7 @@ class OwnerController {
       lang: lang,
       status: status,
     );
-    return '$completeForm$cancelForm';
+    return '$acceptForm$completeForm$cancelForm';
   }
 
   String _statusActionForm(
@@ -2736,6 +2839,8 @@ class OwnerController {
     switch ((raw ?? '').trim().toLowerCase()) {
       case 'upcoming':
         return 'upcoming';
+      case 'accepted':
+        return 'accepted';
       case 'completed':
         return 'completed';
       case 'cancelled':
@@ -2747,6 +2852,8 @@ class OwnerController {
 
   BookingStatus _statusFromRaw(String? raw) {
     switch ((raw ?? '').trim().toLowerCase()) {
+      case 'accepted':
+        return BookingStatus.accepted;
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':
@@ -2761,6 +2868,8 @@ class OwnerController {
     switch (status) {
       case BookingStatus.upcoming:
         return _text(lang, 'statusUpcoming');
+      case BookingStatus.accepted:
+        return _text(lang, 'statusAccepted');
       case BookingStatus.completed:
         return _text(lang, 'statusCompleted');
       case BookingStatus.cancelled:
@@ -2848,9 +2957,11 @@ class OwnerController {
           'Quyidagi ro‘yxatda faqat sizning ustaxonangizga tegishli buyurtmalar ko‘rinadi.',
       'statusAll': 'Barchasi',
       'statusUpcoming': 'Kutilmoqda',
+      'statusAccepted': 'Qabul qilindi',
       'statusCompleted': 'Yakunlangan',
       'statusCancelled': 'Bekor qilingan',
       'upcomingHint': 'Tez javob berish kerak bo‘lgan yangi zakazlar.',
+      'acceptedHint': 'Usta qabul qilib olgan zakazlar.',
       'completedHint': 'Bajarib bo‘lingan zakazlar.',
       'cancelledHint': 'Bekor qilingan buyurtmalar.',
       'emptyEyebrow': 'Zakaz Yo‘q',
@@ -2989,9 +3100,11 @@ class OwnerController {
           'В этом списке показаны только заказы, относящиеся к вашему автосервису.',
       'statusAll': 'Все',
       'statusUpcoming': 'Ожидает',
+      'statusAccepted': 'Принят',
       'statusCompleted': 'Завершен',
       'statusCancelled': 'Отменен',
       'upcomingHint': 'Новые заказы, на которые нужно быстро ответить.',
+      'acceptedHint': 'Заказы, которые мастер уже принял.',
       'completedHint': 'Заказы, по которым работа уже завершена.',
       'cancelledHint': 'Отмененные заявки.',
       'emptyEyebrow': 'Нет Заказов',
@@ -3130,9 +3243,11 @@ class OwnerController {
           'Only orders assigned to your workshop are shown in this list.',
       'statusAll': 'All',
       'statusUpcoming': 'Upcoming',
+      'statusAccepted': 'Accepted',
       'statusCompleted': 'Completed',
       'statusCancelled': 'Cancelled',
       'upcomingHint': 'Fresh orders that need attention.',
+      'acceptedHint': 'Orders already accepted by the workshop.',
       'completedHint': 'Orders that have already been finished.',
       'cancelledHint': 'Orders that were cancelled.',
       'emptyEyebrow': 'No Orders',

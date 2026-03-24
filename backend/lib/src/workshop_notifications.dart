@@ -19,6 +19,7 @@ class WorkshopNotificationsService {
       text: newBookingText(
         workshop: workshop,
         booking: booking,
+        includeStatus: true,
       ),
       replyMarkup: bookingActionMarkup(
         workshop: workshop,
@@ -178,13 +179,22 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
     required WorkshopModel workshop,
     required BookingModel booking,
   }) {
-    if (booking.status != BookingStatus.upcoming) {
+    if (booking.status == BookingStatus.completed ||
+        booking.status == BookingStatus.cancelled) {
       return null;
     }
 
     return <String, Object>{
       'inline_keyboard': <List<Map<String, String>>>[
         <Map<String, String>>[
+          if (booking.status == BookingStatus.upcoming)
+            <String, String>{
+              'text': 'Qabul qilindi',
+              'callback_data': acceptedBookingCallbackData(
+                workshopId: workshop.id,
+                bookingId: booking.id,
+              ),
+            },
           <String, String>{
             'text': 'Bajardim',
             'callback_data': completedBookingCallbackData(
@@ -233,6 +243,13 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
     };
   }
 
+  static String acceptedBookingCallbackData({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    return 'a:${bookingId.trim()}';
+  }
+
   static String completedBookingCallbackData({
     required String workshopId,
     required String bookingId,
@@ -270,6 +287,8 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
     switch (status) {
       case BookingStatus.upcoming:
         return 'Kutilmoqda';
+      case BookingStatus.accepted:
+        return 'Qabul qilindi';
       case BookingStatus.completed:
         return 'Yakunlangan';
       case BookingStatus.cancelled:

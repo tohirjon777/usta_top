@@ -129,6 +129,8 @@ class UserNotificationsService {
 
   String _titleForBookingStatus(BookingModel booking) {
     switch (booking.status) {
+      case BookingStatus.accepted:
+        return 'Usta Top: zakaz qabul qilindi';
       case BookingStatus.completed:
         return 'Usta Top: zakaz bajarildi';
       case BookingStatus.cancelled:
@@ -143,6 +145,8 @@ class UserNotificationsService {
     required String actor,
   }) {
     switch (booking.status) {
+      case BookingStatus.accepted:
+        return '${booking.workshopName} sizning ${booking.serviceName} zakazingizni qabul qildi.';
       case BookingStatus.completed:
         return '${booking.workshopName} sizning ${booking.serviceName} zakazingizni yakunladi.';
       case BookingStatus.cancelled:

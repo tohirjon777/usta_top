@@ -71,6 +71,9 @@ class AdminBookingsController {
     final int upcomingCount = allBookings
         .where((BookingModel item) => item.status == BookingStatus.upcoming)
         .length;
+    final int acceptedCount = allBookings
+        .where((BookingModel item) => item.status == BookingStatus.accepted)
+        .length;
     final int completedCount = allBookings
         .where((BookingModel item) => item.status == BookingStatus.completed)
         .length;
@@ -123,6 +126,7 @@ class AdminBookingsController {
             final String statusLabel = _statusLabel(item.status, lang);
             final String statusClass = switch (item.status) {
               BookingStatus.upcoming => 'status-upcoming',
+              BookingStatus.accepted => 'status-accepted',
               BookingStatus.completed => 'status-completed',
               BookingStatus.cancelled => 'status-cancelled',
             };
@@ -382,7 +386,7 @@ class AdminBookingsController {
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
     .stat-card, .filter-card, .owner-card {
@@ -526,6 +530,11 @@ class AdminBookingsController {
       background: var(--yellow-soft);
     }
 
+    .status-accepted {
+      color: var(--mint);
+      background: var(--mint-soft);
+    }
+
     .status-completed {
       color: var(--mint);
       background: var(--mint-soft);
@@ -608,6 +617,11 @@ class AdminBookingsController {
           <div class="muted">${_escapeHtml(_text(lang, 'statUpcomingSub'))}</div>
         </div>
         <div class="stat-card">
+          <div class="eyebrow">${_escapeHtml(_text(lang, 'statAccepted'))}</div>
+          <strong>$acceptedCount</strong>
+          <div class="muted">${_escapeHtml(_text(lang, 'statAcceptedSub'))}</div>
+        </div>
+        <div class="stat-card">
           <div class="eyebrow">${_escapeHtml(_text(lang, 'statCompleted'))}</div>
           <strong>$completedCount</strong>
           <div class="muted">${_escapeHtml(_text(lang, 'statCompletedSub'))}</div>
@@ -643,6 +657,7 @@ class AdminBookingsController {
             <select name="status">
               <option value="all"${status == 'all' ? ' selected' : ''}>${_escapeHtml(_text(lang, 'statusAll'))}</option>
               <option value="upcoming"${status == 'upcoming' ? ' selected' : ''}>${_escapeHtml(_text(lang, 'statusUpcoming'))}</option>
+              <option value="accepted"${status == 'accepted' ? ' selected' : ''}>${_escapeHtml(_text(lang, 'statusAccepted'))}</option>
               <option value="completed"${status == 'completed' ? ' selected' : ''}>${_escapeHtml(_text(lang, 'statusCompleted'))}</option>
               <option value="cancelled"${status == 'cancelled' ? ' selected' : ''}>${_escapeHtml(_text(lang, 'statusCancelled'))}</option>
             </select>
@@ -767,10 +782,21 @@ class AdminBookingsController {
     String workshopId,
     String status,
   ) {
-    if (booking.status != BookingStatus.upcoming) {
+    if (booking.status == BookingStatus.completed ||
+        booking.status == BookingStatus.cancelled) {
       return '<span class="muted">${_escapeHtml(_text(lang, 'noFurtherActions'))}</span>';
     }
 
+    final String acceptForm = booking.status == BookingStatus.upcoming
+        ? _statusActionForm(
+            booking,
+            BookingStatus.accepted,
+            lang,
+            query,
+            workshopId,
+            status,
+          )
+        : '';
     final String completeForm = _statusActionForm(
       booking,
       BookingStatus.completed,
@@ -786,7 +812,7 @@ class AdminBookingsController {
       workshopId: workshopId,
       status: status,
     );
-    return '$completeForm$cancelForm';
+    return '$acceptForm$completeForm$cancelForm';
   }
 
   String _statusActionForm(
@@ -974,6 +1000,8 @@ class AdminBookingsController {
     switch ((raw ?? '').trim().toLowerCase()) {
       case 'upcoming':
         return 'upcoming';
+      case 'accepted':
+        return 'accepted';
       case 'completed':
         return 'completed';
       case 'cancelled':
@@ -985,6 +1013,8 @@ class AdminBookingsController {
 
   BookingStatus _statusFromRaw(String? raw) {
     switch ((raw ?? '').trim().toLowerCase()) {
+      case 'accepted':
+        return BookingStatus.accepted;
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':
@@ -999,6 +1029,8 @@ class AdminBookingsController {
     switch (status) {
       case BookingStatus.upcoming:
         return _text(lang, 'statusUpcoming');
+      case BookingStatus.accepted:
+        return _text(lang, 'statusAccepted');
       case BookingStatus.completed:
         return _text(lang, 'statusCompleted');
       case BookingStatus.cancelled:
@@ -1066,6 +1098,8 @@ class AdminBookingsController {
       'statAllSub': 'Barcha kelgan buyurtmalar soni.',
       'statUpcoming': 'Yangi / kutilmoqda',
       'statUpcomingSub': 'Hali bajarilmagan buyurtmalar.',
+      'statAccepted': 'Qabul qilindi',
+      'statAcceptedSub': 'Usta yoki admin qabul qilgan zakazlar.',
       'statCompleted': 'Yakunlangan',
       'statCompletedSub': 'Bajarib bo‘lingan buyurtmalar.',
       'statCancelled': 'Bekor qilingan',
@@ -1078,6 +1112,7 @@ class AdminBookingsController {
       'statusFilter': 'Status filtri',
       'statusAll': 'Barcha statuslar',
       'statusUpcoming': 'Kutilmoqda',
+      'statusAccepted': 'Qabul qilindi',
       'statusCompleted': 'Yakunlangan',
       'statusCancelled': 'Bekor qilingan',
       'applyFilters': 'Filtrni qo‘llash',
@@ -1132,6 +1167,8 @@ class AdminBookingsController {
       'statAllSub': 'Общее число входящих заявок.',
       'statUpcoming': 'Новые / ожидают',
       'statUpcomingSub': 'Заказы, которые еще не завершены.',
+      'statAccepted': 'Приняты',
+      'statAcceptedSub': 'Заказы, уже принятые мастером или админом.',
       'statCompleted': 'Завершены',
       'statCompletedSub': 'Заказы, по которым работа уже выполнена.',
       'statCancelled': 'Отменены',
@@ -1144,6 +1181,7 @@ class AdminBookingsController {
       'statusFilter': 'Фильтр статуса',
       'statusAll': 'Все статусы',
       'statusUpcoming': 'Ожидает',
+      'statusAccepted': 'Принят',
       'statusCompleted': 'Завершен',
       'statusCancelled': 'Отменен',
       'applyFilters': 'Применить',
@@ -1197,6 +1235,8 @@ class AdminBookingsController {
       'statAllSub': 'All incoming orders across the system.',
       'statUpcoming': 'New / upcoming',
       'statUpcomingSub': 'Orders that still need action.',
+      'statAccepted': 'Accepted',
+      'statAcceptedSub': 'Orders already accepted by staff.',
       'statCompleted': 'Completed',
       'statCompletedSub': 'Orders marked as finished.',
       'statCancelled': 'Cancelled',
@@ -1209,6 +1249,7 @@ class AdminBookingsController {
       'statusFilter': 'Status filter',
       'statusAll': 'All statuses',
       'statusUpcoming': 'Upcoming',
+      'statusAccepted': 'Accepted',
       'statusCompleted': 'Completed',
       'statusCancelled': 'Cancelled',
       'applyFilters': 'Apply filters',

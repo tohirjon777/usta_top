@@ -189,6 +189,7 @@ class AppLocalizations {
       'bookingsEmptyHint':
           'Open Home, choose a workshop, and create your first request.',
       'statusUpcoming': 'Upcoming',
+      'statusAccepted': 'Accepted',
       'statusCompleted': 'Completed',
       'statusCancelled': 'Cancelled',
       'totalBookings': 'Total requests',
@@ -429,6 +430,7 @@ class AppLocalizations {
       'bookingsEmptyHint':
           'Asosiy sahifadan servis tanlab birinchi buyurtmangizni yarating.',
       'statusUpcoming': 'Kutilmoqda',
+      'statusAccepted': 'Qabul qilindi',
       'statusCompleted': 'Yakunlangan',
       'statusCancelled': 'Bekor qilingan',
       'totalBookings': 'Jami buyurtmalar',
@@ -669,6 +671,7 @@ class AppLocalizations {
       'bookingsEmptyHint':
           'Откройте Главную, выберите сервис и создайте первую заявку.',
       'statusUpcoming': 'Предстоит',
+      'statusAccepted': 'Принят',
       'statusCompleted': 'Завершено',
       'statusCancelled': 'Отменено',
       'totalBookings': 'Всего заявок',
@@ -965,6 +968,7 @@ class AppLocalizations {
   String get noBookingsYet => _text('noBookingsYet');
   String get bookingsEmptyHint => _text('bookingsEmptyHint');
   String get statusUpcoming => _text('statusUpcoming');
+  String get statusAccepted => _text('statusAccepted');
   String get statusCompleted => _text('statusCompleted');
   String get statusCancelled => _text('statusCancelled');
 
