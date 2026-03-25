@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
+import '../money.dart';
 import '../models.dart';
 import '../store.dart';
 import '../vehicle_catalog.dart';
@@ -1605,7 +1606,7 @@ class AdminController {
               '</div>' +
               '<div class="field">' +
                 '<label>' + labels.price + '</label>' +
-                '<input type="number" min="0" data-service-price value="' + escapeHtml(service.price || '') + '" placeholder="' + labels.pricePlaceholder + '">' +
+                '<input type="number" min="0" step="1000" data-service-price value="' + escapeHtml(service.price || '') + '" placeholder="' + labels.pricePlaceholder + '">' +
               '</div>' +
               '<div class="field">' +
                 '<label>' + labels.duration + '</label>' +
@@ -2388,7 +2389,7 @@ class AdminController {
               ? _store.newServiceId()
               : (item['id'] ?? '').toString().trim(),
           name: name,
-          price: _parseIntField(
+          price: _parsePriceField(
             priceRaw,
             fieldLabel: _text(lang, 'fieldServicePrice'),
             lang: lang,
@@ -2516,6 +2517,35 @@ class AdminController {
   }) {
     final String value = (raw ?? '').trim();
     final int? parsed = int.tryParse(value);
+    if (parsed == null) {
+      throw FormatException(
+        _text(
+          lang,
+          'invalidField',
+          <String, Object>{'field': fieldLabel},
+        ),
+      );
+    }
+    if (parsed < min) {
+      throw FormatException(
+        _text(
+          lang,
+          'outOfRangeField',
+          <String, Object>{'field': fieldLabel},
+        ),
+      );
+    }
+    return parsed;
+  }
+
+  int _parsePriceField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+    required int min,
+  }) {
+    final String value = (raw ?? '').trim();
+    final int? parsed = tryParseStoredMoneyAmount(value);
     if (parsed == null) {
       throw FormatException(
         _text(
@@ -3073,7 +3103,12 @@ class AdminController {
       closedWeekdays: workshop.schedule.closedWeekdays,
       servicesJson: _escapeHtml(jsonEncode(
         workshop.services
-            .map((ServiceModel item) => item.toJson())
+            .map((ServiceModel item) => <String, Object>{
+                  'id': item.id,
+                  'name': item.name,
+                  'price': moneyInputValue(item.price),
+                  'durationMinutes': item.durationMinutes,
+                })
             .toList(growable: false),
       )),
       extraActionsHtml: '''
@@ -3574,7 +3609,7 @@ class AdminController {
       'jsPrice': 'Narxi',
       'jsDuration': 'Davomiyligi',
       'serviceNamePlaceholder': 'Masalan: Kompyuter diagnostika',
-      'servicePricePlaceholder': '120',
+      'servicePricePlaceholder': '120000',
       'serviceDurationPlaceholder': '35',
       'serviceNote':
           'Kartadagi boshlang‘ich narx va xizmat yorliqlari shu ro‘yxatdan shakllanadi.',
@@ -3674,7 +3709,7 @@ class AdminController {
       'pricingMatrixDescription':
           'Har bir xizmat uchun mashina modeli kesimidagi narxlarni Excel orqali boshqaring.',
       'pricingMatrixHint':
-          'Template faylni yuklab oling, price_k ustunidagi narxlarni tahrir qiling va shu yerga qayta yuklang.',
+          'Template faylni yuklab oling, price_uzs ustunidagi narxlarni to‘liq UZS formatida tahrir qiling va shu yerga qayta yuklang.',
       'pricingConfiguredCount': 'Sozlangan narxlar',
       'pricingTemplateRows': 'Template satrlari',
       'pricingTemplateDownload': 'Excel template',
@@ -3811,7 +3846,7 @@ class AdminController {
       'jsPrice': 'Цена',
       'jsDuration': 'Длительность',
       'serviceNamePlaceholder': 'Например: Компьютерная диагностика',
-      'servicePricePlaceholder': '120',
+      'servicePricePlaceholder': '120000',
       'serviceDurationPlaceholder': '35',
       'serviceNote':
           'Стартовая цена и ярлыки услуг в карточке формируются из этого списка.',
@@ -3908,7 +3943,7 @@ class AdminController {
       'pricingMatrixDescription':
           'Управляйте ценами по моделям для каждой услуги через Excel.',
       'pricingMatrixHint':
-          'Скачайте шаблон, измените цены в колонке price_k и загрузите файл обратно сюда.',
+          'Скачайте шаблон, измените цены в колонке price_uzs в полном формате UZS и загрузите файл обратно сюда.',
       'pricingConfiguredCount': 'Настроено цен',
       'pricingTemplateRows': 'Строк в шаблоне',
       'pricingTemplateDownload': 'Excel шаблон',
@@ -4045,7 +4080,7 @@ class AdminController {
       'jsPrice': 'Price',
       'jsDuration': 'Duration',
       'serviceNamePlaceholder': 'For example: Computer diagnostics',
-      'servicePricePlaceholder': '120',
+      'servicePricePlaceholder': '120000',
       'serviceDurationPlaceholder': '35',
       'serviceNote':
           'Starting price and service labels on the card are generated from this list.',
@@ -4145,7 +4180,7 @@ class AdminController {
       'pricingMatrixDescription':
           'Manage vehicle-specific prices for each service through Excel.',
       'pricingMatrixHint':
-          'Download the template, edit prices in the price_k column, then upload the file back here.',
+          'Download the template, edit full UZS amounts in the price_uzs column, then upload the file back here.',
       'pricingConfiguredCount': 'Configured prices',
       'pricingTemplateRows': 'Template rows',
       'pricingTemplateDownload': 'Excel template',

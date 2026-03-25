@@ -1,6 +1,6 @@
 import 'vehicle_type.dart';
 
-enum BookingStatus { upcoming, accepted, completed, cancelled }
+enum BookingStatus { upcoming, accepted, rescheduled, completed, cancelled }
 
 extension BookingStatusX on BookingStatus {
   String get label {
@@ -9,6 +9,8 @@ extension BookingStatusX on BookingStatus {
         return 'Upcoming';
       case BookingStatus.accepted:
         return 'Accepted';
+      case BookingStatus.rescheduled:
+        return 'Rescheduled';
       case BookingStatus.completed:
         return 'Completed';
       case BookingStatus.cancelled:
@@ -32,6 +34,9 @@ class BookingItem {
     required this.price,
     this.status = BookingStatus.upcoming,
     this.completedAt,
+    this.previousDateTime,
+    this.rescheduledAt,
+    this.rescheduledByRole = '',
     this.reviewId = '',
     this.reviewSubmittedAt,
     this.messageCount = 0,
@@ -57,6 +62,9 @@ class BookingItem {
   final int price;
   final BookingStatus status;
   final DateTime? completedAt;
+  final DateTime? previousDateTime;
+  final DateTime? rescheduledAt;
+  final String rescheduledByRole;
   final String reviewId;
   final DateTime? reviewSubmittedAt;
   final int messageCount;
@@ -93,6 +101,12 @@ class BookingItem {
       price: _toInt(json['price']),
       status: _statusFromString((json['status'] ?? '').toString()),
       completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
+      previousDateTime:
+          DateTime.tryParse((json['previousDateTime'] ?? '').toString()),
+      rescheduledAt:
+          DateTime.tryParse((json['rescheduledAt'] ?? '').toString()),
+      rescheduledByRole:
+          (json['rescheduledByRole'] ?? '').toString().trim(),
       reviewId: (json['reviewId'] ?? '').toString().trim(),
       reviewSubmittedAt:
           DateTime.tryParse((json['reviewSubmittedAt'] ?? '').toString()),
@@ -122,6 +136,9 @@ class BookingItem {
     int? price,
     BookingStatus? status,
     DateTime? completedAt,
+    DateTime? previousDateTime,
+    DateTime? rescheduledAt,
+    String? rescheduledByRole,
     String? reviewId,
     DateTime? reviewSubmittedAt,
     int? messageCount,
@@ -147,6 +164,9 @@ class BookingItem {
       price: price ?? this.price,
       status: status ?? this.status,
       completedAt: completedAt ?? this.completedAt,
+      previousDateTime: previousDateTime ?? this.previousDateTime,
+      rescheduledAt: rescheduledAt ?? this.rescheduledAt,
+      rescheduledByRole: rescheduledByRole ?? this.rescheduledByRole,
       reviewId: reviewId ?? this.reviewId,
       reviewSubmittedAt: reviewSubmittedAt ?? this.reviewSubmittedAt,
       messageCount: messageCount ?? this.messageCount,
@@ -176,6 +196,8 @@ class BookingItem {
     switch (value.toLowerCase()) {
       case 'accepted':
         return BookingStatus.accepted;
+      case 'rescheduled':
+        return BookingStatus.rescheduled;
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':

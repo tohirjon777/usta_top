@@ -183,6 +183,13 @@ class _BookingCard extends StatelessWidget {
               ),
             ),
             Text(l10n.dateLabel(AppFormatters.dateTime(booking.dateTime))),
+            if (booking.status == BookingStatus.rescheduled &&
+                booking.previousDateTime != null)
+              Text(
+                l10n.rescheduledFromLabel(
+                  AppFormatters.dateTime(booking.previousDateTime!),
+                ),
+              ),
             const SizedBox(height: 6),
             Text(l10n.basePriceLabel(AppFormatters.moneyK(booking.basePrice))),
             Text(
@@ -206,6 +213,7 @@ class _BookingCard extends StatelessWidget {
               ),
             ],
             if (booking.status == BookingStatus.upcoming ||
+                booking.status == BookingStatus.rescheduled ||
                 booking.status == BookingStatus.accepted) ...<Widget>[
               const SizedBox(height: 8),
               Wrap(
@@ -275,9 +283,12 @@ class _StatusBadge extends StatelessWidget {
       case BookingStatus.upcoming:
         foreground = AppColors.primaryToneOf(context);
         background = AppColors.primarySoftOf(context);
+      case BookingStatus.rescheduled:
+        foreground = AppColors.accentOf(context);
+        background = AppColors.primarySoftOf(context);
       case BookingStatus.accepted:
-        foreground = AppColors.successForegroundOf(context);
-        background = AppColors.successBackgroundOf(context);
+        foreground = AppColors.accentOf(context);
+        background = AppColors.accentSoftOf(context);
       case BookingStatus.completed:
         foreground = AppColors.successForegroundOf(context);
         background = AppColors.successBackgroundOf(context);
@@ -306,6 +317,8 @@ class _StatusBadge extends StatelessWidget {
     switch (status) {
       case BookingStatus.upcoming:
         return l10n.statusUpcoming;
+      case BookingStatus.rescheduled:
+        return l10n.statusRescheduled;
       case BookingStatus.accepted:
         return l10n.statusAccepted;
       case BookingStatus.completed:

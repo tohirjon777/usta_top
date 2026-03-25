@@ -43,6 +43,9 @@ class UserNotificationsService {
         'workshopId': booking.workshopId,
         'status': booking.status.name,
         'cancelReasonId': booking.cancelReasonId,
+        if (booking.previousDateTime != null)
+          'previousDateTime': booking.previousDateTime!.toUtc().toIso8601String(),
+        'dateTime': booking.dateTime.toUtc().toIso8601String(),
       },
     );
   }
@@ -127,10 +130,41 @@ class UserNotificationsService {
     );
   }
 
+  Future<void> sendUpcomingBookingReminderNotification({
+    required UserModel user,
+    required BookingModel booking,
+    required WorkshopModel workshop,
+    required Duration leadTime,
+  }) async {
+    final List<String> tokens = _tokensForUser(user);
+    if (tokens.isEmpty) {
+      throw const FirebasePushException(
+        'Foydalanuvchi uchun push token topilmadi',
+      );
+    }
+
+    await _firebasePushService.sendToTokens(
+      tokens: tokens,
+      title: 'Usta Top: broningiz yaqinlashdi',
+      body:
+          '${workshop.name} dagi ${booking.serviceName} ${_formatDateTime(booking.dateTime)} da boshlanadi. ${_leadTimeLabel(leadTime)} qoldi.',
+      data: <String, String>{
+        'type': 'booking_reminder',
+        'screen': 'bookings',
+        'bookingId': booking.id,
+        'workshopId': booking.workshopId,
+        'status': booking.status.name,
+        'dateTime': booking.dateTime.toUtc().toIso8601String(),
+      },
+    );
+  }
+
   String _titleForBookingStatus(BookingModel booking) {
     switch (booking.status) {
       case BookingStatus.accepted:
         return 'Usta Top: zakaz qabul qilindi';
+      case BookingStatus.rescheduled:
+        return 'Usta Top: zakaz vaqti ko‘chirildi';
       case BookingStatus.completed:
         return 'Usta Top: zakaz bajarildi';
       case BookingStatus.cancelled:
@@ -147,6 +181,11 @@ class UserNotificationsService {
     switch (booking.status) {
       case BookingStatus.accepted:
         return '${booking.workshopName} sizning ${booking.serviceName} zakazingizni qabul qildi.';
+      case BookingStatus.rescheduled:
+        final String previous = booking.previousDateTime == null
+            ? 'oldingi vaqt ko‘rsatilmagan'
+            : _formatDateTime(booking.previousDateTime!);
+        return '$actor ${booking.workshopName} zakazingiz vaqtini $previous dan ${_formatDateTime(booking.dateTime)} ga ko‘chirdi.';
       case BookingStatus.completed:
         return '${booking.workshopName} sizning ${booking.serviceName} zakazingizni yakunladi.';
       case BookingStatus.cancelled:
@@ -157,5 +196,21 @@ class UserNotificationsService {
       case BookingStatus.upcoming:
         return '${booking.workshopName} sizning zakazingiz holatini yangiladi.';
     }
+  }
+
+  String _formatDateTime(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day $hour:$minute';
+  }
+
+  String _leadTimeLabel(Duration value) {
+    if (value.inHours >= 1 && value.inMinutes % 60 == 0) {
+      return '${value.inHours} soat';
+    }
+    return '${value.inMinutes} daqiqa';
   }
 }

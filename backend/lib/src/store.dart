@@ -935,8 +935,15 @@ class InMemoryStore {
           item.workshopId != workshopId.trim()) {
         return false;
       }
-      if (status != null && item.status != status) {
-        return false;
+      if (status != null) {
+        if (status == BookingStatus.upcoming) {
+          if (item.status != BookingStatus.upcoming &&
+              item.status != BookingStatus.rescheduled) {
+            return false;
+          }
+        } else if (item.status != status) {
+          return false;
+        }
       }
       return true;
     }).toList(growable: false)
@@ -968,6 +975,48 @@ class InMemoryStore {
     return List<BookingModel>.unmodifiable(items);
   }
 
+  List<BookingModel> bookingsAwaitingCustomerReminder({
+    required Duration leadTime,
+    DateTime? now,
+  }) {
+    final DateTime effectiveNow = now ?? DateTime.now();
+    final List<BookingModel> items = _bookings.where((BookingModel item) {
+      if (!_isReminderEligibleStatus(item.status) ||
+          item.customerReminderSentAt != null) {
+        return false;
+      }
+      if (!item.dateTime.toLocal().isAfter(effectiveNow)) {
+        return false;
+      }
+      return !item.dateTime.toLocal().subtract(leadTime).isAfter(effectiveNow);
+    }).toList(growable: false)
+      ..sort((BookingModel a, BookingModel b) {
+        return a.dateTime.compareTo(b.dateTime);
+      });
+    return List<BookingModel>.unmodifiable(items);
+  }
+
+  List<BookingModel> bookingsAwaitingWorkshopReminder({
+    required Duration leadTime,
+    DateTime? now,
+  }) {
+    final DateTime effectiveNow = now ?? DateTime.now();
+    final List<BookingModel> items = _bookings.where((BookingModel item) {
+      if (!_isReminderEligibleStatus(item.status) ||
+          item.workshopReminderSentAt != null) {
+        return false;
+      }
+      if (!item.dateTime.toLocal().isAfter(effectiveNow)) {
+        return false;
+      }
+      return !item.dateTime.toLocal().subtract(leadTime).isAfter(effectiveNow);
+    }).toList(growable: false)
+      ..sort((BookingModel a, BookingModel b) {
+        return a.dateTime.compareTo(b.dateTime);
+      });
+    return List<BookingModel>.unmodifiable(items);
+  }
+
   BookingModel markReviewReminderSent(
     String bookingId, {
     DateTime? sentAt,
@@ -980,6 +1029,40 @@ class InMemoryStore {
 
     final BookingModel updated = _bookings[index].copyWith(
       reviewReminderSentAt: sentAt ?? DateTime.now(),
+    );
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  BookingModel markCustomerBookingReminderSent(
+    String bookingId, {
+    DateTime? sentAt,
+  }) {
+    final int index =
+        _bookings.indexWhere((BookingModel item) => item.id == bookingId);
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel updated = _bookings[index].copyWith(
+      customerReminderSentAt: sentAt ?? DateTime.now(),
+    );
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  BookingModel markWorkshopBookingReminderSent(
+    String bookingId, {
+    DateTime? sentAt,
+  }) {
+    final int index =
+        _bookings.indexWhere((BookingModel item) => item.id == bookingId);
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel updated = _bookings[index].copyWith(
+      workshopReminderSentAt: sentAt ?? DateTime.now(),
     );
     _bookings[index] = updated;
     return updated;
@@ -1399,6 +1482,7 @@ class InMemoryStore {
     required String workshopId,
     required String serviceId,
     required DateTime date,
+    String excludeBookingId = '',
   }) {
     final WorkshopModel? workshop = workshopById(workshopId);
     if (workshop == null) {
@@ -1431,6 +1515,9 @@ class InMemoryStore {
     final List<BookingModel> activeBookings = _bookings.where(
       (BookingModel item) {
         if (item.workshopId != workshop.id || !_blocksAvailability(item.status)) {
+          return false;
+        }
+        if (excludeBookingId.isNotEmpty && item.id == excludeBookingId) {
           return false;
         }
         return _calendarDate(item.dateTime.toLocal()) == localDate;
@@ -1767,6 +1854,25 @@ class InMemoryStore {
     return updated;
   }
 
+  BookingModel rescheduleBookingByAdmin({
+    required String bookingId,
+    required DateTime dateTime,
+  }) {
+    final int index =
+        _bookings.indexWhere((BookingModel item) => item.id == bookingId);
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel current = _bookings[index];
+    return _rescheduleBookingAtIndex(
+      index: index,
+      current: current,
+      dateTime: dateTime,
+      actorRole: 'admin',
+    );
+  }
+
   BookingModel updateWorkshopBookingStatus({
     required String workshopId,
     required String bookingId,
@@ -1792,6 +1898,29 @@ class InMemoryStore {
     );
     _bookings[index] = updated;
     return updated;
+  }
+
+  BookingModel rescheduleWorkshopBooking({
+    required String workshopId,
+    required String bookingId,
+    required DateTime dateTime,
+    required String actorRole,
+  }) {
+    final int index = _bookings.indexWhere(
+      (BookingModel item) =>
+          item.id == bookingId && item.workshopId == workshopId,
+    );
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel current = _bookings[index];
+    return _rescheduleBookingAtIndex(
+      index: index,
+      current: current,
+      dateTime: dateTime,
+      actorRole: actorRole,
+    );
   }
 
   BookingModel cancelWorkshopBooking({
@@ -1823,15 +1952,137 @@ class InMemoryStore {
     return updated;
   }
 
+  BookingModel _rescheduleBookingAtIndex({
+    required int index,
+    required BookingModel current,
+    required DateTime dateTime,
+    required String actorRole,
+  }) {
+    _ensureBookingRescheduleAllowed(current);
+
+    final WorkshopModel? workshop = workshopById(current.workshopId);
+    if (workshop == null) {
+      throw StateError('Servis topilmadi');
+    }
+
+    final ServiceModel? service = workshop.getServiceById(current.serviceId);
+    if (service == null) {
+      throw StateError('Xizmat topilmadi');
+    }
+
+    final DateTime normalizedDateTime = dateTime.isUtc ? dateTime : dateTime.toUtc();
+    final DateTime localDateTime = normalizedDateTime.toLocal();
+    final DateTime now = DateTime.now();
+    if (!localDateTime.isAfter(now)) {
+      throw StateError('Yangi bron vaqti kelajakdagi vaqt bo‘lishi kerak');
+    }
+    if (current.dateTime.toUtc() == normalizedDateTime) {
+      throw StateError('Yangi vaqt avvalgi bron vaqti bilan bir xil');
+    }
+
+    _ensureBookingSlotAvailable(
+      workshop: workshop,
+      service: service,
+      bookingDateTime: localDateTime,
+      excludeBookingId: current.id,
+    );
+
+    final BookingModel updated = current.copyWith(
+      dateTime: normalizedDateTime,
+      status: BookingStatus.rescheduled,
+      completedAt: null,
+      previousDateTime: current.dateTime,
+      rescheduledAt: now,
+      rescheduledByRole: actorRole,
+      reviewReminderSentAt: null,
+      customerReminderSentAt: null,
+      workshopReminderSentAt: null,
+      cancelReasonId: '',
+      cancelledByRole: '',
+      cancelledAt: null,
+    );
+    _bookings[index] = updated;
+    return updated;
+  }
+
+  List<DateTime> suggestedWorkshopRescheduleSlots({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDateTime,
+    required String excludeBookingId,
+    int days = 14,
+    int limit = 4,
+  }) {
+    final WorkshopModel? workshop = workshopById(workshopId);
+    if (workshop == null) {
+      throw StateError('Servis topilmadi');
+    }
+    final ServiceModel? service = workshop.getServiceById(serviceId);
+    if (service == null) {
+      throw StateError('Xizmat topilmadi');
+    }
+
+    final DateTime localThreshold = fromDateTime.toLocal();
+    final DateTime startDate = _calendarDate(localThreshold);
+    final List<DateTime> suggestions = <DateTime>[];
+    final int safeDays = max(1, days);
+    final int safeLimit = max(1, limit);
+
+    for (int dayIndex = 0;
+        dayIndex < safeDays && suggestions.length < safeLimit;
+        dayIndex++) {
+      final DateTime date = startDate.add(Duration(days: dayIndex));
+      final availability = bookingAvailability(
+        workshopId: workshop.id,
+        serviceId: service.id,
+        date: date,
+        excludeBookingId: excludeBookingId,
+      );
+      for (final String slot in availability.slotTimes) {
+        final List<String> parts = slot.split(':');
+        final DateTime slotDateTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          int.parse(parts.first),
+          int.parse(parts.last),
+        );
+        if (!slotDateTime.isAfter(localThreshold)) {
+          continue;
+        }
+        suggestions.add(slotDateTime.toUtc());
+        if (suggestions.length >= safeLimit) {
+          break;
+        }
+      }
+    }
+
+    return List<DateTime>.unmodifiable(suggestions);
+  }
+
   void _ensureCustomerCancellationAllowed(BookingModel booking) {
     switch (booking.status) {
       case BookingStatus.upcoming:
       case BookingStatus.accepted:
+      case BookingStatus.rescheduled:
         return;
       case BookingStatus.completed:
         throw StateError('Yakunlangan buyurtmani bekor qilib bo‘lmaydi');
       case BookingStatus.cancelled:
         throw StateError('Buyurtma allaqachon bekor qilingan');
+    }
+  }
+
+  void _ensureBookingRescheduleAllowed(BookingModel booking) {
+    switch (booking.status) {
+      case BookingStatus.upcoming:
+      case BookingStatus.accepted:
+      case BookingStatus.rescheduled:
+        return;
+      case BookingStatus.completed:
+        throw StateError('Yakunlangan buyurtmani ko‘chirib bo‘lmaydi');
+      case BookingStatus.cancelled:
+        throw StateError('Bekor qilingan buyurtmani ko‘chirib bo‘lmaydi');
     }
   }
 
@@ -1873,6 +2124,7 @@ class InMemoryStore {
 
     switch (current.status) {
       case BookingStatus.upcoming:
+      case BookingStatus.rescheduled:
         return;
       case BookingStatus.accepted:
         if (nextStatus == BookingStatus.completed) {
@@ -1892,6 +2144,7 @@ class InMemoryStore {
     required WorkshopModel workshop,
     required ServiceModel service,
     required DateTime bookingDateTime,
+    String excludeBookingId = '',
   }) {
     final WorkshopScheduleModel schedule = workshop.schedule;
     final DateTime bookingDate = _calendarDate(bookingDateTime);
@@ -1927,6 +2180,9 @@ class InMemoryStore {
     final List<BookingModel> activeBookings = _bookings.where(
       (BookingModel item) {
         if (item.workshopId != workshop.id || !_blocksAvailability(item.status)) {
+          return false;
+        }
+        if (excludeBookingId.isNotEmpty && item.id == excludeBookingId) {
           return false;
         }
         return _calendarDate(item.dateTime.toLocal()) == bookingDate;
@@ -2003,7 +2259,15 @@ class InMemoryStore {
   }
 
   bool _blocksAvailability(BookingStatus status) {
-    return status == BookingStatus.upcoming || status == BookingStatus.accepted;
+    return status == BookingStatus.upcoming ||
+        status == BookingStatus.accepted ||
+        status == BookingStatus.rescheduled;
+  }
+
+  bool _isReminderEligibleStatus(BookingStatus status) {
+    return status == BookingStatus.upcoming ||
+        status == BookingStatus.accepted ||
+        status == BookingStatus.rescheduled;
   }
 
   List<BookingModel> _activeBookingsForWorkshopOnDate({

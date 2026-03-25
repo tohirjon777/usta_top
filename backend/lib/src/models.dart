@@ -2,7 +2,7 @@ import 'booking_cancellation.dart';
 import 'vehicle_catalog.dart';
 import 'vehicle_types.dart';
 
-enum BookingStatus { upcoming, accepted, completed, cancelled }
+enum BookingStatus { upcoming, accepted, rescheduled, completed, cancelled }
 
 enum BookingChatSenderRole { customer, workshopOwner }
 
@@ -700,6 +700,8 @@ class WorkshopModel {
   }
 }
 
+const Object _bookingModelUnset = Object();
+
 class BookingModel {
   const BookingModel({
     required this.id,
@@ -719,7 +721,12 @@ class BookingModel {
     required this.status,
     required this.createdAt,
     this.completedAt,
+    this.previousDateTime,
+    this.rescheduledAt,
+    this.rescheduledByRole = '',
     this.reviewReminderSentAt,
+    this.customerReminderSentAt,
+    this.workshopReminderSentAt,
     this.cancelReasonId = '',
     this.cancelledByRole = '',
     this.cancelledAt,
@@ -742,18 +749,29 @@ class BookingModel {
   final BookingStatus status;
   final DateTime createdAt;
   final DateTime? completedAt;
+  final DateTime? previousDateTime;
+  final DateTime? rescheduledAt;
+  final String rescheduledByRole;
   final DateTime? reviewReminderSentAt;
+  final DateTime? customerReminderSentAt;
+  final DateTime? workshopReminderSentAt;
   final String cancelReasonId;
   final String cancelledByRole;
   final DateTime? cancelledAt;
 
   BookingModel copyWith({
+    DateTime? dateTime,
     BookingStatus? status,
-    DateTime? completedAt,
-    DateTime? reviewReminderSentAt,
+    Object? completedAt = _bookingModelUnset,
+    Object? previousDateTime = _bookingModelUnset,
+    Object? rescheduledAt = _bookingModelUnset,
+    String? rescheduledByRole,
+    Object? reviewReminderSentAt = _bookingModelUnset,
+    Object? customerReminderSentAt = _bookingModelUnset,
+    Object? workshopReminderSentAt = _bookingModelUnset,
     String? cancelReasonId,
     String? cancelledByRole,
-    DateTime? cancelledAt,
+    Object? cancelledAt = _bookingModelUnset,
   }) {
     return BookingModel(
       id: id,
@@ -767,17 +785,37 @@ class BookingModel {
       serviceName: serviceName,
       vehicleModel: vehicleModel,
       vehicleTypeId: vehicleTypeId,
-      dateTime: dateTime,
+      dateTime: dateTime ?? this.dateTime,
       basePrice: basePrice,
       price: price,
       status: status ?? this.status,
       createdAt: createdAt,
-      completedAt: completedAt ?? this.completedAt,
-      reviewReminderSentAt:
-          reviewReminderSentAt ?? this.reviewReminderSentAt,
+      completedAt: identical(completedAt, _bookingModelUnset)
+          ? this.completedAt
+          : completedAt as DateTime?,
+      previousDateTime: identical(previousDateTime, _bookingModelUnset)
+          ? this.previousDateTime
+          : previousDateTime as DateTime?,
+      rescheduledAt: identical(rescheduledAt, _bookingModelUnset)
+          ? this.rescheduledAt
+          : rescheduledAt as DateTime?,
+      rescheduledByRole: rescheduledByRole ?? this.rescheduledByRole,
+      reviewReminderSentAt: identical(reviewReminderSentAt, _bookingModelUnset)
+          ? this.reviewReminderSentAt
+          : reviewReminderSentAt as DateTime?,
+      customerReminderSentAt:
+          identical(customerReminderSentAt, _bookingModelUnset)
+              ? this.customerReminderSentAt
+              : customerReminderSentAt as DateTime?,
+      workshopReminderSentAt:
+          identical(workshopReminderSentAt, _bookingModelUnset)
+              ? this.workshopReminderSentAt
+              : workshopReminderSentAt as DateTime?,
       cancelReasonId: cancelReasonId ?? this.cancelReasonId,
       cancelledByRole: cancelledByRole ?? this.cancelledByRole,
-      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancelledAt: identical(cancelledAt, _bookingModelUnset)
+          ? this.cancelledAt
+          : cancelledAt as DateTime?,
     );
   }
 
@@ -806,8 +844,19 @@ class BookingModel {
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
       completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
+      previousDateTime:
+          DateTime.tryParse((json['previousDateTime'] ?? '').toString()),
+      rescheduledAt:
+          DateTime.tryParse((json['rescheduledAt'] ?? '').toString()),
+      rescheduledByRole: (json['rescheduledByRole'] ?? '').toString().trim(),
       reviewReminderSentAt:
           DateTime.tryParse((json['reviewReminderSentAt'] ?? '').toString()),
+      customerReminderSentAt: DateTime.tryParse(
+        (json['customerReminderSentAt'] ?? '').toString(),
+      ),
+      workshopReminderSentAt: DateTime.tryParse(
+        (json['workshopReminderSentAt'] ?? '').toString(),
+      ),
       cancelReasonId: normalizeBookingCancellationReasonId(
         (json['cancelReasonId'] ?? '').toString(),
       ),
@@ -838,8 +887,20 @@ class BookingModel {
       'createdAt': createdAt.toUtc().toIso8601String(),
       if (completedAt != null)
         'completedAt': completedAt!.toUtc().toIso8601String(),
+      if (previousDateTime != null)
+        'previousDateTime': previousDateTime!.toUtc().toIso8601String(),
+      if (rescheduledAt != null)
+        'rescheduledAt': rescheduledAt!.toUtc().toIso8601String(),
+      if (rescheduledByRole.isNotEmpty)
+        'rescheduledByRole': rescheduledByRole,
       if (reviewReminderSentAt != null)
         'reviewReminderSentAt': reviewReminderSentAt!.toUtc().toIso8601String(),
+      if (customerReminderSentAt != null)
+        'customerReminderSentAt':
+            customerReminderSentAt!.toUtc().toIso8601String(),
+      if (workshopReminderSentAt != null)
+        'workshopReminderSentAt':
+            workshopReminderSentAt!.toUtc().toIso8601String(),
       if (cancelReasonId.isNotEmpty) 'cancelReasonId': cancelReasonId,
       if (cancelledByRole.isNotEmpty) 'cancelledByRole': cancelledByRole,
       if (cancelledAt != null)
@@ -863,6 +924,8 @@ class BookingModel {
     switch (raw.toLowerCase()) {
       case 'accepted':
         return BookingStatus.accepted;
+      case 'rescheduled':
+        return BookingStatus.rescheduled;
       case 'completed':
         return BookingStatus.completed;
       case 'cancelled':

@@ -193,6 +193,7 @@ class AppLocalizations {
       'priceLabel': 'Price: {price}',
       'cancelBooking': 'Cancel request',
       'cancelledByLabel': 'Cancelled by: {actor}',
+      'rescheduledFromLabel': 'Previous time: {time}',
       'cancellationReasonLabel': 'Reason: {reason}',
       'cancellationUnknown': 'Not specified',
       'cancellationReasonWorkshopBusy': 'Schedule is full',
@@ -208,6 +209,7 @@ class AppLocalizations {
       'bookingsEmptyHint':
           'Open Home, choose a workshop, and create your first request.',
       'statusUpcoming': 'Upcoming',
+      'statusRescheduled': 'Rescheduled',
       'statusAccepted': 'Accepted',
       'statusCompleted': 'Completed',
       'statusCancelled': 'Cancelled',
@@ -455,6 +457,7 @@ class AppLocalizations {
       'priceLabel': 'Narx: {price}',
       'cancelBooking': 'Buyurtmani bekor qilish',
       'cancelledByLabel': 'Bekor qildi: {actor}',
+      'rescheduledFromLabel': 'Oldingi vaqt: {time}',
       'cancellationReasonLabel': 'Sabab: {reason}',
       'cancellationUnknown': 'Ko\'rsatilmagan',
       'cancellationReasonWorkshopBusy': 'Jadval band',
@@ -470,6 +473,7 @@ class AppLocalizations {
       'bookingsEmptyHint':
           'Asosiy sahifadan servis tanlab birinchi buyurtmangizni yarating.',
       'statusUpcoming': 'Kutilmoqda',
+      'statusRescheduled': 'Ko‘chirildi',
       'statusAccepted': 'Qabul qilindi',
       'statusCompleted': 'Yakunlangan',
       'statusCancelled': 'Bekor qilingan',
@@ -718,6 +722,7 @@ class AppLocalizations {
       'priceLabel': 'Цена: {price}',
       'cancelBooking': 'Отменить заявку',
       'cancelledByLabel': 'Отменил: {actor}',
+      'rescheduledFromLabel': 'Старое время: {time}',
       'cancellationReasonLabel': 'Причина: {reason}',
       'cancellationUnknown': 'Не указано',
       'cancellationReasonWorkshopBusy': 'График занят',
@@ -733,6 +738,7 @@ class AppLocalizations {
       'bookingsEmptyHint':
           'Откройте Главную, выберите сервис и создайте первую заявку.',
       'statusUpcoming': 'Предстоит',
+      'statusRescheduled': 'Перенесено',
       'statusAccepted': 'Принят',
       'statusCompleted': 'Завершено',
       'statusCancelled': 'Отменено',
@@ -1028,6 +1034,8 @@ class AppLocalizations {
   String get cancelBooking => _text('cancelBooking');
   String cancelledByLabel(String actor) =>
       _fmt('cancelledByLabel', <String, Object>{'actor': actor});
+  String rescheduledFromLabel(String time) =>
+      _fmt('rescheduledFromLabel', <String, Object>{'time': time});
   String cancellationReasonLabel(String reason) =>
       _fmt('cancellationReasonLabel', <String, Object>{'reason': reason});
   String get cancellationUnknown => _text('cancellationUnknown');
@@ -1050,6 +1058,7 @@ class AppLocalizations {
   String get noBookingsYet => _text('noBookingsYet');
   String get bookingsEmptyHint => _text('bookingsEmptyHint');
   String get statusUpcoming => _text('statusUpcoming');
+  String get statusRescheduled => _text('statusRescheduled');
   String get statusAccepted => _text('statusAccepted');
   String get statusCompleted => _text('statusCompleted');
   String get statusCancelled => _text('statusCancelled');

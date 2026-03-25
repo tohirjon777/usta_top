@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
 
+import 'money.dart';
 import 'models.dart';
 import 'vehicle_catalog.dart';
 import 'vehicle_types.dart';
@@ -24,7 +25,7 @@ Uint8List buildWorkshopVehiclePricingWorkbook(WorkshopModel workshop) {
     TextCellValue('brand'),
     TextCellValue('model'),
     TextCellValue('vehicle_type_id'),
-    TextCellValue('price_k'),
+    TextCellValue('price_uzs'),
   ]);
 
   final List<VehicleCatalogEntryModel> catalogEntries =
@@ -44,7 +45,7 @@ Uint8List buildWorkshopVehiclePricingWorkbook(WorkshopModel workshop) {
         TextCellValue(vehicle.brand),
         TextCellValue(vehicle.model),
         TextCellValue(vehicle.vehicleTypeId),
-        IntCellValue(rule?.price ?? service.price),
+        IntCellValue(moneyDisplayAmount(rule?.price ?? service.price)),
       ]);
     }
   }
@@ -64,8 +65,8 @@ Uint8List buildWorkshopVehiclePricingWorkbook(WorkshopModel workshop) {
         TextCellValue(rule.normalizedVehicleBrand),
         TextCellValue(rule.normalizedVehicleModel),
         TextCellValue(rule.vehicleTypeId),
-      IntCellValue(rule.price),
-    ]);
+        IntCellValue(moneyDisplayAmount(rule.price)),
+      ]);
   }
 
   excel[vehiclePricingInstructionsSheetName];
@@ -74,7 +75,7 @@ Uint8List buildWorkshopVehiclePricingWorkbook(WorkshopModel workshop) {
   ]);
   excel.appendRow(vehiclePricingInstructionsSheetName, <CellValue?>[
     TextCellValue(
-      '1. pricing_matrix sheet ichida price_k ustunini o‘zgartiring.',
+      '1. pricing_matrix sheet ichida price_uzs ustunini to‘liq UZS qiymatida o‘zgartiring.',
     ),
   ]);
   excel.appendRow(vehiclePricingInstructionsSheetName, <CellValue?>[
@@ -84,7 +85,7 @@ Uint8List buildWorkshopVehiclePricingWorkbook(WorkshopModel workshop) {
   ]);
   excel.appendRow(vehiclePricingInstructionsSheetName, <CellValue?>[
     TextCellValue(
-      '3. service_id va price_k majburiy. Narxlar ming so‘m formatida saqlanadi.',
+      '3. service_id va price_uzs majburiy. Masalan: 100000 yoki 150000 UZS.',
     ),
   ]);
 
@@ -120,11 +121,13 @@ List<VehiclePriceRuleModel> parseWorkshopVehiclePricingWorkbook({
   final int? brandColumn = headerIndex['brand'];
   final int? modelColumn = headerIndex['model'];
   final int? vehicleTypeColumn = headerIndex['vehicle_type_id'];
-  final int? priceColumn = headerIndex['price_k'];
+  final int? priceColumn = headerIndex['price_uzs'] ??
+      headerIndex['price'] ??
+      headerIndex['price_k'];
 
   if (serviceIdColumn == null || priceColumn == null) {
     throw const FormatException(
-      'Excel sarlavhasi noto‘g‘ri. service_id va price_k ustunlari kerak.',
+      'Excel sarlavhasi noto‘g‘ri. service_id va price_uzs ustunlari kerak.',
     );
   }
 
@@ -159,7 +162,7 @@ List<VehiclePriceRuleModel> parseWorkshopVehiclePricingWorkbook({
       throw FormatException('Noma’lum service_id: $serviceId');
     }
 
-    final int? price = int.tryParse(priceRaw);
+    final int? price = tryParseStoredMoneyAmount(priceRaw);
     if (price == null || price < 0) {
       throw FormatException('Narx noto‘g‘ri: $priceRaw');
     }

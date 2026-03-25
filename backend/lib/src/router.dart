@@ -3,6 +3,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'admin_auth.dart';
 import 'auth_middleware.dart';
+import 'booking_reminder_service.dart';
 import 'controllers/admin_bookings_controller.dart';
 import 'controllers/admin_controller.dart';
 import 'controllers/admin_reviews_controller.dart';
@@ -24,11 +25,13 @@ class AppRuntime {
   const AppRuntime({
     required this.handler,
     required this.ownerController,
+    required this.bookingReminderService,
     required this.reviewReminderService,
   });
 
   final Handler handler;
   final OwnerController ownerController;
+  final BookingReminderService bookingReminderService;
   final ReviewReminderService reviewReminderService;
 }
 
@@ -63,6 +66,14 @@ AppRuntime buildAppRuntime(
       WorkshopNotificationsService(telegramBotService);
   final UserNotificationsService userNotificationsService =
       UserNotificationsService(firebasePushService);
+  final BookingReminderService bookingReminderService = BookingReminderService(
+    store,
+    bookingsFilePath: bookingsFilePath,
+    userNotificationsService: userNotificationsService,
+    workshopNotificationsService: notificationsService,
+    customerLeadTime: const Duration(hours: 1),
+    workshopLeadTime: const Duration(minutes: 30),
+  );
   final ReviewReminderService reviewReminderService = ReviewReminderService(
     store,
     bookingsFilePath: bookingsFilePath,
@@ -195,6 +206,7 @@ AppRuntime buildAppRuntime(
   return AppRuntime(
     handler: handler,
     ownerController: ownerController,
+    bookingReminderService: bookingReminderService,
     reviewReminderService: reviewReminderService,
   );
 }

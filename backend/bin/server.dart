@@ -99,6 +99,27 @@ Future<void> main() async {
   );
 
   bool isReviewReminderSyncRunning = false;
+  bool isBookingReminderSyncRunning = false;
+
+  Future<void> syncBookingRemindersSafely() async {
+    if (isBookingReminderSyncRunning) {
+      return;
+    }
+
+    isBookingReminderSyncRunning = true;
+    try {
+      final result = await appRuntime.bookingReminderService.sendDueReminders();
+      if (result.totalSent > 0) {
+        stdout.writeln(
+          'Booking reminder yuborildi: mijoz=${result.customerSent}, ustaxona=${result.workshopSent}',
+        );
+      }
+    } on Exception catch (error) {
+      stderr.writeln('Booking reminder xatoligi: $error');
+    } finally {
+      isBookingReminderSyncRunning = false;
+    }
+  }
 
   Future<void> syncReviewRemindersSafely() async {
     if (isReviewReminderSyncRunning) {
@@ -118,6 +139,11 @@ Future<void> main() async {
       isReviewReminderSyncRunning = false;
     }
   }
+
+  unawaited(syncBookingRemindersSafely());
+  Timer.periodic(const Duration(minutes: 5), (_) {
+    unawaited(syncBookingRemindersSafely());
+  });
 
   unawaited(syncReviewRemindersSafely());
   Timer.periodic(const Duration(minutes: 5), (_) {

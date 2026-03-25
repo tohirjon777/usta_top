@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
 
 import '../booking_cancellation.dart';
+import '../money.dart';
 import '../models.dart';
 import '../owner_auth.dart';
 import '../review_analytics.dart';
@@ -680,12 +681,7 @@ class OwnerController {
 '''
         : bookings.map((BookingModel item) {
             final String statusLabel = _statusLabel(item.status, lang);
-            final String statusClass = switch (item.status) {
-              BookingStatus.upcoming => 'status-upcoming',
-              BookingStatus.accepted => 'status-accepted',
-              BookingStatus.completed => 'status-completed',
-              BookingStatus.cancelled => 'status-cancelled',
-            };
+            final String statusClass = _statusClass(item.status);
             return '''
 <article class="booking-card">
   <div class="booking-head">
@@ -716,11 +712,11 @@ class OwnerController {
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'priceLabel'))}</span>
-      <strong>${_escapeHtml(item.price.toString())}k</strong>
+      <strong>${_escapeHtml(formatMoneyUzs(item.price))}</strong>
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'basePriceLabel'))}</span>
-      <strong>${_escapeHtml(item.basePrice.toString())}k</strong>
+      <strong>${_escapeHtml(formatMoneyUzs(item.basePrice))}</strong>
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'createdLabel'))}</span>
@@ -735,6 +731,7 @@ class OwnerController {
 	      ${_statusActionsHtml(item, lang, status)}
 	    </div>
 	  </div>
+	  ${item.status == BookingStatus.rescheduled && item.previousDateTime != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'rescheduledFromLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.previousDateTime!))}</strong></div>' : ''}
 	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong> · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
 	</article>
 	''';
@@ -1520,6 +1517,11 @@ class OwnerController {
       background: var(--mint-soft);
     }
 
+    .status-rescheduled {
+      color: var(--accent-strong);
+      background: rgba(255, 230, 214, 0.95);
+    }
+
     .status-completed {
       color: var(--mint);
       background: var(--mint-soft);
@@ -1694,7 +1696,7 @@ class OwnerController {
     }
 
     try {
-      final int nextPrice = _parseIntField(
+      final int nextPrice = _parsePriceField(
         form['price'],
         fieldLabel: _text(
           lang,
@@ -1737,7 +1739,7 @@ class OwnerController {
             'serviceSettingsUpdated',
             <String, Object>{
               'service': currentService.name,
-              'price': '${nextPrice}k',
+              'price': formatMoneyUzs(nextPrice),
               'duration': '$nextDurationMinutes',
             },
           ),
@@ -1941,6 +1943,9 @@ class OwnerController {
     final BookingStatus nextStatus = _statusFromRaw(form['bookingStatus']);
     final String cancellationReasonId =
         normalizeBookingCancellationReasonId(form['cancellationReason'] ?? '');
+    final DateTime? scheduledAt = nextStatus == BookingStatus.rescheduled
+        ? _parseDateTimeLocalField(form['scheduledAt'])
+        : null;
 
     try {
       final BookingModel updated = nextStatus == BookingStatus.cancelled
@@ -1950,6 +1955,14 @@ class OwnerController {
               reasonId: cancellationReasonId,
               actorRole: 'owner_panel',
             )
+          : nextStatus == BookingStatus.rescheduled
+              ? _store.rescheduleWorkshopBooking(
+                  workshopId: workshopId,
+                  bookingId: bookingId,
+                  dateTime: scheduledAt ??
+                      (throw StateError(_text(lang, 'rescheduleDateRequired'))),
+                  actorRole: 'owner_panel',
+                )
           : _store.updateWorkshopBookingStatus(
               workshopId: workshopId,
               bookingId: bookingId,
@@ -2053,7 +2066,7 @@ class OwnerController {
             final String currentPriceText = _text(
               lang,
               'serviceCurrentPriceLabel',
-              <String, Object>{'price': '${service.price}k'},
+              <String, Object>{'price': formatMoneyUzs(service.price)},
             );
             return '''
 <form class="service-pricing-row" method="post" action="/owner/services/${Uri.encodeComponent(service.id)}/price?lang=${Uri.encodeQueryComponent(lang)}">
@@ -2065,7 +2078,7 @@ class OwnerController {
   <div class="service-pricing-actions">
     <label class="service-pricing-field">
       <span>${_escapeHtml(_text(lang, 'serviceNewPriceLabel'))}</span>
-      <input type="number" name="price" min="0" step="1" value="${_escapeHtml(service.price.toString())}" placeholder="${_escapeHtml(_text(lang, 'servicePricePlaceholder'))}">
+      <input type="number" name="price" min="0" step="1000" value="${_escapeHtml(moneyInputValue(service.price))}" placeholder="${_escapeHtml(_text(lang, 'servicePricePlaceholder'))}">
     </label>
     <label class="service-pricing-field">
       <span>${_escapeHtml(_text(lang, 'serviceNewDurationLabel'))}</span>
@@ -2378,11 +2391,11 @@ class OwnerController {
 <article class="agenda-item">
   <div class="agenda-top">
     <strong>${_escapeHtml(_formatClock(item.dateTime))} • ${_escapeHtml(item.customerName.isEmpty ? _text(lang, 'unknownCustomer') : item.customerName)}</strong>
-    <span class="status-pill ${item.status == BookingStatus.cancelled ? 'status-cancelled' : item.status == BookingStatus.completed ? 'status-completed' : item.status == BookingStatus.accepted ? 'status-accepted' : 'status-upcoming'}">${_escapeHtml(_statusLabel(item.status, lang))}</span>
+    <span class="status-pill ${_statusClass(item.status)}">${_escapeHtml(_statusLabel(item.status, lang))}</span>
   </div>
   <div class="agenda-meta">
     ${_escapeHtml(item.serviceName)} • ${_escapeHtml(_vehicleSummary(item, lang))}<br>
-    ${_escapeHtml(_text(lang, 'priceLabel'))}: ${_escapeHtml(item.price.toString())}k
+    ${_escapeHtml(_text(lang, 'priceLabel'))}: ${_escapeHtml(formatMoneyUzs(item.price))}
   </div>
 </article>
 ''';
@@ -2975,7 +2988,68 @@ class OwnerController {
         );
         return false;
       case BookingStatus.accepted:
+      case BookingStatus.rescheduled:
       case BookingStatus.upcoming:
+        if (parsed.kind == 'restore') {
+          await _safeRefreshTelegramBookingMessage(
+            action,
+            workshop: workshop,
+            booking: booking,
+          );
+          await _safeAnswerTelegramCallback(
+            action.callbackQueryId,
+            'Asosiy tugmalar qaytarildi',
+          );
+          return false;
+        }
+        if (parsed.kind == 'reschedule') {
+          try {
+            final List<DateTime> suggestions =
+                _store.suggestedWorkshopRescheduleSlots(
+              workshopId: workshop.id,
+              serviceId: booking.serviceId,
+              fromDateTime: booking.dateTime,
+              excludeBookingId: booking.id,
+            );
+            if (suggestions.isEmpty) {
+              await _safeAnswerTelegramCallback(
+                action.callbackQueryId,
+                'Yaqin bo‘sh vaqt topilmadi',
+              );
+              return false;
+            }
+            await telegramBotService.editMessageText(
+              chatId: action.chatId,
+              messageId: action.messageId,
+              text: notificationsService.bookingRescheduleSelectionText(
+                workshop: workshop,
+                booking: booking,
+                suggestions: suggestions,
+              ),
+              replyMarkup: notificationsService.bookingRescheduleOptionsMarkup(
+                workshop: workshop,
+                booking: booking,
+                suggestions: suggestions,
+              ),
+            );
+            await _safeAnswerTelegramCallback(
+              action.callbackQueryId,
+              'Yangi vaqtni tanlang',
+            );
+          } on StateError catch (error) {
+            await _safeAnswerTelegramCallback(
+              action.callbackQueryId,
+              error.message,
+            );
+          } on Exception catch (error) {
+            stderr.writeln('Telegram reschedule variantlari yangilanmadi: $error');
+            await _safeAnswerTelegramCallback(
+              action.callbackQueryId,
+              'Variantlarni ochib bo‘lmadi',
+            );
+          }
+          return false;
+        }
         if (parsed.kind == 'accept' &&
             booking.status == BookingStatus.accepted) {
           await _safeAnswerTelegramCallback(
@@ -2992,6 +3066,14 @@ class OwnerController {
                   reasonId: parsed.reasonId,
                   actorRole: 'owner_telegram',
                 )
+              : parsed.kind == 'pick_reschedule'
+                  ? _store.rescheduleWorkshopBooking(
+                      workshopId: workshop.id,
+                      bookingId: booking.id,
+                      dateTime: parsed.scheduledAt ??
+                          (throw StateError('Yangi vaqt topilmadi')),
+                      actorRole: 'owner_telegram',
+                    )
               : parsed.kind == 'accept'
                   ? _store.updateWorkshopBookingStatus(
                       workshopId: workshop.id,
@@ -3012,6 +3094,8 @@ class OwnerController {
             action.callbackQueryId,
             parsed.kind == 'cancel'
                 ? 'Zakaz bekor qilindi'
+                : parsed.kind == 'pick_reschedule'
+                    ? 'Zakaz yangi vaqtga ko‘chirildi'
                 : parsed.kind == 'accept'
                     ? 'Zakaz qabul qilindi'
                     : 'Zakaz bajarildi deb belgilandi',
@@ -3105,6 +3189,32 @@ class OwnerController {
       );
     }
 
+    if (parts.length == 2 && parts.first == 'r') {
+      final String bookingId = parts[1].trim();
+      if (bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'reschedule',
+        workshopId: '',
+        bookingId: bookingId,
+      );
+    }
+
+    if (parts.length == 2 && parts.first == 'b') {
+      final String bookingId = parts[1].trim();
+      if (bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'restore',
+        workshopId: '',
+        bookingId: bookingId,
+      );
+    }
+
     if (parts.length == 3 && parts.first == 'c') {
       final String reasonId =
           _telegramCancellationReasonFromShortCode(parts[1]);
@@ -3118,6 +3228,21 @@ class OwnerController {
         workshopId: '',
         bookingId: bookingId,
         reasonId: reasonId,
+      );
+    }
+
+    if (parts.length == 3 && parts.first == 's') {
+      final DateTime? scheduledAt = _parseTelegramSlotCode(parts[1]);
+      final String bookingId = parts[2].trim();
+      if (scheduledAt == null || bookingId.isEmpty) {
+        return null;
+      }
+
+      return _TelegramBookingCallback(
+        kind: 'pick_reschedule',
+        workshopId: '',
+        bookingId: bookingId,
+        scheduledAt: scheduledAt,
       );
     }
 
@@ -3166,6 +3291,19 @@ class OwnerController {
     }
 
     return null;
+  }
+
+  DateTime? _parseTelegramSlotCode(String raw) {
+    final String value = raw.trim();
+    if (!RegExp(r'^\d{12}$').hasMatch(value)) {
+      return null;
+    }
+    final int year = int.parse(value.substring(0, 4));
+    final int month = int.parse(value.substring(4, 6));
+    final int day = int.parse(value.substring(6, 8));
+    final int hour = int.parse(value.substring(8, 10));
+    final int minute = int.parse(value.substring(10, 12));
+    return DateTime(year, month, day, hour, minute).toUtc();
   }
 
   String _telegramCancellationReasonFromShortCode(String raw) {
@@ -3353,7 +3491,8 @@ class OwnerController {
       return '<span class="muted">${_escapeHtml(_text(lang, 'noFurtherActions'))}</span>';
     }
 
-    final String acceptForm = booking.status == BookingStatus.upcoming
+    final String acceptForm = booking.status == BookingStatus.upcoming ||
+            booking.status == BookingStatus.rescheduled
         ? _statusActionForm(
             booking,
             BookingStatus.accepted,
@@ -3367,12 +3506,17 @@ class OwnerController {
       lang,
       status,
     );
+    final String rescheduleForm = _rescheduleActionForm(
+      booking: booking,
+      lang: lang,
+      status: status,
+    );
     final String cancelForm = _cancelActionForm(
       booking: booking,
       lang: lang,
       status: status,
     );
-    return '$acceptForm$completeForm$cancelForm';
+    return '$acceptForm$completeForm$rescheduleForm$cancelForm';
   }
 
   String _statusActionForm(
@@ -3388,6 +3532,22 @@ class OwnerController {
   <input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
   <input type="hidden" name="bookingStatus" value="${_escapeHtml(nextStatus.name)}">
   <button class="status-btn${isActive ? ' active' : ''}" type="submit">${_escapeHtml(_statusLabel(nextStatus, lang))}</button>
+</form>
+''';
+  }
+
+  String _rescheduleActionForm({
+    required BookingModel booking,
+    required String lang,
+    required String status,
+  }) {
+    return '''
+<form class="inline-form cancel-form" method="post" action="/owner/bookings/${Uri.encodeComponent(booking.id)}/status?lang=${Uri.encodeQueryComponent(lang)}">
+  <input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+  <input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+  <input type="hidden" name="bookingStatus" value="rescheduled">
+  <input class="cancel-select" type="datetime-local" name="scheduledAt" value="${_escapeHtml(_formatDateTimeLocalValue(booking.dateTime))}" aria-label="${_escapeHtml(_text(lang, 'rescheduleDateLabel'))}">
+  <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'rescheduleButton'))}</button>
 </form>
 ''';
   }
@@ -3534,6 +3694,37 @@ class OwnerController {
     }
 
     final int? value = int.tryParse(normalized);
+    if (value == null) {
+      throw FormatException(
+        _text(lang, 'invalidNumber', <String, Object>{'field': fieldLabel}),
+      );
+    }
+    if (value < min) {
+      throw FormatException(
+        _text(
+          lang,
+          'numberMin',
+          <String, Object>{'field': fieldLabel, 'min': min},
+        ),
+      );
+    }
+    return value;
+  }
+
+  int _parsePriceField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+    required int min,
+  }) {
+    final String normalized = (raw ?? '').trim();
+    if (normalized.isEmpty) {
+      throw FormatException(
+        _text(lang, 'requiredField', <String, Object>{'field': fieldLabel}),
+      );
+    }
+
+    final int? value = tryParseStoredMoneyAmount(normalized);
     if (value == null) {
       throw FormatException(
         _text(lang, 'invalidNumber', <String, Object>{'field': fieldLabel}),
@@ -3700,6 +3891,8 @@ class OwnerController {
     switch ((raw ?? '').trim().toLowerCase()) {
       case 'upcoming':
         return 'upcoming';
+      case 'rescheduled':
+        return 'rescheduled';
       case 'accepted':
         return 'accepted';
       case 'completed':
@@ -3713,6 +3906,8 @@ class OwnerController {
 
   BookingStatus _statusFromRaw(String? raw) {
     switch ((raw ?? '').trim().toLowerCase()) {
+      case 'rescheduled':
+        return BookingStatus.rescheduled;
       case 'accepted':
         return BookingStatus.accepted;
       case 'completed':
@@ -3729,6 +3924,8 @@ class OwnerController {
     switch (status) {
       case BookingStatus.upcoming:
         return _text(lang, 'statusUpcoming');
+      case BookingStatus.rescheduled:
+        return _text(lang, 'statusRescheduled');
       case BookingStatus.accepted:
         return _text(lang, 'statusAccepted');
       case BookingStatus.completed:
@@ -3745,6 +3942,39 @@ class OwnerController {
     final String hour = local.hour.toString().padLeft(2, '0');
     final String minute = local.minute.toString().padLeft(2, '0');
     return '${local.year}-$month-$day $hour:$minute';
+  }
+
+  String _formatDateTimeLocalValue(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day'
+        'T$hour:$minute';
+  }
+
+  DateTime? _parseDateTimeLocalField(String? raw) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(value);
+  }
+
+  String _statusClass(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.upcoming:
+        return 'status-upcoming';
+      case BookingStatus.accepted:
+        return 'status-accepted';
+      case BookingStatus.rescheduled:
+        return 'status-rescheduled';
+      case BookingStatus.completed:
+        return 'status-completed';
+      case BookingStatus.cancelled:
+        return 'status-cancelled';
+    }
   }
 
   String _reviewStars(int rating) {
@@ -3818,6 +4048,7 @@ class OwnerController {
           'Quyidagi ro‘yxatda faqat sizning ustaxonangizga tegishli buyurtmalar ko‘rinadi.',
       'statusAll': 'Barchasi',
       'statusUpcoming': 'Kutilmoqda',
+      'statusRescheduled': 'Ko‘chirildi',
       'statusAccepted': 'Qabul qilindi',
       'statusCompleted': 'Yakunlangan',
       'statusCancelled': 'Bekor qilingan',
@@ -3879,7 +4110,7 @@ class OwnerController {
       'serviceCurrentPriceLabel': 'Joriy narx: {price}',
       'serviceNewPriceLabel': 'Yangi narx',
       'serviceNewDurationLabel': 'Yangi davomiylik',
-      'servicePricePlaceholder': 'Masalan: 150',
+      'servicePricePlaceholder': 'Masalan: 150000',
       'serviceDurationPlaceholder': 'Masalan: 45',
       'servicePriceSave': 'Narxni saqlash',
       'serviceSettingsUpdated':
@@ -3891,7 +4122,7 @@ class OwnerController {
       'pricingMatrixDescription':
           'Har bir xizmat uchun mashina modeli kesimidagi narxlarni Excel orqali boshqaring.',
       'pricingMatrixHint':
-          'Template-ni yuklab oling, price_k ustunini o‘zgartiring va faylni shu joyga qayta yuklang.',
+          'Template-ni yuklab oling, price_uzs ustunini to‘liq UZS formatida o‘zgartiring va faylni shu joyga qayta yuklang.',
       'pricingConfiguredCount': 'Sozlangan narxlar',
       'pricingTemplateRows': 'Template satrlari',
       'pricingTemplateDownload': 'Excel template',
@@ -3951,6 +4182,10 @@ class OwnerController {
       'invalidNumber': '{field} noto‘g‘ri',
       'numberMin': '{field} kamida {min} bo‘lishi kerak',
       'statusUpdated': '{id} statusi {status} ga o‘zgardi',
+      'rescheduleButton': 'Ko‘chirish',
+      'rescheduleDateLabel': 'Yangi bron vaqti',
+      'rescheduleDateRequired': 'Ko‘chirish uchun yangi vaqtni tanlang',
+      'rescheduledFromLabel': 'Oldingi vaqt',
       'cancelButton': 'Bekor qilish',
       'cancelReasonLabel': 'Bekor qilish sababi',
       'cancelledByLabel': 'Bekor qildi',
@@ -4025,6 +4260,7 @@ class OwnerController {
           'В этом списке показаны только заказы, относящиеся к вашему автосервису.',
       'statusAll': 'Все',
       'statusUpcoming': 'Ожидает',
+      'statusRescheduled': 'Перенесен',
       'statusAccepted': 'Принят',
       'statusCompleted': 'Завершен',
       'statusCancelled': 'Отменен',
@@ -4086,7 +4322,7 @@ class OwnerController {
       'serviceCurrentPriceLabel': 'Текущая цена: {price}',
       'serviceNewPriceLabel': 'Новая цена',
       'serviceNewDurationLabel': 'Новая длительность',
-      'servicePricePlaceholder': 'Например: 150',
+      'servicePricePlaceholder': 'Например: 150000',
       'serviceDurationPlaceholder': 'Например: 45',
       'servicePriceSave': 'Сохранить цену',
       'serviceSettingsUpdated':
@@ -4098,7 +4334,7 @@ class OwnerController {
       'pricingMatrixDescription':
           'Управляйте ценами по моделям для каждой услуги через Excel.',
       'pricingMatrixHint':
-          'Скачайте шаблон, измените колонку price_k и загрузите файл обратно сюда.',
+          'Скачайте шаблон, измените колонку price_uzs в полном формате UZS и загрузите файл обратно сюда.',
       'pricingConfiguredCount': 'Настроено цен',
       'pricingTemplateRows': 'Строк в шаблоне',
       'pricingTemplateDownload': 'Excel шаблон',
@@ -4158,6 +4394,10 @@ class OwnerController {
       'invalidNumber': 'Поле {field} заполнено неверно',
       'numberMin': 'Поле {field} должно быть не меньше {min}',
       'statusUpdated': 'Статус {id} изменен на {status}',
+      'rescheduleButton': 'Перенести',
+      'rescheduleDateLabel': 'Новое время записи',
+      'rescheduleDateRequired': 'Выберите новое время для переноса',
+      'rescheduledFromLabel': 'Старое время',
       'cancelButton': 'Отменить заказ',
       'cancelReasonLabel': 'Причина отмены',
       'cancelledByLabel': 'Кто отменил',
@@ -4232,6 +4472,7 @@ class OwnerController {
           'Only orders assigned to your workshop are shown in this list.',
       'statusAll': 'All',
       'statusUpcoming': 'Upcoming',
+      'statusRescheduled': 'Rescheduled',
       'statusAccepted': 'Accepted',
       'statusCompleted': 'Completed',
       'statusCancelled': 'Cancelled',
@@ -4294,7 +4535,7 @@ class OwnerController {
       'serviceCurrentPriceLabel': 'Current price: {price}',
       'serviceNewPriceLabel': 'New price',
       'serviceNewDurationLabel': 'New duration',
-      'servicePricePlaceholder': 'For example: 150',
+      'servicePricePlaceholder': 'For example: 150000',
       'serviceDurationPlaceholder': 'For example: 45',
       'servicePriceSave': 'Save price',
       'serviceSettingsUpdated':
@@ -4306,7 +4547,7 @@ class OwnerController {
       'pricingMatrixDescription':
           'Manage vehicle-specific prices for each service through Excel.',
       'pricingMatrixHint':
-          'Download the template, update the price_k column, and upload the file back here.',
+          'Download the template, update the price_uzs column with full UZS amounts, and upload the file back here.',
       'pricingConfiguredCount': 'Configured prices',
       'pricingTemplateRows': 'Template rows',
       'pricingTemplateDownload': 'Excel template',
@@ -4366,6 +4607,10 @@ class OwnerController {
       'invalidNumber': '{field} must be a valid number',
       'numberMin': '{field} must be at least {min}',
       'statusUpdated': '{id} status changed to {status}',
+      'rescheduleButton': 'Reschedule',
+      'rescheduleDateLabel': 'New appointment time',
+      'rescheduleDateRequired': 'Choose a new appointment time',
+      'rescheduledFromLabel': 'Previous time',
       'cancelButton': 'Cancel order',
       'cancelReasonLabel': 'Cancellation reason',
       'cancelledByLabel': 'Cancelled by',
@@ -4445,10 +4690,12 @@ class _TelegramBookingCallback {
     required this.workshopId,
     required this.bookingId,
     this.reasonId = '',
+    this.scheduledAt,
   });
 
   final String kind;
   final String workshopId;
   final String bookingId;
   final String reasonId;
+  final DateTime? scheduledAt;
 }

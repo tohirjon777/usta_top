@@ -481,12 +481,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         _selectedTime != _nearestAvailableTime) ...<Widget>[
                       const SizedBox(height: 10),
                       FilledButton.tonal(
-                        onPressed: () {
-                          setState(() {
-                            _selectedDate = _nearestAvailableDate!;
-                          });
-                          _loadAvailability();
-                        },
+                        onPressed: _selectNearestAvailableSlot,
                         child: Text(l10n.selectNearestAvailable),
                       ),
                     ],
@@ -858,7 +853,23 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  Future<void> _loadAvailability() async {
+  void _selectNearestAvailableSlot() {
+    final DateTime? nearestDate = _nearestAvailableDate;
+    final String nearestTime = _nearestAvailableTime;
+    if (nearestDate == null || nearestTime.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _selectedDate = nearestDate;
+      _selectedTime = nearestTime;
+    });
+    unawaited(_loadAvailability(preferredTime: nearestTime));
+  }
+
+  Future<void> _loadAvailability({
+    String? preferredTime,
+  }) async {
     final int requestId = ++_availabilityRequestId;
     setState(() {
       _isLoadingAvailability = true;
@@ -880,7 +891,10 @@ class _BookingScreenState extends State<BookingScreen> {
         _isLoadingAvailability = false;
         _isClosedDay = availability.isClosedDay;
         _availableSlots = availability.slotTimes;
-        if (_selectedTime == null || !_availableSlots.contains(_selectedTime)) {
+        if (preferredTime != null && _availableSlots.contains(preferredTime)) {
+          _selectedTime = preferredTime;
+        } else if (_selectedTime == null ||
+            !_availableSlots.contains(_selectedTime)) {
           _selectedTime = _availableSlots.isEmpty ? null : _availableSlots.first;
         }
       });

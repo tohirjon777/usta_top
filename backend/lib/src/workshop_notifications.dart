@@ -1,4 +1,5 @@
 import 'booking_cancellation.dart';
+import 'money.dart';
 import 'models.dart';
 import 'telegram_bot.dart';
 import 'vehicle_types.dart';
@@ -43,8 +44,9 @@ Telefon: ${_safeValue(booking.customerPhone)}
 Xizmat: ${booking.serviceName}
 Mashina: ${_vehicleSummary(booking)}
 Vaqt: ${_formatDateTime(booking.dateTime)}
-Asosiy narx: ${booking.basePrice}k
-Yakuniy narx: ${booking.price}k
+Asosiy narx: ${formatMoneyUzs(booking.basePrice)}
+Yakuniy narx: ${formatMoneyUzs(booking.price)}
+${_rescheduleMetaText(booking)}
 ${includeStatus ? 'Holat: ${_statusLabel(booking.status)}\n' : ''}''';
   }
 
@@ -67,8 +69,37 @@ Telefon: ${_safeValue(booking.customerPhone)}
 Xizmat: ${booking.serviceName}
 Mashina: ${_vehicleSummary(booking)}
 Vaqt: ${_formatDateTime(booking.dateTime)}
-${booking.status == BookingStatus.cancelled ? 'Bekor qildi: ${_cancellationActor(booking)}\nBekor qilish sababi: ${_cancellationReason(booking)}\n' : ''}Yakuniy narx: ${booking.price}k
+${_rescheduleMetaText(booking)}
+${booking.status == BookingStatus.cancelled ? 'Bekor qildi: ${_cancellationActor(booking)}\nBekor qilish sababi: ${_cancellationReason(booking)}\n' : ''}Yakuniy narx: ${formatMoneyUzs(booking.price)}
 ''',
+    );
+  }
+
+  Future<void> sendUpcomingBookingReminder({
+    required WorkshopModel workshop,
+    required BookingModel booking,
+    required Duration leadTime,
+  }) {
+    return _sendToWorkshop(
+      workshop: workshop,
+      text: '''
+Usta Top: bron eslatmasi
+
+Avtoservis: ${workshop.name}
+Zakaz ID: ${booking.id}
+Mijoz: ${_safeValue(booking.customerName)}
+Telefon: ${_safeValue(booking.customerPhone)}
+Xizmat: ${booking.serviceName}
+Mashina: ${_vehicleSummary(booking)}
+Vaqt: ${_formatDateTime(booking.dateTime)}
+Boshlanishiga: ${_leadTimeLabel(leadTime)}
+Holat: ${_statusLabel(booking.status)}
+Yakuniy narx: ${formatMoneyUzs(booking.price)}
+''',
+      replyMarkup: bookingActionMarkup(
+        workshop: workshop,
+        booking: booking,
+      ),
     );
   }
 
@@ -187,7 +218,8 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
     return <String, Object>{
       'inline_keyboard': <List<Map<String, String>>>[
         <Map<String, String>>[
-          if (booking.status == BookingStatus.upcoming)
+          if (booking.status == BookingStatus.upcoming ||
+              booking.status == BookingStatus.rescheduled)
             <String, String>{
               'text': 'Qabul qilindi',
               'callback_data': acceptedBookingCallbackData(
@@ -195,6 +227,15 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
                 bookingId: booking.id,
               ),
             },
+          <String, String>{
+            'text': 'Ko‘chirish',
+            'callback_data': rescheduleBookingCallbackData(
+              workshopId: workshop.id,
+              bookingId: booking.id,
+            ),
+          },
+        ],
+        <Map<String, String>>[
           <String, String>{
             'text': 'Bajardim',
             'callback_data': completedBookingCallbackData(
@@ -243,6 +284,57 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
     };
   }
 
+  Map<String, Object> bookingRescheduleOptionsMarkup({
+    required WorkshopModel workshop,
+    required BookingModel booking,
+    required List<DateTime> suggestions,
+  }) {
+    final List<List<Map<String, String>>> rows = <List<Map<String, String>>>[];
+    for (final DateTime slot in suggestions) {
+      rows.add(<Map<String, String>>[
+        <String, String>{
+          'text': _formatSlotButton(slot),
+          'callback_data': pickRescheduleBookingCallbackData(
+            workshopId: workshop.id,
+            bookingId: booking.id,
+            slot: slot,
+          ),
+        },
+      ]);
+    }
+    rows.add(<Map<String, String>>[
+      <String, String>{
+        'text': 'Ortga',
+        'callback_data': restoreBookingActionsCallbackData(
+          workshopId: workshop.id,
+          bookingId: booking.id,
+        ),
+      },
+    ]);
+    return <String, Object>{'inline_keyboard': rows};
+  }
+
+  String bookingRescheduleSelectionText({
+    required WorkshopModel workshop,
+    required BookingModel booking,
+    required List<DateTime> suggestions,
+  }) {
+    final String suggestionsText = suggestions
+        .map((DateTime item) => '• ${_formatDateTime(item)}')
+        .join('\n');
+    return '''
+Usta Top: yangi vaqtni tanlang
+
+Avtoservis: ${workshop.name}
+Zakaz ID: ${booking.id}
+Mijoz: ${_safeValue(booking.customerName)}
+Xizmat: ${booking.serviceName}
+Joriy vaqt: ${_formatDateTime(booking.dateTime)}
+
+$suggestionsText
+''';
+  }
+
   static String acceptedBookingCallbackData({
     required String workshopId,
     required String bookingId,
@@ -255,6 +347,31 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
     required String bookingId,
   }) {
     return 'd:${bookingId.trim()}';
+  }
+
+  static String rescheduleBookingCallbackData({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    return 'r:${bookingId.trim()}';
+  }
+
+  static String restoreBookingActionsCallbackData({
+    required String workshopId,
+    required String bookingId,
+  }) {
+    return 'b:${bookingId.trim()}';
+  }
+
+  static String pickRescheduleBookingCallbackData({
+    required String workshopId,
+    required String bookingId,
+    required DateTime slot,
+  }) {
+    final DateTime local = slot.toLocal();
+    final String code =
+        '${local.year.toString().padLeft(4, '0')}${local.month.toString().padLeft(2, '0')}${local.day.toString().padLeft(2, '0')}${local.hour.toString().padLeft(2, '0')}${local.minute.toString().padLeft(2, '0')}';
+    return 's:$code:${bookingId.trim()}';
   }
 
   static String cancelledBookingCallbackData({
@@ -289,6 +406,8 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
         return 'Kutilmoqda';
       case BookingStatus.accepted:
         return 'Qabul qilindi';
+      case BookingStatus.rescheduled:
+        return 'Ko‘chirildi';
       case BookingStatus.completed:
         return 'Yakunlangan';
       case BookingStatus.cancelled:
@@ -340,5 +459,28 @@ Bu sharh hali javobsiz. Telegramda shu xabarga reply qiling yoki owner paneldan 
 
   String _cancellationActor(BookingModel booking) {
     return bookingCancellationActorLabel(booking.cancelledByRole, 'uz');
+  }
+
+  String _rescheduleMetaText(BookingModel booking) {
+    if (booking.previousDateTime == null || booking.status != BookingStatus.rescheduled) {
+      return '';
+    }
+    return 'Oldingi vaqt: ${_formatDateTime(booking.previousDateTime!)}\n';
+  }
+
+  String _leadTimeLabel(Duration value) {
+    if (value.inHours >= 1 && value.inMinutes % 60 == 0) {
+      return '${value.inHours} soat qoldi';
+    }
+    return '${value.inMinutes} daqiqa qoldi';
+  }
+
+  String _formatSlotButton(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String day = local.day.toString().padLeft(2, '0');
+    final String month = local.month.toString().padLeft(2, '0');
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '$day.$month $hour:$minute';
   }
 }

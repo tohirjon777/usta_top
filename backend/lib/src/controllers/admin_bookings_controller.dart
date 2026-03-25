@@ -5,6 +5,7 @@ import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
 import '../booking_cancellation.dart';
+import '../money.dart';
 import '../models.dart';
 import '../store.dart';
 import '../user_notifications.dart';
@@ -49,7 +50,7 @@ class AdminBookingsController {
       if (workshopId.isNotEmpty && item.workshopId != workshopId) {
         return false;
       }
-      if (status != 'all' && item.status.name != status) {
+      if (!_matchesStatusFilter(item.status, status)) {
         return false;
       }
       if (query.isEmpty) {
@@ -70,9 +71,7 @@ class AdminBookingsController {
           item.id.toLowerCase().contains(q);
     }).toList(growable: false);
 
-    final int upcomingCount = allBookings
-        .where((BookingModel item) => item.status == BookingStatus.upcoming)
-        .length;
+    final int upcomingCount = _store.bookings(status: BookingStatus.upcoming).length;
     final int acceptedCount = allBookings
         .where((BookingModel item) => item.status == BookingStatus.accepted)
         .length;
@@ -140,12 +139,7 @@ class AdminBookingsController {
 '''
         : filtered.map((BookingModel item) {
             final String statusLabel = _statusLabel(item.status, lang);
-            final String statusClass = switch (item.status) {
-              BookingStatus.upcoming => 'status-upcoming',
-              BookingStatus.accepted => 'status-accepted',
-              BookingStatus.completed => 'status-completed',
-              BookingStatus.cancelled => 'status-cancelled',
-            };
+            final String statusClass = _statusClass(item.status);
             final String workshopInboxUri = _adminBookingsUri(
               lang: lang,
               workshopId: item.workshopId,
@@ -181,11 +175,11 @@ class AdminBookingsController {
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'priceLabel'))}</span>
-      <strong>${_escapeHtml(item.price.toString())}k</strong>
+      <strong>${_escapeHtml(formatMoneyUzs(item.price))}</strong>
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'basePriceLabel'))}</span>
-      <strong>${_escapeHtml(item.basePrice.toString())}k</strong>
+      <strong>${_escapeHtml(formatMoneyUzs(item.basePrice))}</strong>
     </div>
     <div class="meta-card">
       <span>${_escapeHtml(_text(lang, 'appointmentLabel'))}</span>
@@ -206,6 +200,7 @@ class AdminBookingsController {
 	      ${_statusActionsHtml(item, lang, query, workshopId, status)}
 	    </div>
 	  </div>
+	  ${item.status == BookingStatus.rescheduled && item.previousDateTime != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'rescheduledFromLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.previousDateTime!))}</strong></div>' : ''}
 	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong> · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
 	</article>
 	''';
@@ -640,6 +635,11 @@ class AdminBookingsController {
       background: var(--mint-soft);
     }
 
+    .status-rescheduled {
+      color: var(--accent-strong);
+      background: rgba(255, 230, 214, 0.95);
+    }
+
     .status-completed {
       color: var(--mint);
       background: var(--mint-soft);
@@ -805,6 +805,9 @@ class AdminBookingsController {
     final BookingStatus nextStatus = _statusFromRaw(form['bookingStatus']);
     final String cancellationReasonId =
         normalizeBookingCancellationReasonId(form['cancellationReason'] ?? '');
+    final DateTime? scheduledAt = nextStatus == BookingStatus.rescheduled
+        ? _parseDateTimeLocalField(form['scheduledAt'])
+        : null;
 
     try {
       final BookingModel updated = nextStatus == BookingStatus.cancelled
@@ -812,10 +815,16 @@ class AdminBookingsController {
               bookingId: bookingId,
               reasonId: cancellationReasonId,
             )
-          : _store.updateBookingStatus(
-              bookingId: bookingId,
-              status: nextStatus,
-      );
+          : nextStatus == BookingStatus.rescheduled
+              ? _store.rescheduleBookingByAdmin(
+                  bookingId: bookingId,
+                  dateTime: scheduledAt ??
+                      (throw StateError(_text(lang, 'rescheduleDateRequired'))),
+                )
+              : _store.updateBookingStatus(
+                  bookingId: bookingId,
+                  status: nextStatus,
+                );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
       await _notifyUserAboutStatusChange(updated);
@@ -894,7 +903,8 @@ class AdminBookingsController {
       return '<span class="muted">${_escapeHtml(_text(lang, 'noFurtherActions'))}</span>';
     }
 
-    final String acceptForm = booking.status == BookingStatus.upcoming
+    final String acceptForm = booking.status == BookingStatus.upcoming ||
+            booking.status == BookingStatus.rescheduled
         ? _statusActionForm(
             booking,
             BookingStatus.accepted,
@@ -912,6 +922,13 @@ class AdminBookingsController {
       workshopId,
       status,
     );
+    final String rescheduleForm = _rescheduleActionForm(
+      booking: booking,
+      lang: lang,
+      query: query,
+      workshopId: workshopId,
+      status: status,
+    );
     final String cancelForm = _cancelActionForm(
       booking: booking,
       lang: lang,
@@ -919,7 +936,7 @@ class AdminBookingsController {
       workshopId: workshopId,
       status: status,
     );
-    return '$acceptForm$completeForm$cancelForm';
+    return '$acceptForm$completeForm$rescheduleForm$cancelForm';
   }
 
   String _statusActionForm(
@@ -939,6 +956,26 @@ class AdminBookingsController {
   <input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
   <input type="hidden" name="bookingStatus" value="${_escapeHtml(nextStatus.name)}">
   <button class="status-btn${isActive ? ' active' : ''}" type="submit">${_escapeHtml(_statusLabel(nextStatus, lang))}</button>
+</form>
+''';
+  }
+
+  String _rescheduleActionForm({
+    required BookingModel booking,
+    required String lang,
+    required String query,
+    required String workshopId,
+    required String status,
+  }) {
+    return '''
+<form class="inline-form cancel-form" method="post" action="/admin/bookings/${Uri.encodeComponent(booking.id)}/status?lang=${Uri.encodeQueryComponent(lang)}">
+  <input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+  <input type="hidden" name="returnQ" value="${_escapeHtml(query)}">
+  <input type="hidden" name="returnWorkshop" value="${_escapeHtml(workshopId)}">
+  <input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+  <input type="hidden" name="bookingStatus" value="rescheduled">
+  <input class="cancel-select" type="datetime-local" name="scheduledAt" value="${_escapeHtml(_formatDateTimeLocalValue(booking.dateTime))}" aria-label="${_escapeHtml(_text(lang, 'rescheduleDateLabel'))}">
+  <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'rescheduleButton'))}</button>
 </form>
 ''';
   }
@@ -1065,11 +1102,11 @@ class AdminBookingsController {
 <article class="agenda-item">
   <div class="agenda-top">
     <strong>${_escapeHtml(_formatClock(item.dateTime))} • ${_escapeHtml(item.customerName.isEmpty ? _text(lang, 'unknownCustomer') : item.customerName)}</strong>
-    <span class="status-pill ${item.status == BookingStatus.cancelled ? 'status-cancelled' : item.status == BookingStatus.completed ? 'status-completed' : item.status == BookingStatus.accepted ? 'status-accepted' : 'status-upcoming'}">${_escapeHtml(_statusLabel(item.status, lang))}</span>
+    <span class="status-pill ${_statusClass(item.status)}">${_escapeHtml(_statusLabel(item.status, lang))}</span>
   </div>
   <div class="agenda-meta">
     ${_escapeHtml(item.serviceName)} • ${_escapeHtml(_vehicleSummary(item, lang))}$workshopSuffix<br>
-    ${_escapeHtml(_text(lang, 'priceLabel'))}: ${_escapeHtml(item.price.toString())}k
+    ${_escapeHtml(_text(lang, 'priceLabel'))}: ${_escapeHtml(formatMoneyUzs(item.price))}
   </div>
 </article>
 ''';
@@ -1279,6 +1316,8 @@ class AdminBookingsController {
     switch ((raw ?? '').trim().toLowerCase()) {
       case 'upcoming':
         return 'upcoming';
+      case 'rescheduled':
+        return 'rescheduled';
       case 'accepted':
         return 'accepted';
       case 'completed':
@@ -1292,6 +1331,8 @@ class AdminBookingsController {
 
   BookingStatus _statusFromRaw(String? raw) {
     switch ((raw ?? '').trim().toLowerCase()) {
+      case 'rescheduled':
+        return BookingStatus.rescheduled;
       case 'accepted':
         return BookingStatus.accepted;
       case 'completed':
@@ -1308,6 +1349,8 @@ class AdminBookingsController {
     switch (status) {
       case BookingStatus.upcoming:
         return _text(lang, 'statusUpcoming');
+      case BookingStatus.rescheduled:
+        return _text(lang, 'statusRescheduled');
       case BookingStatus.accepted:
         return _text(lang, 'statusAccepted');
       case BookingStatus.completed:
@@ -1334,6 +1377,50 @@ class AdminBookingsController {
     final String hour = local.hour.toString().padLeft(2, '0');
     final String minute = local.minute.toString().padLeft(2, '0');
     return '${local.year}-$month-$day $hour:$minute';
+  }
+
+  String _formatDateTimeLocalValue(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day'
+        'T$hour:$minute';
+  }
+
+  DateTime? _parseDateTimeLocalField(String? raw) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(value);
+  }
+
+  bool _matchesStatusFilter(BookingStatus bookingStatus, String filter) {
+    if (filter == 'all') {
+      return true;
+    }
+    if (filter == 'upcoming') {
+      return bookingStatus == BookingStatus.upcoming ||
+          bookingStatus == BookingStatus.rescheduled;
+    }
+    return bookingStatus.name == filter;
+  }
+
+  String _statusClass(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.upcoming:
+        return 'status-upcoming';
+      case BookingStatus.accepted:
+        return 'status-accepted';
+      case BookingStatus.rescheduled:
+        return 'status-rescheduled';
+      case BookingStatus.completed:
+        return 'status-completed';
+      case BookingStatus.cancelled:
+        return 'status-cancelled';
+    }
   }
 
   String _text(
@@ -1412,6 +1499,7 @@ class AdminBookingsController {
       'statusFilter': 'Status filtri',
       'statusAll': 'Barcha statuslar',
       'statusUpcoming': 'Kutilmoqda',
+      'statusRescheduled': 'Ko‘chirildi',
       'statusAccepted': 'Qabul qilindi',
       'statusCompleted': 'Yakunlangan',
       'statusCancelled': 'Bekor qilingan',
@@ -1436,6 +1524,10 @@ class AdminBookingsController {
       'ownerInboxLink': 'Shu ustaxona zakazlari',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
       'statusUpdated': '{id} statusi {status} ga yangilandi',
+      'rescheduleButton': 'Ko‘chirish',
+      'rescheduleDateLabel': 'Yangi bron vaqti',
+      'rescheduleDateRequired': 'Ko‘chirish uchun yangi vaqtni tanlang',
+      'rescheduledFromLabel': 'Oldingi vaqt',
       'cancelButton': 'Bekor qilish',
       'cancelReasonLabel': 'Bekor qilish sababi',
       'cancelledByLabel': 'Bekor qildi',
@@ -1502,6 +1594,7 @@ class AdminBookingsController {
       'statusFilter': 'Фильтр статуса',
       'statusAll': 'Все статусы',
       'statusUpcoming': 'Ожидает',
+      'statusRescheduled': 'Перенесен',
       'statusAccepted': 'Принят',
       'statusCompleted': 'Завершен',
       'statusCancelled': 'Отменен',
@@ -1525,6 +1618,10 @@ class AdminBookingsController {
       'ownerInboxLink': 'Заказы этого автосервиса',
       'callCustomer': 'Позвонить клиенту',
       'statusUpdated': 'Статус {id} обновлен на {status}',
+      'rescheduleButton': 'Перенести',
+      'rescheduleDateLabel': 'Новое время записи',
+      'rescheduleDateRequired': 'Выберите новое время для переноса',
+      'rescheduledFromLabel': 'Старое время',
       'cancelButton': 'Отменить заказ',
       'cancelReasonLabel': 'Причина отмены',
       'cancelledByLabel': 'Кто отменил',
@@ -1591,6 +1688,7 @@ class AdminBookingsController {
       'statusFilter': 'Status filter',
       'statusAll': 'All statuses',
       'statusUpcoming': 'Upcoming',
+      'statusRescheduled': 'Rescheduled',
       'statusAccepted': 'Accepted',
       'statusCompleted': 'Completed',
       'statusCancelled': 'Cancelled',
@@ -1615,6 +1713,10 @@ class AdminBookingsController {
       'ownerInboxLink': 'This workshop inbox',
       'callCustomer': 'Call customer',
       'statusUpdated': '{id} status was updated to {status}',
+      'rescheduleButton': 'Reschedule',
+      'rescheduleDateLabel': 'New appointment time',
+      'rescheduleDateRequired': 'Choose a new appointment time',
+      'rescheduledFromLabel': 'Previous time',
       'cancelButton': 'Cancel order',
       'cancelReasonLabel': 'Cancellation reason',
       'cancelledByLabel': 'Cancelled by',

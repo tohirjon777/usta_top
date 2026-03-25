@@ -1,4 +1,4 @@
-package com.example.usta_top
+package uz.tokhiriy.ustatop
 
 import io.flutter.embedding.android.FlutterActivity
 
