@@ -1,10 +1,11 @@
 import 'dart:collection';
 
 import '../models/booking_availability.dart';
+import '../models/booking_availability_calendar.dart';
 import '../models/booking_chat_message.dart';
 import '../models/booking_item.dart';
 import '../models/saved_vehicle_profile.dart';
-import '../models/vehicle_type.dart';
+import '../models/service_price_quote.dart';
 import '../services/api_exception.dart';
 import '../services/booking_service.dart';
 import '../state/booking_controller.dart';
@@ -25,6 +26,10 @@ class BookingProvider extends BookingController {
       <String, BookingAvailability>{};
   final Set<String> _loadingAvailabilityKeys = <String>{};
   final Map<String, String?> _availabilityErrors = <String, String?>{};
+  final Map<String, BookingAvailabilityCalendar> _availabilityCalendarsByKey =
+      <String, BookingAvailabilityCalendar>{};
+  final Set<String> _loadingCalendarKeys = <String>{};
+  final Map<String, String?> _calendarErrors = <String, String?>{};
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -83,6 +88,50 @@ class BookingProvider extends BookingController {
       workshopId: workshopId,
       serviceId: serviceId,
       date: date,
+    )];
+  }
+
+  BookingAvailabilityCalendar? availabilityCalendarFor({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    int days = 45,
+  }) {
+    return _availabilityCalendarsByKey[_availabilityCalendarKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      fromDate: fromDate,
+      days: days,
+    )];
+  }
+
+  bool isLoadingAvailabilityCalendar({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    int days = 45,
+  }) {
+    return _loadingCalendarKeys.contains(
+      _availabilityCalendarKey(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        fromDate: fromDate,
+        days: days,
+      ),
+    );
+  }
+
+  String? availabilityCalendarError({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    int days = 45,
+  }) {
+    return _calendarErrors[_availabilityCalendarKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      fromDate: fromDate,
+      days: days,
     )];
   }
 
@@ -162,10 +211,7 @@ class BookingProvider extends BookingController {
           vehicleTypeId: vehicleTypeId,
           dateTime: dateTime,
           basePrice: basePrice,
-          price: adjustedVehiclePrice(
-            basePrice: basePrice,
-            vehicleTypeId: vehicleTypeId,
-          ),
+          price: basePrice,
         );
         upsertBooking(localBooking);
         return localBooking;
@@ -187,6 +233,10 @@ class BookingProvider extends BookingController {
         workshopId: workshopId,
         serviceId: serviceId,
         date: dateTime,
+      );
+      _invalidateAvailabilityCalendars(
+        workshopId: workshopId,
+        serviceId: serviceId,
       );
       upsertBooking(created);
       return created;
@@ -239,6 +289,77 @@ class BookingProvider extends BookingController {
       _loadingAvailabilityKeys.remove(key);
       notifyListeners();
     }
+  }
+
+  Future<BookingAvailabilityCalendar> loadAvailabilityCalendar({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    int days = 45,
+  }) async {
+    final String key = _availabilityCalendarKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      fromDate: fromDate,
+      days: days,
+    );
+    _calendarErrors.remove(key);
+    _loadingCalendarKeys.add(key);
+    notifyListeners();
+
+    try {
+      if (_service == null) {
+        final BookingAvailabilityCalendar fallback =
+            _localAvailabilityCalendar(fromDate, days: days);
+        _availabilityCalendarsByKey[key] = fallback;
+        return fallback;
+      }
+
+      final BookingAvailabilityCalendar calendar =
+          await _service.fetchAvailabilityCalendar(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        fromDate: fromDate,
+        days: days,
+      );
+      _availabilityCalendarsByKey[key] = calendar;
+      return calendar;
+    } on ApiException catch (error) {
+      _calendarErrors[key] = error.message;
+      rethrow;
+    } catch (_) {
+      _calendarErrors[key] = 'Kalendar bo‘sh vaqtlarini yuklab bo‘lmadi';
+      rethrow;
+    } finally {
+      _loadingCalendarKeys.remove(key);
+      notifyListeners();
+    }
+  }
+
+  Future<ServicePriceQuote> loadPriceQuote({
+    required String workshopId,
+    required String serviceId,
+    required String catalogVehicleId,
+    required String vehicleBrand,
+    required String vehicleModelName,
+    required String vehicleTypeId,
+    required int fallbackBasePrice,
+  }) async {
+    if (_service == null) {
+      return ServicePriceQuote(
+        basePrice: fallbackBasePrice,
+        price: fallbackBasePrice,
+      );
+    }
+
+    return _service.fetchPriceQuote(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      catalogVehicleId: catalogVehicleId,
+      vehicleBrand: vehicleBrand,
+      vehicleModelName: vehicleModelName,
+      vehicleTypeId: vehicleTypeId,
+    );
   }
 
   Future<void> loadBookingMessages(
@@ -417,6 +538,18 @@ class BookingProvider extends BookingController {
     return '$workshopId|$serviceId|${normalized.year}-$month-$day';
   }
 
+  String _availabilityCalendarKey({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    required int days,
+  }) {
+    final DateTime normalized = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    final String month = normalized.month.toString().padLeft(2, '0');
+    final String day = normalized.day.toString().padLeft(2, '0');
+    return '$workshopId|$serviceId|calendar|${normalized.year}-$month-$day|$days';
+  }
+
   void _invalidateAvailability({
     required String workshopId,
     required String serviceId,
@@ -429,6 +562,20 @@ class BookingProvider extends BookingController {
     );
     _availabilityByKey.remove(key);
     _availabilityErrors.remove(key);
+  }
+
+  void _invalidateAvailabilityCalendars({
+    required String workshopId,
+    required String serviceId,
+  }) {
+    final String prefix = '$workshopId|$serviceId|calendar|';
+    final List<String> keys = _availabilityCalendarsByKey.keys
+        .where((String item) => item.startsWith(prefix))
+        .toList(growable: false);
+    for (final String key in keys) {
+      _availabilityCalendarsByKey.remove(key);
+      _calendarErrors.remove(key);
+    }
   }
 
   BookingAvailability _localAvailability(DateTime date) {
@@ -448,12 +595,21 @@ class BookingProvider extends BookingController {
 
     const List<String> fallbackSlots = <String>[
       '10:00',
+      '10:30',
       '11:00',
+      '11:30',
       '12:00',
+      '12:30',
       '14:00',
+      '14:30',
       '15:00',
+      '15:30',
       '16:00',
+      '16:30',
+      '17:00',
+      '17:30',
       '18:00',
+      '18:30',
     ];
     final DateTime now = DateTime.now();
     final List<String> filtered = fallbackSlots.where((String item) {
@@ -477,6 +633,39 @@ class BookingProvider extends BookingController {
       closingTime: '19:00',
       breakStartTime: '13:00',
       breakEndTime: '14:00',
+    );
+  }
+
+  BookingAvailabilityCalendar _localAvailabilityCalendar(
+    DateTime fromDate, {
+    required int days,
+  }) {
+    final DateTime start = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    final List<BookingAvailabilityDay> items = <BookingAvailabilityDay>[];
+    DateTime? nearestDate;
+    String nearestTime = '';
+    for (int index = 0; index < days; index++) {
+      final DateTime date = start.add(Duration(days: index));
+      final BookingAvailability availability = _localAvailability(date);
+      final BookingAvailabilityDay day = BookingAvailabilityDay(
+        date: date,
+        isClosedDay: availability.isClosedDay,
+        slotCount: availability.slotTimes.length,
+        activeBookingCount: 0,
+        isFullyBooked: !availability.isClosedDay && availability.slotTimes.isEmpty,
+        firstSlot:
+            availability.slotTimes.isEmpty ? '' : availability.slotTimes.first,
+      );
+      items.add(day);
+      if (nearestDate == null && day.firstSlot.isNotEmpty) {
+        nearestDate = date;
+        nearestTime = day.firstSlot;
+      }
+    }
+    return BookingAvailabilityCalendar(
+      days: List<BookingAvailabilityDay>.unmodifiable(items),
+      nearestAvailableDate: nearestDate,
+      nearestAvailableTime: nearestTime,
     );
   }
 

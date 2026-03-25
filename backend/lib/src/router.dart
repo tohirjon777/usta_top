@@ -143,12 +143,25 @@ AppRuntime buildAppRuntime(
     ..post('/owner/telegram/check', ownerController.checkTelegramLink)
     ..post('/owner/telegram/disconnect', ownerController.disconnectTelegram)
     ..post('/owner/services/<id>/price', ownerController.updateServicePrice)
+    ..get(
+      '/owner/vehicle-pricing/template.xlsx',
+      ownerController.downloadVehiclePricingTemplate,
+    )
+    ..post('/owner/vehicle-pricing/import', ownerController.importVehiclePricing)
     ..post('/owner/schedule', ownerController.updateSchedule)
     ..post('/owner/reviews/<id>/reply', ownerController.replyReview)
     ..post('/owner/bookings/<id>/status', ownerController.updateStatus)
     ..post('/admin/workshops', adminController.createWorkshop)
     ..post('/admin/workshops/<id>/update', adminController.updateWorkshop)
     ..post('/admin/workshops/<id>/delete', adminController.deleteWorkshop)
+    ..get(
+      '/admin/workshops/<id>/vehicle-pricing/template.xlsx',
+      adminController.downloadVehiclePricingTemplate,
+    )
+    ..post(
+      '/admin/workshops/<id>/vehicle-pricing/import',
+      adminController.importVehiclePricing,
+    )
     ..post(
         '/admin/workshops/<id>/telegram/test', adminController.sendTelegramTest)
     ..post('/admin/workshops/<id>/location',
@@ -164,6 +177,10 @@ AppRuntime buildAppRuntime(
     ..get('/workshops', workshopController.list)
     ..get('/workshops/<id>', workshopController.byId)
     ..get('/workshops/<id>/availability', workshopController.availability)
+    ..get(
+        '/workshops/<id>/availability/calendar',
+        workshopController.availabilityCalendar)
+    ..get('/workshops/<id>/price-quote', workshopController.priceQuote)
     ..post('/workshops/<id>/reviews', workshopController.createReview)
     ..get('/bookings', bookingController.list)
     ..post('/bookings', bookingController.create)

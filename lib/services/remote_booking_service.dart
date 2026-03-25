@@ -7,9 +7,11 @@ import 'package:http/http.dart' as http;
 import '../core/config/api_endpoints.dart';
 import '../core/storage/auth_token_storage.dart';
 import '../models/booking_availability.dart';
+import '../models/booking_availability_calendar.dart';
 import '../models/booking_chat_message.dart';
 import '../models/booking_item.dart';
 import '../models/saved_vehicle_profile.dart';
+import '../models/service_price_quote.dart';
 import 'api_exception.dart';
 import 'booking_service.dart';
 
@@ -110,6 +112,60 @@ class RemoteBookingService implements BookingService {
       throw const ApiException('Server bo‘sh vaqtlarni qaytarmadi');
     }
     return BookingAvailability.fromJson(data);
+  }
+
+  @override
+  Future<BookingAvailabilityCalendar> fetchAvailabilityCalendar({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    int days = 45,
+  }) async {
+    final String normalizedFrom =
+        '${fromDate.year.toString().padLeft(4, '0')}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}';
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.get,
+      path: ApiEndpoints.workshopAvailabilityCalendar(
+        workshopId,
+        serviceId: serviceId,
+        from: normalizedFrom,
+        days: days,
+      ),
+    );
+
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Server kalendar bo‘sh vaqtlarini qaytarmadi');
+    }
+    return BookingAvailabilityCalendar.fromJson(data);
+  }
+
+  @override
+  Future<ServicePriceQuote> fetchPriceQuote({
+    required String workshopId,
+    required String serviceId,
+    required String catalogVehicleId,
+    required String vehicleBrand,
+    required String vehicleModelName,
+    required String vehicleTypeId,
+  }) async {
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.get,
+      path: ApiEndpoints.workshopPriceQuote(
+        workshopId,
+        serviceId: serviceId,
+        catalogVehicleId: catalogVehicleId,
+        vehicleBrand: normalizeVehicleBrand(vehicleBrand),
+        vehicleModelName: normalizeVehicleModelName(vehicleModelName),
+        vehicleTypeId: vehicleTypeId,
+      ),
+    );
+
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Server narx hisobini qaytarmadi');
+    }
+    return ServicePriceQuote.fromJson(data);
   }
 
   @override

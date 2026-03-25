@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
 import '../models.dart';
 import '../store.dart';
+import '../vehicle_catalog.dart';
+import '../vehicle_pricing_excel.dart';
 import '../workshop_notifications.dart';
 
 class AdminController {
@@ -1733,6 +1736,36 @@ class AdminController {
         modal.classList.remove('open');
       }
 
+      function bindPricingUploadRoot(root) {
+        var fileInput = root.querySelector('[data-pricing-file]');
+        var base64Input = root.querySelector('[data-pricing-base64]');
+        var nameInput = root.querySelector('[data-pricing-name]');
+        var fileName = root.querySelector('[data-pricing-file-name]');
+        if (!fileInput || !base64Input || !nameInput || !fileName) {
+          return;
+        }
+
+        fileInput.addEventListener('change', function () {
+          var file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            base64Input.value = '';
+            nameInput.value = '';
+            fileName.textContent = '';
+            return;
+          }
+
+          fileName.textContent = file.name;
+          var reader = new FileReader();
+          reader.onload = function () {
+            var result = String(reader.result || '');
+            var commaIndex = result.indexOf(',');
+            base64Input.value = commaIndex >= 0 ? result.slice(commaIndex + 1) : result;
+            nameInput.value = file.name;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
       function initRoot(root) {
         var services = parseServices(root);
         syncServices(root, services);
@@ -1778,6 +1811,7 @@ class AdminController {
       }
 
       document.querySelectorAll('[data-editor-root]').forEach(initRoot);
+      document.querySelectorAll('[data-pricing-upload-root]').forEach(bindPricingUploadRoot);
 
       mapCloseButton.addEventListener('click', closeMapPicker);
       modal.addEventListener('click', function (event) {
@@ -1982,6 +2016,97 @@ class AdminController {
         error.message,
         query: query,
         status: status,
+        lang: lang,
+      );
+    }
+  }
+
+  Response downloadVehiclePricingTemplate(Request request, String id) {
+    final Response? authRedirect = _requireAdmin(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final WorkshopModel? workshop = _store.workshopById(id);
+    if (workshop == null) {
+      final String lang = _normalizeLang(request.url.queryParameters['lang']);
+      return _redirectWithError(
+        _text(lang, 'garageNotFound'),
+        query: '',
+        status: 'all',
+        lang: lang,
+      );
+    }
+
+    final List<int> bytes = buildWorkshopVehiclePricingWorkbook(workshop);
+    return Response.ok(
+      bytes,
+      headers: <String, String>{
+        'content-type':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'content-disposition':
+            'attachment; filename="${_pricingTemplateFilename(workshop)}"',
+      },
+    );
+  }
+
+  Future<Response> importVehiclePricing(Request request, String id) async {
+    final Response? authRedirect = _requireAdmin(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnQuery = (form['returnQ'] ?? '').trim();
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _store.workshopById(id);
+    if (workshop == null) {
+      return _redirectWithError(
+        _text(lang, 'garageNotFound'),
+        query: returnQuery,
+        status: returnStatus,
+        lang: lang,
+      );
+    }
+
+    try {
+      final List<VehiclePriceRuleModel> rules =
+          parseWorkshopVehiclePricingWorkbook(
+        bytes: Uint8List.fromList(
+          _decodePricingWorkbookBase64(form, lang: lang),
+        ),
+        workshop: workshop,
+      );
+      _store.updateWorkshop(
+        workshopId: workshop.id,
+        workshop: workshop.copyWith(
+          vehiclePricingRules: rules,
+        ),
+      );
+      await _store.saveWorkshops(workshopsFilePath);
+      return _redirectWithMessage(
+        _text(
+          lang,
+          'pricingImportSuccess',
+          <String, Object>{'count': rules.length},
+        ),
+        query: returnQuery,
+        status: returnStatus,
+        lang: lang,
+      );
+    } on FormatException catch (error) {
+      return _redirectWithError(
+        error.message,
+        query: returnQuery,
+        status: returnStatus,
+        lang: lang,
+      );
+    } on UnsupportedError catch (error) {
+      return _redirectWithError(
+        error.message ?? error.toString(),
+        query: returnQuery,
+        status: returnStatus,
         lang: lang,
       );
     }
@@ -2857,6 +2982,11 @@ class AdminController {
     final String workingHoursValue = _scheduleSummary(workshop.schedule);
     final String breakValue = _breakSummary(workshop.schedule, lang);
     final String closedDaysValue = _daysOffSummary(workshop.schedule, lang);
+    final String pricingMatrixCard = _pricingMatrixCardHtml(
+      workshop: workshop,
+      lang: lang,
+      hiddenContextHtml: hiddenContextHtml,
+    );
 
     return '''
 <section class="card workshop-card">
@@ -2912,6 +3042,7 @@ class AdminController {
   </div>
 
   <div class="service-row">$servicesSummary</div>
+  $pricingMatrixCard
 
   ${_editorCardHtml(
       lang: lang,
@@ -2963,8 +3094,82 @@ class AdminController {
 ''';
   }
 
+  String _pricingMatrixCardHtml({
+    required WorkshopModel workshop,
+    required String lang,
+    required String hiddenContextHtml,
+  }) {
+    final Uri templateUri = Uri(
+      path:
+          '/admin/workshops/${Uri.encodeComponent(workshop.id)}/vehicle-pricing/template.xlsx',
+      queryParameters: <String, String>{'lang': lang},
+    );
+    final String configuredCount = '${workshop.vehiclePricingRules.length}';
+    final String templateRows =
+        '${workshop.services.length * sortedVehicleCatalogEntries().length}';
+    return '''
+<section class="helper-box" data-pricing-upload-root>
+  <div class="service-toolbar">
+    <strong>${_escapeHtml(_text(lang, 'pricingMatrixTitle'))}</strong>
+    <a class="ghost-btn" href="${_escapeHtml(templateUri.toString())}">${_escapeHtml(_text(lang, 'pricingTemplateDownload'))}</a>
+  </div>
+  <div class="muted">${_escapeHtml(_text(lang, 'pricingMatrixDescription'))}</div>
+  <div class="coord-grid">
+    <div class="coord-card">
+      <span>${_escapeHtml(_text(lang, 'pricingConfiguredCount'))}</span>
+      <strong>$configuredCount</strong>
+    </div>
+    <div class="coord-card">
+      <span>${_escapeHtml(_text(lang, 'pricingTemplateRows'))}</span>
+      <strong>$templateRows</strong>
+    </div>
+  </div>
+  <form method="post" action="/admin/workshops/${Uri.encodeComponent(workshop.id)}/vehicle-pricing/import?lang=${Uri.encodeQueryComponent(lang)}">
+    $hiddenContextHtml
+    <input type="hidden" name="pricingWorkbookBase64" data-pricing-base64>
+    <input type="hidden" name="pricingWorkbookName" data-pricing-name>
+    <div class="field">
+      <label>${_escapeHtml(_text(lang, 'pricingWorkbookField'))}</label>
+      <input type="file" accept=".xlsx" data-pricing-file>
+    </div>
+    <div class="muted" data-pricing-file-name>${_escapeHtml(_text(lang, 'pricingWorkbookWaiting'))}</div>
+    <div class="inline-actions">
+      <button class="ghost-btn" type="submit">${_escapeHtml(_text(lang, 'pricingTemplateUpload'))}</button>
+    </div>
+  </form>
+  <div class="muted">${_escapeHtml(_text(lang, 'pricingMatrixHint'))}</div>
+</section>
+''';
+  }
+
   String _scheduleSummary(WorkshopScheduleModel schedule) {
     return '${schedule.openingTime} - ${schedule.closingTime}';
+  }
+
+  String _pricingTemplateFilename(WorkshopModel workshop) {
+    final String slug = workshop.name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    final String safeSlug = slug.isEmpty ? workshop.id : slug;
+    return 'usta_top_vehicle_pricing_$safeSlug.xlsx';
+  }
+
+  List<int> _decodePricingWorkbookBase64(
+    Map<String, String> form, {
+    required String lang,
+  }) {
+    final String encoded = (form['pricingWorkbookBase64'] ?? '').trim();
+    if (encoded.isEmpty) {
+      throw FormatException(_text(lang, 'pricingWorkbookRequired'));
+    }
+
+    try {
+      return base64Decode(encoded);
+    } on FormatException {
+      throw FormatException(_text(lang, 'pricingWorkbookInvalid'));
+    }
   }
 
   String _breakSummary(WorkshopScheduleModel schedule, String lang) {
@@ -3279,8 +3484,8 @@ class AdminController {
       'adminLoginEyebrow': 'Himoyalangan Kirish',
       'adminLoginHeading': 'Avtoservis admin paneliga xavfsiz kirish',
       'adminLoginDescription':
-          'Workshop kartalari, xarita nuqtalari va xizmat menyusini boshqarish uchun admin hisob bilan tizimga kiring.',
-      'adminLoginTip1Title': 'Workshop kartalari',
+          'Ustaxona kartalari, xarita nuqtalari va xizmat menyusini boshqarish uchun admin hisob bilan tizimga kiring.',
+      'adminLoginTip1Title': 'Ustaxona kartalari',
       'adminLoginTip1Body':
           'Avtoservis nuqtalarini yaratish, tahrirlash va o‘chirish shu yerda boshqariladi.',
       'adminLoginTip2Title': 'Koordinata nazorati',
@@ -3465,6 +3670,20 @@ class AdminController {
           'Ish boshlanishi, tugashi, tanaffus va dam olish kunlarini shu yerda belgilang. Keyingi bosqichda bo‘sh slotlar aynan shu jadvalga tayanadi.',
       'helperServices':
           'Xizmat turlarini shu yerda boshqaring. Ilovadagi boshlang‘ich narx va xizmat yorliqlari shu ro‘yxatdan olinadi.',
+      'pricingMatrixTitle': 'Mashina bo‘yicha narxlar',
+      'pricingMatrixDescription':
+          'Har bir xizmat uchun mashina modeli kesimidagi narxlarni Excel orqali boshqaring.',
+      'pricingMatrixHint':
+          'Template faylni yuklab oling, price_k ustunidagi narxlarni tahrir qiling va shu yerga qayta yuklang.',
+      'pricingConfiguredCount': 'Sozlangan narxlar',
+      'pricingTemplateRows': 'Template satrlari',
+      'pricingTemplateDownload': 'Excel template',
+      'pricingTemplateUpload': 'Excel yuklash',
+      'pricingWorkbookField': 'Narxlar fayli (.xlsx)',
+      'pricingWorkbookWaiting': 'Hali fayl tanlanmagan',
+      'pricingWorkbookRequired': 'Excel fayl tanlanmadi',
+      'pricingWorkbookInvalid': 'Excel faylni o‘qib bo‘lmadi',
+      'pricingImportSuccess': '{count} ta narx qoidasi yuklandi',
       'noBreakLabel': 'Tanaffus yo‘q',
       'noClosedWeekdaysLabel': 'Har kuni ochiq',
       'invalidTimeField': '{field} vaqti noto‘g‘ri',
@@ -3685,6 +3904,20 @@ class AdminController {
           'Укажите рабочие часы, перерыв и выходные дни. На следующем этапе свободные слоты будут строиться по этому графику.',
       'helperServices':
           'Управляйте видами работ здесь. Стартовая цена и ярлыки услуг в приложении формируются из этого списка.',
+      'pricingMatrixTitle': 'Цены по моделям авто',
+      'pricingMatrixDescription':
+          'Управляйте ценами по моделям для каждой услуги через Excel.',
+      'pricingMatrixHint':
+          'Скачайте шаблон, измените цены в колонке price_k и загрузите файл обратно сюда.',
+      'pricingConfiguredCount': 'Настроено цен',
+      'pricingTemplateRows': 'Строк в шаблоне',
+      'pricingTemplateDownload': 'Excel шаблон',
+      'pricingTemplateUpload': 'Загрузить Excel',
+      'pricingWorkbookField': 'Файл цен (.xlsx)',
+      'pricingWorkbookWaiting': 'Файл пока не выбран',
+      'pricingWorkbookRequired': 'Excel-файл не выбран',
+      'pricingWorkbookInvalid': 'Не удалось прочитать Excel-файл',
+      'pricingImportSuccess': 'Загружено {count} ценовых правил',
       'noBreakLabel': 'Без перерыва',
       'noClosedWeekdaysLabel': 'Открыт каждый день',
       'invalidTimeField': 'Время в поле {field} указано неверно',
@@ -3908,6 +4141,20 @@ class AdminController {
           'Set working hours, break time, and days off here. The next step will use this schedule to build available slots.',
       'helperServices':
           'Manage the job list here. The app uses this list to build the starting price and service labels.',
+      'pricingMatrixTitle': 'Vehicle pricing matrix',
+      'pricingMatrixDescription':
+          'Manage vehicle-specific prices for each service through Excel.',
+      'pricingMatrixHint':
+          'Download the template, edit prices in the price_k column, then upload the file back here.',
+      'pricingConfiguredCount': 'Configured prices',
+      'pricingTemplateRows': 'Template rows',
+      'pricingTemplateDownload': 'Excel template',
+      'pricingTemplateUpload': 'Upload Excel',
+      'pricingWorkbookField': 'Pricing file (.xlsx)',
+      'pricingWorkbookWaiting': 'No file selected yet',
+      'pricingWorkbookRequired': 'No Excel file selected',
+      'pricingWorkbookInvalid': 'The Excel file could not be read',
+      'pricingImportSuccess': '{count} pricing rules imported',
       'noBreakLabel': 'No break',
       'noClosedWeekdaysLabel': 'Open every day',
       'invalidTimeField': '{field} has an invalid time',

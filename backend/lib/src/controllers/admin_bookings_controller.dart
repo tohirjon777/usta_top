@@ -38,6 +38,8 @@ class AdminBookingsController {
         (request.url.queryParameters['workshop'] ?? '').trim();
     final String status =
         _normalizeStatus(request.url.queryParameters['status']);
+    final DateTime calendarDate =
+        _parseCalendarDate(request.url.queryParameters['date']);
     final String? message = request.url.queryParameters['message'];
     final String? error = request.url.queryParameters['error'];
 
@@ -95,18 +97,32 @@ class AdminBookingsController {
       query: query,
       workshopId: workshopId,
       status: status,
+      date: calendarDate,
     );
     final Uri langRuUri = _adminBookingsUri(
       lang: 'ru',
       query: query,
       workshopId: workshopId,
       status: status,
+      date: calendarDate,
     );
     final Uri langEnUri = _adminBookingsUri(
       lang: 'en',
       query: query,
       workshopId: workshopId,
       status: status,
+      date: calendarDate,
+    );
+    final WorkshopModel? calendarWorkshop =
+        workshopId.isEmpty ? null : _store.workshopById(workshopId);
+    final String calendarSection = _calendarSectionHtml(
+      lang: lang,
+      bookings: filtered,
+      workshop: calendarWorkshop,
+      query: query,
+      workshopId: workshopId,
+      status: status,
+      selectedDate: calendarDate,
     );
 
     final String workshopOptions = workshops.map((WorkshopModel workshop) {
@@ -402,6 +418,95 @@ class AdminBookingsController {
       margin-top: 10px;
     }
 
+    .calendar-card {
+      padding: 22px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .calendar-strip {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .calendar-day {
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+      display: grid;
+      gap: 6px;
+      min-height: 128px;
+    }
+
+    .calendar-day.active {
+      border-color: rgba(191, 91, 33, 0.35);
+      box-shadow: inset 0 0 0 1px rgba(191, 91, 33, 0.15);
+      background: rgba(255, 246, 236, 0.92);
+    }
+
+    .calendar-day.closed {
+      background: rgba(246, 240, 234, 0.92);
+    }
+
+    .calendar-day .mini {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .calendar-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      width: fit-content;
+      background: rgba(36, 49, 63, 0.08);
+      color: var(--ink);
+    }
+
+    .calendar-tag.closed {
+      background: var(--yellow-soft);
+      color: var(--yellow);
+    }
+
+    .calendar-tag.busy {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .agenda-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .agenda-item {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 6px;
+    }
+
+    .agenda-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .agenda-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
     .layout {
       display: grid;
       gap: 16px;
@@ -552,14 +657,14 @@ class AdminBookingsController {
     }
 
     @media (max-width: 1100px) {
-      .hero-grid, .filter-grid, .meta-grid, .stats-grid {
+      .hero-grid, .filter-grid, .meta-grid, .stats-grid, .calendar-strip {
         grid-template-columns: 1fr 1fr;
       }
     }
 
     @media (max-width: 760px) {
       .wrap { padding: 18px 12px 36px; }
-      .hero-grid, .filter-grid, .meta-grid, .stats-grid {
+      .hero-grid, .filter-grid, .meta-grid, .stats-grid, .calendar-strip {
         grid-template-columns: 1fr;
       }
     }
@@ -635,11 +740,13 @@ class AdminBookingsController {
     </section>
 
     ${_flashHtml(message: message, error: error)}
+    $calendarSection
 
     <section class="filter-card">
       <div class="eyebrow">${_escapeHtml(_text(lang, 'filterEyebrow'))}</div>
       <form method="get" action="/admin/bookings">
         <input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+        <input type="hidden" name="date" value="${_escapeHtml('${calendarDate.year.toString().padLeft(4, '0')}-${calendarDate.month.toString().padLeft(2, '0')}-${calendarDate.day.toString().padLeft(2, '0')}')}">
         <div class="filter-grid">
           <div class="field">
             <label>${_escapeHtml(_text(lang, 'searchLabel'))}</label>
@@ -881,6 +988,106 @@ class AdminBookingsController {
     return bookingCancellationReasonById(reasonId).label(lang);
   }
 
+  String _calendarSectionHtml({
+    required String lang,
+    required List<BookingModel> bookings,
+    required WorkshopModel? workshop,
+    required String query,
+    required String workshopId,
+    required String status,
+    required DateTime selectedDate,
+  }) {
+    final DateTime startDate = _normalizeDate(DateTime.now());
+    final List<String> dayCards = <String>[];
+    for (int offset = 0; offset < 14; offset++) {
+      final DateTime date = startDate.add(Duration(days: offset));
+      final List<BookingModel> dayBookings = bookings.where((BookingModel item) {
+        return _sameDate(item.dateTime.toLocal(), date);
+      }).toList(growable: false)
+        ..sort((BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime));
+      final bool isClosedDay =
+          workshop != null && workshop.schedule.closedWeekdays.contains(date.weekday);
+      final String tagClass = isClosedDay
+          ? 'closed'
+          : dayBookings.isEmpty
+              ? ''
+              : 'busy';
+      final String tagLabel = isClosedDay
+          ? _text(lang, 'calendarClosedLabel')
+          : dayBookings.isEmpty
+              ? _text(lang, 'calendarOpenLabel')
+              : _text(
+                  lang,
+                  'calendarBookingsCount',
+                  <String, Object>{'count': dayBookings.length},
+                );
+      final String detail = dayBookings.isEmpty
+          ? _text(lang, 'calendarNoAppointments')
+          : _text(
+              lang,
+              'calendarFirstAppointment',
+              <String, Object>{'time': _formatClock(dayBookings.first.dateTime)},
+            );
+      final Uri dayUri = _adminBookingsUri(
+        lang: lang,
+        query: query,
+        workshopId: workshopId,
+        status: status,
+        date: date,
+      );
+      dayCards.add('''
+<a class="calendar-day${_sameDate(date, selectedDate) ? ' active' : ''}${isClosedDay ? ' closed' : ''}" href="${_escapeHtml(dayUri.toString())}">
+  <div class="eyebrow">${_escapeHtml(_weekdayShort(date.weekday, lang))}</div>
+  <strong>${_escapeHtml(_formatShortDate(date))}</strong>
+  <span class="calendar-tag $tagClass">${_escapeHtml(tagLabel)}</span>
+  <div class="mini">${_escapeHtml(detail)}</div>
+</a>
+''');
+    }
+
+    final List<BookingModel> selectedDayBookings = bookings.where((BookingModel item) {
+      return _sameDate(item.dateTime.toLocal(), selectedDate);
+    }).toList(growable: false)
+      ..sort((BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime));
+    final String agendaHtml = selectedDayBookings.isEmpty
+        ? '''
+<section class="empty-card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarSelectedEyebrow'))}</div>
+  <h3>${_escapeHtml(_text(lang, 'calendarEmptyTitle'))}</h3>
+  <p>${_escapeHtml(_text(lang, 'calendarEmptyBody'))}</p>
+</section>
+'''
+        : selectedDayBookings.map((BookingModel item) {
+            final String workshopSuffix = workshopId.isEmpty
+                ? ' • ${_escapeHtml(item.workshopName)}'
+                : '';
+            return '''
+<article class="agenda-item">
+  <div class="agenda-top">
+    <strong>${_escapeHtml(_formatClock(item.dateTime))} • ${_escapeHtml(item.customerName.isEmpty ? _text(lang, 'unknownCustomer') : item.customerName)}</strong>
+    <span class="status-pill ${item.status == BookingStatus.cancelled ? 'status-cancelled' : item.status == BookingStatus.completed ? 'status-completed' : item.status == BookingStatus.accepted ? 'status-accepted' : 'status-upcoming'}">${_escapeHtml(_statusLabel(item.status, lang))}</span>
+  </div>
+  <div class="agenda-meta">
+    ${_escapeHtml(item.serviceName)} • ${_escapeHtml(_vehicleSummary(item, lang))}$workshopSuffix<br>
+    ${_escapeHtml(_text(lang, 'priceLabel'))}: ${_escapeHtml(item.price.toString())}k
+  </div>
+</article>
+''';
+          }).join();
+
+    return '''
+<section class="calendar-card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarEyebrow'))}</div>
+  <h2>${_escapeHtml(_text(lang, 'calendarTitle'))}</h2>
+  <p class="muted">${_escapeHtml(_text(lang, 'calendarDescription'))}</p>
+  <div class="calendar-strip">${dayCards.join()}</div>
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarSelectedEyebrow'))}</div>
+  <h3>${_escapeHtml(_text(lang, 'calendarSelectedTitle', <String, Object>{'date': _formatShortDate(selectedDate)}))}</h3>
+  <div class="agenda-list">$agendaHtml</div>
+</section>
+''';
+  }
+
   Response? _requireAdmin(Request request) {
     if (adminAuthService.isAuthenticated(request)) {
       return null;
@@ -919,6 +1126,7 @@ class AdminBookingsController {
     String? query,
     String? workshopId,
     String? status,
+    DateTime? date,
     String? message,
     String? error,
   }) {
@@ -935,6 +1143,12 @@ class AdminBookingsController {
     if (normalizedStatus != 'all') {
       params['status'] = normalizedStatus;
     }
+    if (date != null) {
+      final DateTime normalizedDate = _normalizeDate(date);
+      final String month = normalizedDate.month.toString().padLeft(2, '0');
+      final String day = normalizedDate.day.toString().padLeft(2, '0');
+      params['date'] = '${normalizedDate.year}-$month-$day';
+    }
     if (message != null && message.trim().isNotEmpty) {
       params['message'] = message.trim();
     }
@@ -942,6 +1156,71 @@ class AdminBookingsController {
       params['error'] = error.trim();
     }
     return Uri(path: '/admin/bookings', queryParameters: params);
+  }
+
+  DateTime _parseCalendarDate(String? raw) {
+    final DateTime? parsed = DateTime.tryParse((raw ?? '').trim());
+    return _normalizeDate(parsed ?? DateTime.now());
+  }
+
+  DateTime _normalizeDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  bool _sameDate(DateTime a, DateTime b) {
+    final DateTime left = _normalizeDate(a);
+    final DateTime right = _normalizeDate(b);
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day;
+  }
+
+  String _formatShortDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String day = local.day.toString().padLeft(2, '0');
+    const List<String> months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '$day ${months[local.month - 1]}';
+  }
+
+  String _formatClock(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _weekdayShort(int weekday, String lang) {
+    switch (weekday) {
+      case DateTime.monday:
+        return _text(lang, 'weekdayShortMon');
+      case DateTime.tuesday:
+        return _text(lang, 'weekdayShortTue');
+      case DateTime.wednesday:
+        return _text(lang, 'weekdayShortWed');
+      case DateTime.thursday:
+        return _text(lang, 'weekdayShortThu');
+      case DateTime.friday:
+        return _text(lang, 'weekdayShortFri');
+      case DateTime.saturday:
+        return _text(lang, 'weekdayShortSat');
+      case DateTime.sunday:
+      default:
+        return _text(lang, 'weekdayShortSun');
+    }
   }
 
   Uri _adminWorkshopsUri({String? lang}) => Uri(
@@ -1087,13 +1366,34 @@ class AdminBookingsController {
       'heroTitle':
           'Ilovadan tushgan zakazlarni bir joyda kuzating va statusini boshqaring.',
       'heroDescription':
-          'Yangi buyurtma kelganda shu panelda mijoz, servis, vaqt va narx darhol ko‘rinadi. Ustaxona egasi uchun workshop bo‘yicha alohida inbox ham ochish mumkin.',
+          'Yangi buyurtma kelganda shu panelda mijoz, servis, vaqt va narx darhol ko‘rinadi. Ustaxona egasi uchun ustaxona bo‘yicha alohida inbox ham ochish mumkin.',
       'ownerEyebrow': 'Ustaxona Egasi',
-      'ownerTitle': 'Workshop bo‘yicha kirish oqimi',
+      'ownerTitle': 'Ustaxona bo‘yicha kirish oqimi',
       'ownerFlowAll':
-          'Ustaxona egasi uchun workshopni filterlab ishlatish eng qulay yo‘l. Pastdagi manzilni muayyan workshop bilan ochsangiz, faqat o‘sha servisning zakazlari chiqadi.',
+          'Ustaxona egasi uchun ustaxonani filterlab ishlatish eng qulay yo‘l. Pastdagi manzilni muayyan ustaxona bilan ochsangiz, faqat o‘sha servisning zakazlari chiqadi.',
       'ownerFlowSelected':
-          'Tanlangan workshop uchun ustaxona egasi shu filtrlangan manzil orqali faqat o‘z zakazlarini ko‘radi: {link}',
+          'Tanlangan ustaxona uchun ustaxona egasi shu filtrlangan manzil orqali faqat o‘z zakazlarini ko‘radi: {link}',
+      'calendarEyebrow': 'Kalendar ko‘rinishi',
+      'calendarTitle': 'Keyingi 14 kunlik bandlik',
+      'calendarDescription':
+          'Kunlar bo‘yicha yuklama va tanlangan sana uchun agenda shu yerda ko‘rinadi.',
+      'calendarSelectedEyebrow': 'Tanlangan kun',
+      'calendarSelectedTitle': '{date} kunining agendasi',
+      'calendarOpenLabel': 'Bo‘sh',
+      'calendarClosedLabel': 'Dam olish',
+      'calendarBookingsCount': '{count} ta zakaz',
+      'calendarFirstAppointment': 'Birinchi bron: {time}',
+      'calendarNoAppointments': 'Zakaz yo‘q',
+      'calendarEmptyTitle': 'Bu kun uchun zakaz yo‘q',
+      'calendarEmptyBody':
+          'Tanlangan sana bo‘yicha hozircha birorta buyurtma ko‘rinmadi.',
+      'weekdayShortMon': 'Du',
+      'weekdayShortTue': 'Se',
+      'weekdayShortWed': 'Cho',
+      'weekdayShortThu': 'Pa',
+      'weekdayShortFri': 'Ju',
+      'weekdayShortSat': 'Sha',
+      'weekdayShortSun': 'Yak',
       'statAll': 'Jami zakaz',
       'statAllSub': 'Barcha kelgan buyurtmalar soni.',
       'statUpcoming': 'Yangi / kutilmoqda',
@@ -1107,7 +1407,7 @@ class AdminBookingsController {
       'filterEyebrow': 'Qidiruv va Filtr',
       'searchLabel': 'Mijoz, telefon, servis yoki ID bo‘yicha qidiruv',
       'searchPlaceholder': 'Masalan: Tokhirjon, Cobalt, sedan, diagnostika...',
-      'workshopFilter': 'Workshop filtri',
+      'workshopFilter': 'Ustaxona filtri',
       'allWorkshops': 'Barcha avtoservislar',
       'statusFilter': 'Status filtri',
       'statusAll': 'Barcha statuslar',
@@ -1133,7 +1433,7 @@ class AdminBookingsController {
       'basePriceLabel': 'Bazaviy narx',
       'appointmentLabel': 'Bron vaqti',
       'createdLabel': 'Tushgan vaqt',
-      'ownerInboxLink': 'Shu workshop zakazlari',
+      'ownerInboxLink': 'Shu ustaxona zakazlari',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
       'statusUpdated': '{id} statusi {status} ga yangilandi',
       'cancelButton': 'Bekor qilish',
@@ -1156,13 +1456,34 @@ class AdminBookingsController {
       'heroTitle':
           'Следите за заказами из приложения в одном месте и управляйте их статусом.',
       'heroDescription':
-          'Когда приходит новая заявка, здесь сразу видны клиент, услуга, время и стоимость. Для владельца сервиса можно открыть отдельный inbox по workshop.',
+          'Когда приходит новая заявка, здесь сразу видны клиент, услуга, время и стоимость. Для владельца сервиса можно открыть отдельный inbox по автосервису.',
       'ownerEyebrow': 'Владелец Сервиса',
-      'ownerTitle': 'Поток по конкретному workshop',
+      'ownerTitle': 'Поток по конкретному автосервису',
       'ownerFlowAll':
-          'Для владельца сервиса удобнее всего работать через фильтр по workshop. Если открыть адрес ниже с конкретным workshop, будут показаны только его заказы.',
+          'Для владельца сервиса удобнее всего работать через фильтр по автосервису. Если открыть адрес ниже с конкретным автосервисом, будут показаны только его заказы.',
       'ownerFlowSelected':
-          'Для выбранного workshop владелец может видеть только свои заказы по этому адресу: {link}',
+          'Для выбранного автосервиса владелец может видеть только свои заказы по этому адресу: {link}',
+      'calendarEyebrow': 'Календарный вид',
+      'calendarTitle': 'Загрузка на ближайшие 14 дней',
+      'calendarDescription':
+          'Здесь видно нагрузку по дням и agenda для выбранной даты.',
+      'calendarSelectedEyebrow': 'Выбранный день',
+      'calendarSelectedTitle': 'Agenda на {date}',
+      'calendarOpenLabel': 'Свободно',
+      'calendarClosedLabel': 'Выходной',
+      'calendarBookingsCount': '{count} заказов',
+      'calendarFirstAppointment': 'Первая запись: {time}',
+      'calendarNoAppointments': 'Заказов нет',
+      'calendarEmptyTitle': 'На этот день заказов нет',
+      'calendarEmptyBody':
+          'Для выбранной даты сейчас не найдено ни одной заявки.',
+      'weekdayShortMon': 'Пн',
+      'weekdayShortTue': 'Вт',
+      'weekdayShortWed': 'Ср',
+      'weekdayShortThu': 'Чт',
+      'weekdayShortFri': 'Пт',
+      'weekdayShortSat': 'Сб',
+      'weekdayShortSun': 'Вс',
       'statAll': 'Всего заказов',
       'statAllSub': 'Общее число входящих заявок.',
       'statUpcoming': 'Новые / ожидают',
@@ -1176,7 +1497,7 @@ class AdminBookingsController {
       'filterEyebrow': 'Поиск и Фильтр',
       'searchLabel': 'Поиск по клиенту, телефону, услуге или ID',
       'searchPlaceholder': 'Например: Tokhirjon, Cobalt, sedan, диагностика...',
-      'workshopFilter': 'Фильтр workshop',
+      'workshopFilter': 'Фильтр автосервиса',
       'allWorkshops': 'Все автосервисы',
       'statusFilter': 'Фильтр статуса',
       'statusAll': 'Все статусы',
@@ -1201,7 +1522,7 @@ class AdminBookingsController {
       'basePriceLabel': 'Базовая цена',
       'appointmentLabel': 'Время записи',
       'createdLabel': 'Время поступления',
-      'ownerInboxLink': 'Заказы этого workshop',
+      'ownerInboxLink': 'Заказы этого автосервиса',
       'callCustomer': 'Позвонить клиенту',
       'statusUpdated': 'Статус {id} обновлен на {status}',
       'cancelButton': 'Отменить заказ',
@@ -1231,6 +1552,27 @@ class AdminBookingsController {
           'The cleanest flow for a workshop owner is to work from a workshop-filtered inbox. Open the URL below with a specific workshop to show only that service point’s orders.',
       'ownerFlowSelected':
           'For the selected workshop, the owner can watch only their own orders with this filtered URL: {link}',
+      'calendarEyebrow': 'Calendar view',
+      'calendarTitle': 'Next 14 days workload',
+      'calendarDescription':
+          'See day-by-day load and the agenda for the selected date here.',
+      'calendarSelectedEyebrow': 'Selected day',
+      'calendarSelectedTitle': 'Agenda for {date}',
+      'calendarOpenLabel': 'Open',
+      'calendarClosedLabel': 'Closed',
+      'calendarBookingsCount': '{count} orders',
+      'calendarFirstAppointment': 'First slot: {time}',
+      'calendarNoAppointments': 'No orders',
+      'calendarEmptyTitle': 'No orders for this day',
+      'calendarEmptyBody':
+          'There are no visible orders for the selected date yet.',
+      'weekdayShortMon': 'Mon',
+      'weekdayShortTue': 'Tue',
+      'weekdayShortWed': 'Wed',
+      'weekdayShortThu': 'Thu',
+      'weekdayShortFri': 'Fri',
+      'weekdayShortSat': 'Sat',
+      'weekdayShortSun': 'Sun',
       'statAll': 'Total orders',
       'statAllSub': 'All incoming orders across the system.',
       'statUpcoming': 'New / upcoming',

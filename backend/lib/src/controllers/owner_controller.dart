@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:shelf/shelf.dart';
 
@@ -11,6 +12,8 @@ import '../review_analytics.dart';
 import '../store.dart';
 import '../telegram_bot.dart';
 import '../user_notifications.dart';
+import '../vehicle_catalog.dart';
+import '../vehicle_pricing_excel.dart';
 import '../vehicle_types.dart';
 import '../workshop_notifications.dart';
 
@@ -581,6 +584,8 @@ class OwnerController {
 
     final String status =
         _normalizeStatus(request.url.queryParameters['status']);
+    final DateTime calendarDate =
+        _parseCalendarDate(request.url.queryParameters['date']);
     final List<BookingModel> bookings = _store.bookings(
       workshopId: workshop.id,
       status: status == 'all' ? null : _statusFromRaw(status),
@@ -622,15 +627,23 @@ class OwnerController {
       },
     );
 
-    final Uri langUzUri = _ownerBookingsUri(lang: 'uz', status: status);
-    final Uri langRuUri = _ownerBookingsUri(lang: 'ru', status: status);
-    final Uri langEnUri = _ownerBookingsUri(lang: 'en', status: status);
+    final Uri langUzUri =
+        _ownerBookingsUri(lang: 'uz', status: status, date: calendarDate);
+    final Uri langRuUri =
+        _ownerBookingsUri(lang: 'ru', status: status, date: calendarDate);
+    final Uri langEnUri =
+        _ownerBookingsUri(lang: 'en', status: status, date: calendarDate);
     final String telegramCard = _telegramCardHtml(
       workshop: workshop,
       lang: lang,
       status: status,
     );
     final String servicePricingCard = _servicePricingCardHtml(
+      workshop: workshop,
+      lang: lang,
+      status: status,
+    );
+    final String vehiclePricingCard = _vehiclePricingCardHtml(
       workshop: workshop,
       lang: lang,
       status: status,
@@ -648,6 +661,13 @@ class OwnerController {
       repliedReviewCount: repliedReviewCount,
       lang: lang,
       status: status,
+    );
+    final String calendarSection = _calendarSectionHtml(
+      workshop: workshop,
+      bookings: bookings,
+      lang: lang,
+      status: status,
+      selectedDate: calendarDate,
     );
 
     final String bookingCards = bookings.isEmpty
@@ -914,6 +934,102 @@ class OwnerController {
       margin-top: 10px;
     }
 
+    .calendar-card {
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .calendar-card p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .calendar-strip {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .calendar-day {
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+      display: grid;
+      gap: 6px;
+      min-height: 128px;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .calendar-day.active {
+      border-color: rgba(191, 91, 33, 0.35);
+      box-shadow: inset 0 0 0 1px rgba(191, 91, 33, 0.15);
+      background: rgba(255, 246, 236, 0.92);
+    }
+
+    .calendar-day.closed {
+      background: rgba(246, 240, 234, 0.92);
+    }
+
+    .calendar-day .mini {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .calendar-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      width: fit-content;
+      background: rgba(36, 49, 63, 0.08);
+      color: var(--ink);
+    }
+
+    .calendar-tag.closed {
+      background: var(--yellow-soft);
+      color: var(--yellow);
+    }
+
+    .calendar-tag.busy {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .agenda-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .agenda-item {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 6px;
+    }
+
+    .agenda-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .agenda-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
     .telegram-card {
       padding: 24px;
       display: grid;
@@ -1130,6 +1246,14 @@ class OwnerController {
       border: 1px dashed rgba(36, 49, 63, 0.14);
       color: var(--muted);
       line-height: 1.65;
+    }
+
+    .service-toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
     .service-pricing-list {
@@ -1416,7 +1540,7 @@ class OwnerController {
       .wrap { padding: 18px 12px 36px; }
       .summary-grid { grid-template-columns: 1fr; }
       .stats-grid, .meta-grid, .review-stat-grid, .review-analytics-grid,
-      .schedule-summary-grid, .schedule-fields {
+      .schedule-summary-grid, .schedule-fields, .calendar-strip {
         grid-template-columns: 1fr;
       }
     }
@@ -1433,11 +1557,11 @@ class OwnerController {
         </div>
       </div>
       <div class="top-actions">
-        <a class="pill-link${status == 'all' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang).toString())}">${_escapeHtml(_text(lang, 'statusAll'))}</a>
-        <a class="pill-link${status == 'upcoming' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'upcoming').toString())}">${_escapeHtml(_text(lang, 'statusUpcoming'))}</a>
-        <a class="pill-link${status == 'accepted' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'accepted').toString())}">${_escapeHtml(_text(lang, 'statusAccepted'))}</a>
-        <a class="pill-link${status == 'completed' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'completed').toString())}">${_escapeHtml(_text(lang, 'statusCompleted'))}</a>
-        <a class="pill-link${status == 'cancelled' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'cancelled').toString())}">${_escapeHtml(_text(lang, 'statusCancelled'))}</a>
+        <a class="pill-link${status == 'all' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, date: calendarDate).toString())}">${_escapeHtml(_text(lang, 'statusAll'))}</a>
+        <a class="pill-link${status == 'upcoming' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'upcoming', date: calendarDate).toString())}">${_escapeHtml(_text(lang, 'statusUpcoming'))}</a>
+        <a class="pill-link${status == 'accepted' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'accepted', date: calendarDate).toString())}">${_escapeHtml(_text(lang, 'statusAccepted'))}</a>
+        <a class="pill-link${status == 'completed' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'completed', date: calendarDate).toString())}">${_escapeHtml(_text(lang, 'statusCompleted'))}</a>
+        <a class="pill-link${status == 'cancelled' ? ' active' : ''}" href="${_escapeHtml(_ownerBookingsUri(lang: lang, status: 'cancelled', date: calendarDate).toString())}">${_escapeHtml(_text(lang, 'statusCancelled'))}</a>
         <a class="pill-link${lang == 'uz' ? ' active' : ''}" href="${_escapeHtml(langUzUri.toString())}">UZ</a>
         <a class="pill-link${lang == 'ru' ? ' active' : ''}" href="${_escapeHtml(langRuUri.toString())}">RU</a>
         <a class="pill-link${lang == 'en' ? ' active' : ''}" href="${_escapeHtml(langEnUri.toString())}">EN</a>
@@ -1482,7 +1606,9 @@ class OwnerController {
 
     ${_flashHtml(message: message, error: error)}
 
+    $calendarSection
     $servicePricingCard
+    $vehiclePricingCard
     $scheduleCard
     $reviewInboxCard
 
@@ -1490,6 +1616,46 @@ class OwnerController {
       $bookingCards
     </section>
   </div>
+  <script>
+    (function () {
+      function bindPricingUploadRoot(root) {
+        var fileInput = root.querySelector('[data-pricing-file]');
+        var base64Input = root.querySelector('[data-pricing-base64]');
+        var nameInput = root.querySelector('[data-pricing-name]');
+        var label = root.querySelector('[data-pricing-file-name]');
+        if (!fileInput || !base64Input || !nameInput || !label || !window.FileReader) {
+          return;
+        }
+
+        fileInput.addEventListener('change', function () {
+          var file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            base64Input.value = '';
+            nameInput.value = '';
+            label.textContent = '${_escapeHtml(_text(lang, 'pricingWorkbookWaiting'))}';
+            return;
+          }
+
+          var reader = new FileReader();
+          reader.onload = function (event) {
+            var result = String(event.target && event.target.result || '');
+            var commaIndex = result.indexOf(',');
+            base64Input.value = commaIndex >= 0 ? result.slice(commaIndex + 1) : result;
+            nameInput.value = file.name || '';
+            label.textContent = file.name || '${_escapeHtml(_text(lang, 'pricingWorkbookWaiting'))}';
+          };
+          reader.onerror = function () {
+            base64Input.value = '';
+            nameInput.value = '';
+            label.textContent = '${_escapeHtml(_text(lang, 'pricingWorkbookInvalid'))}';
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      document.querySelectorAll('[data-pricing-upload-root]').forEach(bindPricingUploadRoot);
+    })();
+  </script>
 </body>
 </html>
 ''';
@@ -1578,6 +1744,89 @@ class OwnerController {
         ),
       );
     } on FormatException catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.message,
+        ),
+      );
+    }
+  }
+
+  Response downloadVehiclePricingTemplate(Request request) {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final String lang = _normalizeLang(request.url.queryParameters['lang']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    final List<int> bytes = buildWorkshopVehiclePricingWorkbook(workshop);
+    return Response.ok(
+      bytes,
+      headers: <String, String>{
+        'content-type':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'content-disposition':
+            'attachment; filename="${_pricingTemplateFilename(workshop)}"',
+      },
+    );
+  }
+
+  Future<Response> importVehiclePricing(Request request) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    try {
+      final List<VehiclePriceRuleModel> rules =
+          parseWorkshopVehiclePricingWorkbook(
+        bytes: Uint8List.fromList(
+          _decodePricingWorkbookBase64(form, lang: lang),
+        ),
+        workshop: workshop,
+      );
+      _store.updateWorkshop(
+        workshopId: workshop.id,
+        workshop: workshop.copyWith(
+          vehiclePricingRules: rules,
+        ),
+      );
+      await _store.saveWorkshops(workshopsFilePath);
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          message: _text(
+            lang,
+            'pricingImportSuccess',
+            <String, Object>{'count': rules.length},
+          ),
+        ),
+      );
+    } on FormatException catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.message,
+        ),
+      );
+    } on UnsupportedError catch (error) {
       return Response.seeOther(
         _ownerBookingsUri(
           lang: lang,
@@ -1845,6 +2094,64 @@ class OwnerController {
 ''';
   }
 
+  String _vehiclePricingCardHtml({
+    required WorkshopModel workshop,
+    required String lang,
+    required String status,
+  }) {
+    final String hiddenFields = '''
+<input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+<input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+''';
+    final Uri templateUri = Uri(
+      path: '/owner/vehicle-pricing/template.xlsx',
+      queryParameters: <String, String>{'lang': lang},
+    );
+    final String configuredCount = '${workshop.vehiclePricingRules.length}';
+    final String templateRows =
+        '${workshop.services.length * sortedVehicleCatalogEntries().length}';
+
+    return '''
+<section class="card service-pricing-card" data-pricing-upload-root>
+  <div class="service-toolbar">
+    <div>
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'pricingMatrixTitle'))}</div>
+      <h2>${_escapeHtml(_text(lang, 'pricingMatrixTitle'))}</h2>
+      <p>${_escapeHtml(_text(lang, 'pricingMatrixDescription'))}</p>
+    </div>
+    <a class="ghost-btn" href="${_escapeHtml(templateUri.toString())}">${_escapeHtml(_text(lang, 'pricingTemplateDownload'))}</a>
+  </div>
+
+  <div class="schedule-summary-grid">
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'pricingConfiguredCount'))}</div>
+      <strong>$configuredCount</strong>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'pricingTemplateRows'))}</div>
+      <strong>$templateRows</strong>
+    </div>
+  </div>
+
+  <form class="schedule-form" method="post" action="/owner/vehicle-pricing/import?lang=${Uri.encodeQueryComponent(lang)}">
+    $hiddenFields
+    <input type="hidden" name="pricingWorkbookBase64" data-pricing-base64>
+    <input type="hidden" name="pricingWorkbookName" data-pricing-name>
+    <div class="field">
+      <label>${_escapeHtml(_text(lang, 'pricingWorkbookField'))}</label>
+      <input type="file" accept=".xlsx" data-pricing-file>
+    </div>
+    <div class="muted" data-pricing-file-name>${_escapeHtml(_text(lang, 'pricingWorkbookWaiting'))}</div>
+    <div class="service-pricing-actions">
+      <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'pricingTemplateUpload'))}</button>
+    </div>
+  </form>
+
+  <div class="service-pricing-note">${_escapeHtml(_text(lang, 'pricingMatrixHint'))}</div>
+</section>
+''';
+  }
+
   String _scheduleCardHtml({
     required WorkshopModel workshop,
     required String lang,
@@ -1936,6 +2243,32 @@ class OwnerController {
         .join(', ');
   }
 
+  String _pricingTemplateFilename(WorkshopModel workshop) {
+    final String slug = workshop.name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    final String safeSlug = slug.isEmpty ? workshop.id : slug;
+    return 'usta_top_vehicle_pricing_$safeSlug.xlsx';
+  }
+
+  List<int> _decodePricingWorkbookBase64(
+    Map<String, String> form, {
+    required String lang,
+  }) {
+    final String encoded = (form['pricingWorkbookBase64'] ?? '').trim();
+    if (encoded.isEmpty) {
+      throw FormatException(_text(lang, 'pricingWorkbookRequired'));
+    }
+
+    try {
+      return base64Decode(encoded);
+    } on FormatException {
+      throw FormatException(_text(lang, 'pricingWorkbookInvalid'));
+    }
+  }
+
   String _weekdayCheckboxesHtml(String lang, List<int> selectedDays) {
     return List<String>.generate(7, (int index) {
       final int weekday = index + 1;
@@ -1967,6 +2300,150 @@ class OwnerController {
       default:
         return _text(lang, 'weekdayShortSun');
     }
+  }
+
+  String _calendarSectionHtml({
+    required WorkshopModel workshop,
+    required List<BookingModel> bookings,
+    required String lang,
+    required String status,
+    required DateTime selectedDate,
+  }) {
+    final DateTime startDate = _normalizeDate(DateTime.now());
+    final List<String> dayCards = <String>[];
+    for (int offset = 0; offset < 14; offset++) {
+      final DateTime date = startDate.add(Duration(days: offset));
+      final List<BookingModel> dayBookings = bookings.where((BookingModel item) {
+        return _sameDate(item.dateTime.toLocal(), date);
+      }).toList(growable: false)
+        ..sort(
+          (BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime),
+        );
+      final bool isClosedDay =
+          workshop.schedule.closedWeekdays.contains(date.weekday);
+      final String tagClass = isClosedDay
+          ? 'closed'
+          : dayBookings.isEmpty
+              ? ''
+              : 'busy';
+      final String tagLabel = isClosedDay
+          ? _text(lang, 'calendarClosedLabel')
+          : dayBookings.isEmpty
+              ? _text(lang, 'calendarOpenLabel')
+              : _text(
+                  lang,
+                  'calendarBookingsCount',
+                  <String, Object>{'count': dayBookings.length},
+                );
+      final String detail = dayBookings.isEmpty
+          ? _text(lang, 'calendarNoAppointments')
+          : _text(
+              lang,
+              'calendarFirstAppointment',
+              <String, Object>{'time': _formatClock(dayBookings.first.dateTime)},
+            );
+      final Uri dayUri = _ownerBookingsUri(
+        lang: lang,
+        status: status,
+        date: date,
+      );
+      dayCards.add('''
+<a class="calendar-day${_sameDate(date, selectedDate) ? ' active' : ''}${isClosedDay ? ' closed' : ''}" href="${_escapeHtml(dayUri.toString())}">
+  <div class="eyebrow">${_escapeHtml(_weekdayShortLabel(lang, date.weekday))}</div>
+  <strong>${_escapeHtml(_formatShortDate(date))}</strong>
+  <span class="calendar-tag $tagClass">${_escapeHtml(tagLabel)}</span>
+  <div class="mini">${_escapeHtml(detail)}</div>
+</a>
+''');
+    }
+
+    final List<BookingModel> selectedDayBookings = bookings.where(
+      (BookingModel item) {
+        return _sameDate(item.dateTime.toLocal(), selectedDate);
+      },
+    ).toList(growable: false)
+      ..sort(
+        (BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime),
+      );
+    final String agendaHtml = selectedDayBookings.isEmpty
+        ? '''
+<section class="empty-card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarSelectedEyebrow'))}</div>
+  <h3>${_escapeHtml(_text(lang, 'calendarEmptyTitle'))}</h3>
+  <p>${_escapeHtml(_text(lang, 'calendarEmptyBody'))}</p>
+</section>
+'''
+        : selectedDayBookings.map((BookingModel item) {
+            return '''
+<article class="agenda-item">
+  <div class="agenda-top">
+    <strong>${_escapeHtml(_formatClock(item.dateTime))} • ${_escapeHtml(item.customerName.isEmpty ? _text(lang, 'unknownCustomer') : item.customerName)}</strong>
+    <span class="status-pill ${item.status == BookingStatus.cancelled ? 'status-cancelled' : item.status == BookingStatus.completed ? 'status-completed' : item.status == BookingStatus.accepted ? 'status-accepted' : 'status-upcoming'}">${_escapeHtml(_statusLabel(item.status, lang))}</span>
+  </div>
+  <div class="agenda-meta">
+    ${_escapeHtml(item.serviceName)} • ${_escapeHtml(_vehicleSummary(item, lang))}<br>
+    ${_escapeHtml(_text(lang, 'priceLabel'))}: ${_escapeHtml(item.price.toString())}k
+  </div>
+</article>
+''';
+          }).join();
+
+    return '''
+<section class="card calendar-card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarEyebrow'))}</div>
+  <h2>${_escapeHtml(_text(lang, 'calendarTitle'))}</h2>
+  <p>${_escapeHtml(_text(lang, 'calendarDescription'))}</p>
+  <div class="calendar-strip">${dayCards.join()}</div>
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarSelectedEyebrow'))}</div>
+  <h3>${_escapeHtml(_text(lang, 'calendarSelectedTitle', <String, Object>{'date': _formatShortDate(selectedDate)}))}</h3>
+  <div class="agenda-list">$agendaHtml</div>
+</section>
+''';
+  }
+
+  DateTime _parseCalendarDate(String? raw) {
+    final DateTime? parsed = DateTime.tryParse((raw ?? '').trim());
+    return _normalizeDate(parsed ?? DateTime.now());
+  }
+
+  DateTime _normalizeDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  bool _sameDate(DateTime a, DateTime b) {
+    final DateTime left = _normalizeDate(a);
+    final DateTime right = _normalizeDate(b);
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day;
+  }
+
+  String _formatShortDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String day = local.day.toString().padLeft(2, '0');
+    const List<String> months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '$day ${months[local.month - 1]}';
+  }
+
+  String _formatClock(DateTime value) {
+    final DateTime local = value.toLocal();
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   String _reviewInboxCardHtml({
@@ -3004,6 +3481,7 @@ class OwnerController {
   Uri _ownerBookingsUri({
     String? lang,
     String? status,
+    DateTime? date,
     String? message,
     String? error,
   }) {
@@ -3013,6 +3491,12 @@ class OwnerController {
     final String normalizedStatus = _normalizeStatus(status);
     if (normalizedStatus != 'all') {
       params['status'] = normalizedStatus;
+    }
+    if (date != null) {
+      final DateTime normalizedDate = _normalizeDate(date);
+      final String month = normalizedDate.month.toString().padLeft(2, '0');
+      final String day = normalizedDate.day.toString().padLeft(2, '0');
+      params['date'] = '${normalizedDate.year}-$month-$day';
     }
     if (message != null && message.trim().isNotEmpty) {
       params['message'] = message.trim();
@@ -3302,13 +3786,13 @@ class OwnerController {
       <String, Map<String, String>>{
     'uz': <String, String>{
       'brandEyebrow': 'Owner Portal',
-      'brandTitle': 'Usta Top Workshop Egasi',
+      'brandTitle': 'Usta Top Ustaxona Egasi',
       'language': 'Til',
-      'loginTitle': 'Workshop egasi kirishi',
+      'loginTitle': 'Ustaxona egasi kirishi',
       'heroEyebrow': 'Zakazlarni Ko‘rish',
       'heroTitle': 'Faqat o‘z ustaxonangiz zakazlarini kuzating',
       'heroDescription':
-          'Workshop va access code orqali kirib, mijoz buyurtmalarini ko‘rishingiz va statusini yangilashingiz mumkin.',
+          'Ustaxona va access code orqali kirib, mijoz buyurtmalarini ko‘rishingiz va statusini yangilashingiz mumkin.',
       'tip1Title': 'Yangi zakazlar',
       'tip1Body':
           'Ilovadan tushgan yangi buyurtmalar shu yerda darhol ko‘rinadi.',
@@ -3317,19 +3801,19 @@ class OwnerController {
       'tip3Title': 'Status nazorati',
       'tip3Body':
           'Kutilmoqda, yakunlangan yoki bekor qilingan statuslarini shu paneldan boshqarasiz.',
-      'loginEyebrow': 'Workshop Login',
-      'loginSubtitle': 'Davom etish uchun workshop va access code ni tanlang.',
-      'workshopField': 'Workshop',
-      'workshopPlaceholder': 'Workshopni tanlang',
+      'loginEyebrow': 'Ustaxona Kirishi',
+      'loginSubtitle': 'Davom etish uchun ustaxona va access code ni tanlang.',
+      'workshopField': 'Ustaxona',
+      'workshopPlaceholder': 'Ustaxonani tanlang',
       'accessCodeField': 'Access code',
       'accessCodePlaceholder': 'Masalan: 0001',
       'loginButton': 'Kirish',
       'loginHelper':
-          'Agar kodni bilmasangiz, admin paneldagi workshop kartasidan ko‘rishingiz mumkin.',
-      'loginMissing': 'Workshop va access code ni kiriting',
-      'loginInvalid': 'Workshop yoki access code noto‘g‘ri',
-      'panelEyebrow': 'Workshop Inbox',
-      'panelTitle': 'Workshop zakazlari',
+          'Agar kodni bilmasangiz, admin paneldagi ustaxona kartasidan ko‘rishingiz mumkin.',
+      'loginMissing': 'Ustaxona va access code ni kiriting',
+      'loginInvalid': 'Ustaxona yoki access code noto‘g‘ri',
+      'panelEyebrow': 'Ustaxona Inbox',
+      'panelTitle': 'Ustaxona zakazlari',
       'panelDescription':
           'Quyidagi ro‘yxatda faqat sizning ustaxonangizga tegishli buyurtmalar ko‘rinadi.',
       'statusAll': 'Barchasi',
@@ -3343,7 +3827,7 @@ class OwnerController {
       'cancelledHint': 'Bekor qilingan buyurtmalar.',
       'emptyEyebrow': 'Zakaz Yo‘q',
       'emptyTitle': 'Hozircha zakaz yo‘q',
-      'emptyBody': 'Bu workshop uchun hali zakaz tushmagan.',
+      'emptyBody': 'Bu ustaxona uchun hali zakaz tushmagan.',
       'emptyFilteredBody': 'Tanlangan status bo‘yicha zakaz topilmadi.',
       'orderId': 'Zakaz ID',
       'unknownCustomer': 'Mijoz nomi yo‘q',
@@ -3403,14 +3887,28 @@ class OwnerController {
       'servicePriceFieldLabel': '{service} narxi',
       'serviceDurationFieldLabel': '{service} davomiyligi',
       'ownerServiceNotFound': 'Xizmat topilmadi',
+      'pricingMatrixTitle': 'Mashina bo‘yicha narxlar',
+      'pricingMatrixDescription':
+          'Har bir xizmat uchun mashina modeli kesimidagi narxlarni Excel orqali boshqaring.',
+      'pricingMatrixHint':
+          'Template-ni yuklab oling, price_k ustunini o‘zgartiring va faylni shu joyga qayta yuklang.',
+      'pricingConfiguredCount': 'Sozlangan narxlar',
+      'pricingTemplateRows': 'Template satrlari',
+      'pricingTemplateDownload': 'Excel template',
+      'pricingTemplateUpload': 'Excel yuklash',
+      'pricingWorkbookField': 'Narxlar fayli (.xlsx)',
+      'pricingWorkbookWaiting': 'Hali fayl tanlanmagan',
+      'pricingWorkbookRequired': 'Excel fayl tanlanmadi',
+      'pricingWorkbookInvalid': 'Excel faylni o‘qib bo‘lmadi',
+      'pricingImportSuccess': '{count} ta narx qoidasi yuklandi',
       'scheduleEyebrow': 'Ish jadvali',
       'scheduleTitle': 'Qabul vaqtini boshqaring',
       'scheduleDescription':
-          'Ish boshlanishi, tugashi, tanaffus va dam olish kunlarini shu workshop uchun alohida saqlang.',
+          'Ish boshlanishi, tugashi, tanaffus va dam olish kunlarini shu ustaxona uchun alohida saqlang.',
       'scheduleHint':
           'Keyingi bosqichda bo‘sh slotlar aynan shu jadval asosida hisoblanadi.',
       'scheduleSave': 'Jadvalni saqlash',
-      'scheduleSaved': 'Workshop ish jadvali saqlandi',
+      'scheduleSaved': 'Ustaxona ish jadvali saqlandi',
       'infoWorkingHours': 'Ish vaqti',
       'infoBreakTime': 'Tanaffus',
       'infoDaysOff': 'Dam olish kunlari',
@@ -3428,6 +3926,20 @@ class OwnerController {
           'Tanaffus uchun boshlanish va tugash vaqtini birga kiriting yoki ikkalasini ham bo‘sh qoldiring.',
       'scheduleBreakRangeError':
           'Tanaffus oralig‘i ish vaqti ichida va to‘g‘ri tartibda bo‘lishi kerak.',
+      'calendarEyebrow': 'Kalendar ko‘rinishi',
+      'calendarTitle': 'Yaqin 14 kun bron holati',
+      'calendarDescription':
+          'Band kunlar, yopiq kunlar va shu kunning eng yaqin yozuvlari bir qarashda ko‘rinadi.',
+      'calendarSelectedEyebrow': 'Tanlangan kun',
+      'calendarSelectedTitle': '{date} kunining zakazlari',
+      'calendarOpenLabel': 'Bo‘sh',
+      'calendarClosedLabel': 'Yopiq kun',
+      'calendarBookingsCount': '{count} ta bron',
+      'calendarFirstAppointment': 'Birinchi bron {time}',
+      'calendarNoAppointments': 'Hali bron yo‘q',
+      'calendarEmptyTitle': 'Bu kunda zakaz yo‘q',
+      'calendarEmptyBody':
+          'Tanlangan sanada hali hech qanday yozuv yo‘q yoki shu status bo‘yicha topilmadi.',
       'weekdayShortMon': 'Du',
       'weekdayShortTue': 'Se',
       'weekdayShortWed': 'Cho',
@@ -3447,11 +3959,11 @@ class OwnerController {
       'noFurtherActions': 'Bu zakaz uchun qo‘shimcha amal yo‘q.',
       'unknownReason': 'Ko‘rsatilmagan',
       'logout': 'Chiqish',
-      'garageNotFound': 'Workshop topilmadi',
+      'garageNotFound': 'Ustaxona topilmadi',
       'telegramEyebrow': 'Telegram Bot',
       'telegramTitle': 'Zakazlarni Telegramga ulang',
       'telegramDescription':
-          'Har bir workshop profili o‘z Telegram chatiga faqat o‘z zakazlarini oladi.',
+          'Har bir ustaxona profili o‘z Telegram chatiga faqat o‘z zakazlarini oladi.',
       'telegramConnected': 'Telegram ulangan',
       'telegramPending': 'Telegram hali ulanmagan',
       'telegramConnectedBody': 'Zakaz xabarlari {chat} chatiga yuborilmoqda.',
@@ -3484,11 +3996,11 @@ class OwnerController {
       'brandEyebrow': 'Owner Portal',
       'brandTitle': 'Владелец сервиса Usta Top',
       'language': 'Язык',
-      'loginTitle': 'Вход владельца workshop',
+      'loginTitle': 'Вход владельца автосервиса',
       'heroEyebrow': 'Просмотр Заказов',
       'heroTitle': 'Следите только за заказами своего автосервиса',
       'heroDescription':
-          'Выберите workshop и access code, чтобы смотреть заказы клиентов и менять их статус.',
+          'Выберите автосервис и access code, чтобы смотреть заказы клиентов и менять их статус.',
       'tip1Title': 'Новые заказы',
       'tip1Body': 'Новые заявки из приложения появляются здесь сразу.',
       'tip2Title': 'Связь с клиентом',
@@ -3496,19 +4008,19 @@ class OwnerController {
       'tip3Title': 'Контроль статуса',
       'tip3Body':
           'Статусы ожидания, завершения и отмены управляются прямо из панели.',
-      'loginEyebrow': 'Workshop Login',
-      'loginSubtitle': 'Выберите workshop и введите access code.',
-      'workshopField': 'Workshop',
-      'workshopPlaceholder': 'Выберите workshop',
+      'loginEyebrow': 'Вход в автосервис',
+      'loginSubtitle': 'Выберите автосервис и введите access code.',
+      'workshopField': 'Автосервис',
+      'workshopPlaceholder': 'Выберите автосервис',
       'accessCodeField': 'Access code',
       'accessCodePlaceholder': 'Например: 0001',
       'loginButton': 'Войти',
       'loginHelper':
-          'Если вы не знаете код, его можно посмотреть в карточке workshop в админке.',
-      'loginMissing': 'Выберите workshop и введите access code',
-      'loginInvalid': 'Workshop или access code неверны',
-      'panelEyebrow': 'Workshop Inbox',
-      'panelTitle': 'Заказы workshop',
+          'Если вы не знаете код, его можно посмотреть в карточке автосервиса в админке.',
+      'loginMissing': 'Выберите автосервис и введите access code',
+      'loginInvalid': 'Автосервис или access code неверны',
+      'panelEyebrow': 'Inbox автосервиса',
+      'panelTitle': 'Заказы автосервиса',
       'panelDescription':
           'В этом списке показаны только заказы, относящиеся к вашему автосервису.',
       'statusAll': 'Все',
@@ -3522,7 +4034,7 @@ class OwnerController {
       'cancelledHint': 'Отмененные заявки.',
       'emptyEyebrow': 'Нет Заказов',
       'emptyTitle': 'Пока заказов нет',
-      'emptyBody': 'Для этого workshop пока не поступило заказов.',
+      'emptyBody': 'Для этого автосервиса пока не поступило заказов.',
       'emptyFilteredBody': 'По выбранному статусу заказов не найдено.',
       'orderId': 'ID заказа',
       'unknownCustomer': 'Имя клиента не указано',
@@ -3569,7 +4081,7 @@ class OwnerController {
           'Ниже вы обновляете только цену и длительность услуг своего автосервиса.',
       'servicePricingHint':
           'Сохраненные цена и длительность появятся в приложении после следующего обновления, а новые заказы будут использовать эти базовые значения.',
-      'servicePricingEmpty': 'Для этого workshop пока не добавлены услуги.',
+      'servicePricingEmpty': 'Для этого автосервиса пока не добавлены услуги.',
       'serviceDurationMinutes': '{minutes} мин',
       'serviceCurrentPriceLabel': 'Текущая цена: {price}',
       'serviceNewPriceLabel': 'Новая цена',
@@ -3582,14 +4094,28 @@ class OwnerController {
       'servicePriceFieldLabel': 'Цена для {service}',
       'serviceDurationFieldLabel': 'Длительность для {service}',
       'ownerServiceNotFound': 'Услуга не найдена',
+      'pricingMatrixTitle': 'Цены по моделям авто',
+      'pricingMatrixDescription':
+          'Управляйте ценами по моделям для каждой услуги через Excel.',
+      'pricingMatrixHint':
+          'Скачайте шаблон, измените колонку price_k и загрузите файл обратно сюда.',
+      'pricingConfiguredCount': 'Настроено цен',
+      'pricingTemplateRows': 'Строк в шаблоне',
+      'pricingTemplateDownload': 'Excel шаблон',
+      'pricingTemplateUpload': 'Загрузить Excel',
+      'pricingWorkbookField': 'Файл цен (.xlsx)',
+      'pricingWorkbookWaiting': 'Файл пока не выбран',
+      'pricingWorkbookRequired': 'Excel-файл не выбран',
+      'pricingWorkbookInvalid': 'Не удалось прочитать Excel-файл',
+      'pricingImportSuccess': 'Загружено {count} ценовых правил',
       'scheduleEyebrow': 'График работы',
       'scheduleTitle': 'Управляйте временем приема',
       'scheduleDescription':
-          'Сохраняйте часы работы, перерыв и выходные отдельно для этого workshop.',
+          'Сохраняйте часы работы, перерыв и выходные отдельно для этого автосервиса.',
       'scheduleHint':
           'На следующем этапе свободные слоты будут строиться по этому графику.',
       'scheduleSave': 'Сохранить график',
-      'scheduleSaved': 'График workshop сохранен',
+      'scheduleSaved': 'График автосервиса сохранен',
       'infoWorkingHours': 'Часы работы',
       'infoBreakTime': 'Перерыв',
       'infoDaysOff': 'Выходные',
@@ -3607,6 +4133,20 @@ class OwnerController {
           'Для перерыва нужно указать и начало, и конец, либо оставить оба поля пустыми.',
       'scheduleBreakRangeError':
           'Перерыв должен находиться внутри рабочего времени и быть задан в правильном порядке.',
+      'calendarEyebrow': 'Календарный вид',
+      'calendarTitle': 'Брони на ближайшие 14 дней',
+      'calendarDescription':
+          'Занятые дни, выходные и ближайшие записи за день видны с одного взгляда.',
+      'calendarSelectedEyebrow': 'Выбранный день',
+      'calendarSelectedTitle': 'Заказы на {date}',
+      'calendarOpenLabel': 'Свободно',
+      'calendarClosedLabel': 'Выходной',
+      'calendarBookingsCount': '{count} броней',
+      'calendarFirstAppointment': 'Первая запись в {time}',
+      'calendarNoAppointments': 'Записей пока нет',
+      'calendarEmptyTitle': 'На этот день заказов нет',
+      'calendarEmptyBody':
+          'На выбранную дату еще нет записей или ничего не найдено по этому статусу.',
       'weekdayShortMon': 'Пн',
       'weekdayShortTue': 'Вт',
       'weekdayShortWed': 'Ср',
@@ -3626,11 +4166,11 @@ class OwnerController {
       'noFurtherActions': 'Для этого заказа больше нет доступных действий.',
       'unknownReason': 'Не указано',
       'logout': 'Выйти',
-      'garageNotFound': 'Workshop не найден',
+      'garageNotFound': 'Автосервис не найден',
       'telegramEyebrow': 'Telegram Bot',
       'telegramTitle': 'Подключите заказы к Telegram',
       'telegramDescription':
-          'Каждый профиль workshop получает в свой Telegram только свои заказы.',
+          'Каждый профиль автосервиса получает в свой Telegram только свои заказы.',
       'telegramConnected': 'Telegram подключен',
       'telegramPending': 'Telegram еще не подключен',
       'telegramConnectedBody':
@@ -3762,6 +4302,20 @@ class OwnerController {
       'servicePriceFieldLabel': 'Price for {service}',
       'serviceDurationFieldLabel': 'Duration for {service}',
       'ownerServiceNotFound': 'Service not found',
+      'pricingMatrixTitle': 'Vehicle pricing matrix',
+      'pricingMatrixDescription':
+          'Manage vehicle-specific prices for each service through Excel.',
+      'pricingMatrixHint':
+          'Download the template, update the price_k column, and upload the file back here.',
+      'pricingConfiguredCount': 'Configured prices',
+      'pricingTemplateRows': 'Template rows',
+      'pricingTemplateDownload': 'Excel template',
+      'pricingTemplateUpload': 'Upload Excel',
+      'pricingWorkbookField': 'Pricing file (.xlsx)',
+      'pricingWorkbookWaiting': 'No file selected yet',
+      'pricingWorkbookRequired': 'No Excel file selected',
+      'pricingWorkbookInvalid': 'The Excel file could not be read',
+      'pricingImportSuccess': '{count} pricing rules imported',
       'scheduleEyebrow': 'Working schedule',
       'scheduleTitle': 'Manage intake hours',
       'scheduleDescription':
@@ -3787,6 +4341,20 @@ class OwnerController {
           'Enter both break start and break end, or leave both empty.',
       'scheduleBreakRangeError':
           'The break must stay inside the working hours and follow the correct order.',
+      'calendarEyebrow': 'Calendar view',
+      'calendarTitle': 'Booking flow for the next 14 days',
+      'calendarDescription':
+          'Busy days, closed days, and the earliest appointment for each day are visible at a glance.',
+      'calendarSelectedEyebrow': 'Selected day',
+      'calendarSelectedTitle': 'Bookings for {date}',
+      'calendarOpenLabel': 'Open',
+      'calendarClosedLabel': 'Closed day',
+      'calendarBookingsCount': '{count} bookings',
+      'calendarFirstAppointment': 'First booking at {time}',
+      'calendarNoAppointments': 'No bookings yet',
+      'calendarEmptyTitle': 'No bookings on this day',
+      'calendarEmptyBody':
+          'There are no bookings for the selected date yet, or none match this status.',
       'weekdayShortMon': 'Mon',
       'weekdayShortTue': 'Tue',
       'weekdayShortWed': 'Wed',

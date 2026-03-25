@@ -4,10 +4,12 @@ import 'dart:math';
 
 import 'booking_cancellation.dart';
 import 'models.dart';
+import 'vehicle_catalog.dart';
 import 'vehicle_types.dart';
 
 class InMemoryStore {
-  static const int bookingSlotStepMinutes = 15;
+  static const int bookingSlotStepMinutes = 30;
+  static const int minimumBookingBlockMinutes = 30;
 
   InMemoryStore({
     required List<UserModel> users,
@@ -1477,6 +1479,52 @@ class InMemoryStore {
     );
   }
 
+  BookingAvailabilityCalendarModel bookingAvailabilityCalendar({
+    required String workshopId,
+    required String serviceId,
+    required DateTime fromDate,
+    int days = 45,
+  }) {
+    final DateTime startDate = _calendarDate(fromDate);
+    final int safeDays = days < 1 ? 1 : days;
+    final List<BookingAvailabilityDayModel> calendarDays =
+        <BookingAvailabilityDayModel>[];
+    DateTime? nearestAvailableDate;
+    String nearestAvailableTime = '';
+
+    for (int index = 0; index < safeDays; index++) {
+      final DateTime date = startDate.add(Duration(days: index));
+      final availability = bookingAvailability(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        date: date,
+      );
+      final int activeBookingCount = _activeBookingsForWorkshopOnDate(
+        workshopId: workshopId,
+        date: date,
+      ).length;
+      final BookingAvailabilityDayModel day = BookingAvailabilityDayModel(
+        date: date,
+        isClosedDay: availability.isClosedDay,
+        slotCount: availability.slotTimes.length,
+        firstSlot:
+            availability.slotTimes.isEmpty ? '' : availability.slotTimes.first,
+        activeBookingCount: activeBookingCount,
+      );
+      calendarDays.add(day);
+      if (nearestAvailableDate == null && day.firstSlot.isNotEmpty) {
+        nearestAvailableDate = date;
+        nearestAvailableTime = day.firstSlot;
+      }
+    }
+
+    return BookingAvailabilityCalendarModel(
+      days: List<BookingAvailabilityDayModel>.unmodifiable(calendarDays),
+      nearestAvailableDate: nearestAvailableDate,
+      nearestAvailableTime: nearestAvailableTime,
+    );
+  }
+
   BookingModel createBooking({
     required String userId,
     required String workshopId,
@@ -1534,8 +1582,12 @@ class InMemoryStore {
     }
     final VehicleTypePricing vehicleType =
         vehicleTypePricingById(vehicleTypeId);
-    final int finalPrice = adjustedServicePrice(
-      basePrice: service.price,
+    final quote = quoteWorkshopServicePrice(
+      workshopId: workshop.id,
+      serviceId: service.id,
+      catalogVehicleId: catalogVehicleId,
+      vehicleBrand: normalizedVehicleBrand,
+      vehicleModelName: normalizedVehicleModelName,
       vehicleTypeId: vehicleType.id,
     );
 
@@ -1552,8 +1604,8 @@ class InMemoryStore {
       vehicleModel: normalizedVehicleModel,
       vehicleTypeId: vehicleType.id,
       dateTime: normalizedBookingDateTime,
-      basePrice: service.price,
-      price: finalPrice,
+      basePrice: quote.basePrice,
+      price: quote.price,
       status: BookingStatus.upcoming,
       createdAt: now,
     );
@@ -1570,6 +1622,77 @@ class InMemoryStore {
       );
     }
     return booking;
+  }
+
+  ({
+    int basePrice,
+    int price,
+    VehiclePriceRuleModel? matchedRule,
+  }) quoteWorkshopServicePrice({
+    required String workshopId,
+    required String serviceId,
+    String catalogVehicleId = '',
+    String vehicleBrand = '',
+    String vehicleModelName = '',
+    String vehicleTypeId = '',
+  }) {
+    final WorkshopModel? workshop = workshopById(workshopId);
+    if (workshop == null) {
+      throw StateError('Servis topilmadi');
+    }
+
+    final ServiceModel? service = workshop.getServiceById(serviceId);
+    if (service == null) {
+      throw StateError('Xizmat topilmadi');
+    }
+
+    final String normalizedCatalogVehicleId = catalogVehicleId.trim();
+    final VehicleCatalogEntryModel? catalogVehicle =
+        vehicleCatalogEntryById(normalizedCatalogVehicleId);
+    final String normalizedBrand = catalogVehicle?.brand ??
+        normalizeVehicleBrand(vehicleBrand);
+    final String normalizedModel = catalogVehicle?.model ??
+        normalizeVehicleModelName(vehicleModelName);
+
+    VehiclePriceRuleModel? matchedRule = workshop.resolveVehiclePriceRule(
+      serviceId: service.id,
+      catalogVehicleId: normalizedCatalogVehicleId,
+      vehicleBrand: normalizedBrand,
+      vehicleModel: normalizedModel,
+    );
+
+    if (matchedRule == null &&
+        normalizedBrand.isNotEmpty &&
+        normalizedModel.isNotEmpty) {
+      final VehicleCatalogEntryModel? byBrandAndModel =
+          vehicleCatalogEntryByBrandAndModel(
+        brand: normalizedBrand,
+        model: normalizedModel,
+      );
+      if (byBrandAndModel != null) {
+        matchedRule = workshop.resolveVehiclePriceRule(
+          serviceId: service.id,
+          catalogVehicleId: byBrandAndModel.id,
+          vehicleBrand: byBrandAndModel.brand,
+          vehicleModel: byBrandAndModel.model,
+        );
+      }
+    }
+
+    final int basePrice = service.price;
+    if (matchedRule != null) {
+      return (
+        basePrice: basePrice,
+        price: matchedRule.price,
+        matchedRule: matchedRule,
+      );
+    }
+
+    return (
+      basePrice: basePrice,
+      price: basePrice,
+      matchedRule: null,
+    );
   }
 
   BookingModel cancelBooking({
@@ -1883,6 +2006,19 @@ class InMemoryStore {
     return status == BookingStatus.upcoming || status == BookingStatus.accepted;
   }
 
+  List<BookingModel> _activeBookingsForWorkshopOnDate({
+    required String workshopId,
+    required DateTime date,
+  }) {
+    final DateTime target = _calendarDate(date);
+    return _bookings.where((BookingModel item) {
+      if (item.workshopId != workshopId || !_blocksAvailability(item.status)) {
+        return false;
+      }
+      return _calendarDate(item.dateTime.toLocal()) == target;
+    }).toList(growable: false);
+  }
+
   DateTime _calendarDate(DateTime value) {
     final DateTime local = value.toLocal();
     return DateTime(local.year, local.month, local.day);
@@ -1903,9 +2039,9 @@ class InMemoryStore {
   int _serviceDurationMinutes(ServiceModel service) {
     final int value = service.durationMinutes;
     if (value <= 0) {
-      return 30;
+      return minimumBookingBlockMinutes;
     }
-    return value;
+    return max(value, minimumBookingBlockMinutes);
   }
 
   int _bookingDurationMinutes(

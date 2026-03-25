@@ -1,4 +1,5 @@
 import 'booking_cancellation.dart';
+import 'vehicle_catalog.dart';
 import 'vehicle_types.dart';
 
 enum BookingStatus { upcoming, accepted, completed, cancelled }
@@ -127,6 +128,151 @@ class WorkshopScheduleModel {
   }
 }
 
+class BookingAvailabilityDayModel {
+  const BookingAvailabilityDayModel({
+    required this.date,
+    required this.isClosedDay,
+    required this.slotCount,
+    required this.firstSlot,
+    required this.activeBookingCount,
+  });
+
+  final DateTime date;
+  final bool isClosedDay;
+  final int slotCount;
+  final String firstSlot;
+  final int activeBookingCount;
+
+  bool get isFullyBooked => !isClosedDay && slotCount == 0;
+  bool get isSelectable => !isClosedDay && slotCount > 0;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'date':
+          '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+      'isClosedDay': isClosedDay,
+      'slotCount': slotCount,
+      'activeBookingCount': activeBookingCount,
+      'isFullyBooked': isFullyBooked,
+      if (firstSlot.isNotEmpty) 'firstSlot': firstSlot,
+    };
+  }
+}
+
+class BookingAvailabilityCalendarModel {
+  const BookingAvailabilityCalendarModel({
+    required this.days,
+    this.nearestAvailableDate,
+    this.nearestAvailableTime = '',
+  });
+
+  final List<BookingAvailabilityDayModel> days;
+  final DateTime? nearestAvailableDate;
+  final String nearestAvailableTime;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'days': days.map((BookingAvailabilityDayModel item) => item.toJson()).toList(
+            growable: false,
+          ),
+      if (nearestAvailableDate != null)
+        'nearestAvailableDate':
+            '${nearestAvailableDate!.year.toString().padLeft(4, '0')}-${nearestAvailableDate!.month.toString().padLeft(2, '0')}-${nearestAvailableDate!.day.toString().padLeft(2, '0')}',
+      if (nearestAvailableTime.trim().isNotEmpty)
+        'nearestAvailableTime': nearestAvailableTime,
+    };
+  }
+}
+
+class VehiclePriceRuleModel {
+  const VehiclePriceRuleModel({
+    required this.serviceId,
+    required this.catalogVehicleId,
+    required this.vehicleBrand,
+    required this.vehicleModel,
+    required this.vehicleTypeId,
+    required this.price,
+  });
+
+  final String serviceId;
+  final String catalogVehicleId;
+  final String vehicleBrand;
+  final String vehicleModel;
+  final String vehicleTypeId;
+  final int price;
+
+  String get normalizedCatalogVehicleId => catalogVehicleId.trim();
+  String get normalizedVehicleBrand => normalizeVehicleBrand(vehicleBrand);
+  String get normalizedVehicleModel => normalizeVehicleModelName(vehicleModel);
+
+  String get vehicleLabel => formatVehicleDisplayName(
+        brand: normalizedVehicleBrand,
+        model: normalizedVehicleModel,
+      );
+
+  bool get hasCatalogVehicle => normalizedCatalogVehicleId.isNotEmpty;
+
+  VehiclePriceRuleModel copyWith({
+    String? serviceId,
+    String? catalogVehicleId,
+    String? vehicleBrand,
+    String? vehicleModel,
+    String? vehicleTypeId,
+    int? price,
+  }) {
+    return VehiclePriceRuleModel(
+      serviceId: serviceId ?? this.serviceId,
+      catalogVehicleId: catalogVehicleId ?? this.catalogVehicleId,
+      vehicleBrand: vehicleBrand ?? this.vehicleBrand,
+      vehicleModel: vehicleModel ?? this.vehicleModel,
+      vehicleTypeId: vehicleTypeId ?? this.vehicleTypeId,
+      price: price ?? this.price,
+    );
+  }
+
+  factory VehiclePriceRuleModel.fromJson(Map<String, dynamic> json) {
+    final String catalogVehicleId =
+        (json['catalogVehicleId'] ?? '').toString().trim();
+    final VehicleCatalogEntryModel? catalogVehicle =
+        vehicleCatalogEntryById(catalogVehicleId);
+    final String brand = catalogVehicle?.brand ??
+        normalizeVehicleBrand((json['vehicleBrand'] ?? '').toString());
+    final String model = catalogVehicle?.model ??
+        normalizeVehicleModelName((json['vehicleModel'] ?? '').toString());
+    final String vehicleTypeId = catalogVehicle?.vehicleTypeId ??
+        vehicleTypePricingById((json['vehicleTypeId'] ?? '').toString()).id;
+    return VehiclePriceRuleModel(
+      serviceId: (json['serviceId'] ?? '').toString().trim(),
+      catalogVehicleId: catalogVehicleId,
+      vehicleBrand: brand,
+      vehicleModel: model,
+      vehicleTypeId: vehicleTypeId,
+      price: _toInt(json['price']),
+    );
+  }
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'serviceId': serviceId,
+      'catalogVehicleId': normalizedCatalogVehicleId,
+      'vehicleBrand': normalizedVehicleBrand,
+      'vehicleModel': normalizedVehicleModel,
+      'vehicleTypeId': vehicleTypePricingById(vehicleTypeId).id,
+      'price': price,
+    };
+  }
+
+  static int _toInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse('$value') ?? 0;
+  }
+}
+
 class ServiceModel {
   const ServiceModel({
     required this.id,
@@ -172,6 +318,18 @@ class ServiceModel {
     };
   }
 
+  Map<String, Object> toPublicJson({
+    required int displayPrice,
+  }) {
+    return <String, Object>{
+      'id': id,
+      'name': name,
+      'price': displayPrice,
+      'basePrice': price,
+      'durationMinutes': durationMinutes,
+    };
+  }
+
   static int _toInt(Object? value) {
     if (value is int) {
       return value;
@@ -203,6 +361,7 @@ class WorkshopModel {
     required this.telegramLinkCode,
     required this.schedule,
     required this.services,
+    this.vehiclePricingRules = const <VehiclePriceRuleModel>[],
   });
 
   final String id;
@@ -223,6 +382,7 @@ class WorkshopModel {
   final String telegramLinkCode;
   final WorkshopScheduleModel schedule;
   final List<ServiceModel> services;
+  final List<VehiclePriceRuleModel> vehiclePricingRules;
 
   WorkshopModel copyWith({
     String? id,
@@ -243,6 +403,7 @@ class WorkshopModel {
     String? telegramLinkCode,
     WorkshopScheduleModel? schedule,
     List<ServiceModel>? services,
+    List<VehiclePriceRuleModel>? vehiclePricingRules,
   }) {
     return WorkshopModel(
       id: id ?? this.id,
@@ -263,6 +424,7 @@ class WorkshopModel {
       telegramLinkCode: telegramLinkCode ?? this.telegramLinkCode,
       schedule: schedule ?? this.schedule,
       services: services ?? this.services,
+      vehiclePricingRules: vehiclePricingRules ?? this.vehiclePricingRules,
     );
   }
 
@@ -274,6 +436,24 @@ class WorkshopModel {
             .map(ServiceModel.fromJson)
             .toList(growable: false)
         : <ServiceModel>[];
+    final dynamic rawVehiclePricingRules = json['vehiclePricingRules'];
+    final List<VehiclePriceRuleModel> vehiclePricingRules =
+        rawVehiclePricingRules is List
+            ? rawVehiclePricingRules
+                .whereType<Map<String, dynamic>>()
+                .map(VehiclePriceRuleModel.fromJson)
+                .where((VehiclePriceRuleModel item) {
+                  if (item.serviceId.isEmpty || item.price < 0) {
+                    return false;
+                  }
+                  if (item.hasCatalogVehicle) {
+                    return true;
+                  }
+                  return item.normalizedVehicleBrand.isNotEmpty &&
+                      item.normalizedVehicleModel.isNotEmpty;
+                })
+                .toList(growable: false)
+            : <VehiclePriceRuleModel>[];
     final dynamic rawSchedule = json['schedule'];
 
     return WorkshopModel(
@@ -306,6 +486,7 @@ class WorkshopModel {
           ? WorkshopScheduleModel.fromJson(rawSchedule)
           : WorkshopScheduleModel.standard(),
       services: services,
+      vehiclePricingRules: vehiclePricingRules,
     );
   }
 
@@ -330,6 +511,76 @@ class WorkshopModel {
       }
     }
     return minPrice;
+  }
+
+  int publicStartingPriceForService(ServiceModel service) {
+    final List<VehiclePriceRuleModel> rules = vehiclePricingRules.where(
+      (VehiclePriceRuleModel item) => item.serviceId == service.id,
+    ).toList(growable: false);
+    if (rules.isEmpty) {
+      return service.price;
+    }
+
+    int minPrice = rules.first.price;
+    for (final VehiclePriceRuleModel rule in rules.skip(1)) {
+      if (rule.price < minPrice) {
+        minPrice = rule.price;
+      }
+    }
+    return minPrice;
+  }
+
+  int get publicStartingPrice {
+    if (services.isEmpty) {
+      return 0;
+    }
+
+    int minPrice = publicStartingPriceForService(services.first);
+    for (final ServiceModel service in services.skip(1)) {
+      final int servicePrice = publicStartingPriceForService(service);
+      if (servicePrice < minPrice) {
+        minPrice = servicePrice;
+      }
+    }
+    return minPrice;
+  }
+
+  VehiclePriceRuleModel? resolveVehiclePriceRule({
+    required String serviceId,
+    String catalogVehicleId = '',
+    String vehicleBrand = '',
+    String vehicleModel = '',
+  }) {
+    final String normalizedServiceId = serviceId.trim();
+    final String normalizedCatalogVehicleId = catalogVehicleId.trim();
+    final String normalizedBrand = normalizeVehicleBrand(vehicleBrand);
+    final String normalizedModel = normalizeVehicleModelName(vehicleModel);
+
+    if (normalizedCatalogVehicleId.isNotEmpty) {
+      for (final VehiclePriceRuleModel item in vehiclePricingRules) {
+        if (item.serviceId == normalizedServiceId &&
+            item.normalizedCatalogVehicleId == normalizedCatalogVehicleId) {
+          return item;
+        }
+      }
+    }
+
+    if (normalizedBrand.isEmpty || normalizedModel.isEmpty) {
+      return null;
+    }
+
+    for (final VehiclePriceRuleModel item in vehiclePricingRules) {
+      if (item.serviceId != normalizedServiceId) {
+        continue;
+      }
+      if (item.normalizedVehicleBrand.toLowerCase() ==
+              normalizedBrand.toLowerCase() &&
+          item.normalizedVehicleModel.toLowerCase() ==
+              normalizedModel.toLowerCase()) {
+        return item;
+      }
+    }
+    return null;
   }
 
   bool matchesQuery(String query) {
@@ -366,6 +617,31 @@ class WorkshopModel {
       'schedule': schedule.toJson(),
       'startingPrice': startingPrice,
       'services': services.map((ServiceModel item) => item.toJson()).toList(),
+      'vehiclePricingRules':
+          vehiclePricingRules.map((VehiclePriceRuleModel item) => item.toJson()).toList(),
+    };
+  }
+
+  Map<String, Object> toPublicJson() {
+    return <String, Object>{
+      'id': id,
+      'name': name,
+      'master': master,
+      'rating': rating,
+      'reviewCount': reviewCount,
+      'address': address,
+      'description': description,
+      'distanceKm': distanceKm,
+      'latitude': latitude,
+      'longitude': longitude,
+      'isOpen': isOpen,
+      'badge': badge,
+      'startingPrice': publicStartingPrice,
+      'services': services
+          .map((ServiceModel item) => item.toPublicJson(
+                displayPrice: publicStartingPriceForService(item),
+              ))
+          .toList(growable: false),
     };
   }
 

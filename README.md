@@ -41,7 +41,7 @@ Bu script backendni ko'taradi, health'ni kutadi, keyin appni backend bilan
 va owner panel `http://127.0.0.1:8080/owner/login` da ochiladi.
 
 Telegram bot yoqilgan bo'lsa, owner panel ichidan `Bog'lash kodini yaratish`
-orqali workshop profilini o'z Telegram chatiga ulash mumkin.
+orqali ustaxona profilini o'z Telegram chatiga ulash mumkin.
 
 Backendni terminalsiz avtomatik ishlatish uchun:
 

@@ -23,7 +23,7 @@ class WorkshopController {
     final String? query = request.url.queryParameters['q'];
     final List<Map<String, Object>> data = _store
         .workshops(query: query)
-        .map((WorkshopModel item) => item.toJson())
+        .map((WorkshopModel item) => item.toPublicJson())
         .toList(growable: false);
     return jsonResponse(<String, Object>{'data': data});
   }
@@ -76,6 +76,81 @@ class WorkshopController {
             'closingTime': availability.schedule.closingTime,
             'breakStartTime': availability.schedule.breakStartTime,
             'breakEndTime': availability.schedule.breakEndTime,
+          },
+        },
+      );
+    } on StateError catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    }
+  }
+
+  Response availabilityCalendar(Request request, String id) {
+    final WorkshopModel? workshop = _store.workshopById(id);
+    if (workshop == null) {
+      return errorResponse('Servis topilmadi', statusCode: 404);
+    }
+
+    final String serviceId =
+        (request.url.queryParameters['serviceId'] ?? '').trim();
+    final String fromRaw =
+        (request.url.queryParameters['from'] ?? '').trim();
+    final DateTime? fromDate = DateTime.tryParse(fromRaw);
+    final int days = _toInt(request.url.queryParameters['days']);
+    if (serviceId.isEmpty || fromDate == null) {
+      return errorResponse(
+        'serviceId va from (YYYY-MM-DD) query paramlari kerak',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final BookingAvailabilityCalendarModel calendar =
+          _store.bookingAvailabilityCalendar(
+        workshopId: workshop.id,
+        serviceId: serviceId,
+        fromDate: fromDate,
+        days: days <= 0 ? 45 : days,
+      );
+      return jsonResponse(<String, Object>{'data': calendar.toJson()});
+    } on StateError catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    }
+  }
+
+  Response priceQuote(Request request, String id) {
+    final WorkshopModel? workshop = _store.workshopById(id);
+    if (workshop == null) {
+      return errorResponse('Servis topilmadi', statusCode: 404);
+    }
+
+    final String serviceId =
+        (request.url.queryParameters['serviceId'] ?? '').trim();
+    if (serviceId.isEmpty) {
+      return errorResponse('serviceId query parami kerak', statusCode: 400);
+    }
+
+    try {
+      final quote = _store.quoteWorkshopServicePrice(
+        workshopId: workshop.id,
+        serviceId: serviceId,
+        catalogVehicleId:
+            (request.url.queryParameters['catalogVehicleId'] ?? '').trim(),
+        vehicleBrand:
+            (request.url.queryParameters['vehicleBrand'] ?? '').trim(),
+        vehicleModelName:
+            (request.url.queryParameters['vehicleModelName'] ?? '').trim(),
+        vehicleTypeId:
+            (request.url.queryParameters['vehicleTypeId'] ?? '').trim(),
+      );
+      return jsonResponse(
+        <String, Object>{
+          'data': <String, Object>{
+            'serviceId': serviceId,
+            'basePrice': quote.basePrice,
+            'price': quote.price,
+            'matchedRule': quote.matchedRule != null,
+            if (quote.matchedRule != null)
+              'matchedVehicleLabel': quote.matchedRule!.vehicleLabel,
           },
         },
       );
@@ -149,7 +224,7 @@ class WorkshopController {
         .map((WorkshopReviewModel item) => item.toPublicJson())
         .toList(growable: false);
     return <String, Object>{
-      ...workshop.toJson(),
+      ...workshop.toPublicJson(),
       'reviews': reviews,
     };
   }

@@ -429,7 +429,9 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                               ),
                             ),
                             Text(
-                              AppFormatters.moneyK(service.price),
+                              l10n.fromPrice(
+                                AppFormatters.moneyK(service.price),
+                              ),
                               style: TextStyle(
                                 color: AppColors.primaryToneOf(context),
                                 fontWeight: FontWeight.w700,

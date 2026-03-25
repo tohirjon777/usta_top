@@ -18,7 +18,7 @@ Server default holatda `http://0.0.0.0:8080` da ishga tushadi.
 HOST=127.0.0.1 PORT=9090 dart run bin/server.dart
 ```
 
-Workshop lokatsiyalarini alohida faylga saqlash uchun:
+Ustaxona lokatsiyalarini alohida faylga saqlash uchun:
 
 ```bash
 WORKSHOP_LOCATIONS_FILE=data/workshop_locations.json dart run bin/server.dart
@@ -36,7 +36,7 @@ Auth sessiyalarni alohida faylga saqlash uchun:
 AUTH_SESSIONS_FILE=data/auth_sessions.json dart run bin/server.dart
 ```
 
-Workshop kartalarini alohida fayldan yuklash uchun:
+Ustaxona kartalarini alohida fayldan yuklash uchun:
 
 ```bash
 WORKSHOPS_FILE=data/workshops.json dart run bin/server.dart
@@ -82,7 +82,7 @@ ko‘rsatilsa, service restartdan keyin ham ishlaydi.
 
 ## Admin sahifa
 
-Brauzerda quyidagi sahifani ochib workshop lokatsiyasini taxminiy koordinata bilan kiriting:
+Brauzerda quyidagi sahifani ochib ustaxona lokatsiyasini taxminiy koordinata bilan kiriting:
 
 ```text
 http://127.0.0.1:8080/admin/workshops
@@ -94,11 +94,11 @@ Zakazlar paneli:
 http://127.0.0.1:8080/admin/bookings
 ```
 
-Workshop kartasida `Telegram chat ID` maydoni bor. Shu yerga ustaxona egasi
+Ustaxona kartasida `Telegram chat ID` maydoni bor. Shu yerga ustaxona egasi
 bot bilan yozishgan chat ID ni kiritsangiz, yangi zakaz va status
 o'zgarishlarida Telegram xabari yuboriladi.
 
-`Telegram test` tugmasi orqali shu workshop uchun test xabar yuborib ko'rish
+`Telegram test` tugmasi orqali shu ustaxona uchun test xabar yuborib ko'rish
 mumkin.
 
 Admin login default holatda:
@@ -116,31 +116,31 @@ Ustaxona egasi brauzer orqali quyidagi sahifadan kiradi:
 http://127.0.0.1:8080/owner/login
 ```
 
-Default seed workshoplar uchun owner access kodlari:
+Default seed ustaxonalar uchun owner access kodlari:
 
 - `w-1` -> `5252`
 - `w-2` -> `0002`
 - `w-3` -> `0003`
 
-Admin paneldagi workshop kartasida `Usta kirish kodi` maydoni bor. Shu kodni
+Admin paneldagi ustaxona kartasida `Usta kirish kodi` maydoni bor. Shu kodni
 o'zgartirib saqlasangiz, owner portal ham shu yangi kod bilan ishlaydi.
 
-Yangi workshop yaratishda bu maydonni bo'sh qoldirsangiz, backend workshop ID
+Yangi ustaxona yaratishda bu maydonni bo'sh qoldirsangiz, backend ustaxona ID
 oxirgi 4 raqami asosida kod yaratadi.
 
 Owner kabinetda:
 
-- faqat o'sha workshopga tegishli zakazlar ko'rinadi
+- faqat o'sha ustaxonaga tegishli zakazlar ko'rinadi
 - mijoz ismi va telefoni chiqadi
 - zakaz statusini `upcoming`, `completed`, `cancelled` ga almashtirish mumkin
 - Telegram bot uchun bog'lash kodini yaratish mumkin
-- bog'lash muvaffaqiyatli bo'lsa, keyingi zakazlar shu workshopning o'z Telegram chatiga keladi
+- bog'lash muvaffaqiyatli bo'lsa, keyingi zakazlar shu ustaxonaning o'z Telegram chatiga keladi
 
 ## Telegram bot sozlamasi
 
 1. Backendni `TELEGRAM_BOT_TOKEN` bilan ishga tushiring
 2. Owner portalga kiring: `http://127.0.0.1:8080/owner/login`
-3. Workshop profilingizga kiring va `Bog'lash kodini yaratish` tugmasini bosing
+3. Ustaxona profilingizga kiring va `Bog'lash kodini yaratish` tugmasini bosing
 4. Telegram botga owner portal ko'rsatgan kodni yuboring, masalan:
 
 ```bash
@@ -159,7 +159,7 @@ Manual usul ham bor:
 curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates"
 ```
 
-3. Chiqqan `chat.id` ni admin paneldagi kerakli workshop'ga yozing
+3. Chiqqan `chat.id` ni admin paneldagi kerakli ustaxonaga yozing
 4. `Telegram test` tugmasini bosib tekshiring
 
 Bot token kodga tikilmagan, faqat environment variable orqali ishlatiladi.
@@ -169,7 +169,7 @@ Bu sahifa `latitude` va `longitude` qiymatlarini yangilaydi va ularni
 tushganda ham shu qiymatlar qayta yuklanadi.
 
 Zakazlar `data/bookings.json` fayliga yoziladi. `admin/bookings` sahifasida
-mijoz, telefon, servis, vaqt va status ko'rinadi. Workshop kartasidan shu
+mijoz, telefon, servis, vaqt va status ko'rinadi. Ustaxona kartasidan shu
 servisning filtrlangan zakazlar inboxiga o'tish ham mumkin.
 
 ## Endpointlar

@@ -98,6 +98,43 @@ abstract final class ApiEndpoints {
       },
     ).toString();
   }
+  static String workshopAvailabilityCalendar(
+    String id, {
+    required String serviceId,
+    required String from,
+    required int days,
+  }) {
+    return Uri(
+      path: '/workshops/$id/availability/calendar',
+      queryParameters: <String, String>{
+        'serviceId': serviceId,
+        'from': from,
+        'days': '$days',
+      },
+    ).toString();
+  }
+  static String workshopPriceQuote(
+    String id, {
+    required String serviceId,
+    required String catalogVehicleId,
+    required String vehicleBrand,
+    required String vehicleModelName,
+    required String vehicleTypeId,
+  }) {
+    return Uri(
+      path: '/workshops/$id/price-quote',
+      queryParameters: <String, String>{
+        'serviceId': serviceId,
+        if (catalogVehicleId.trim().isNotEmpty)
+          'catalogVehicleId': catalogVehicleId.trim(),
+        if (vehicleBrand.trim().isNotEmpty) 'vehicleBrand': vehicleBrand.trim(),
+        if (vehicleModelName.trim().isNotEmpty)
+          'vehicleModelName': vehicleModelName.trim(),
+        if (vehicleTypeId.trim().isNotEmpty)
+          'vehicleTypeId': vehicleTypeId.trim(),
+      },
+    ).toString();
+  }
   static String workshopReviews(String id) => '/workshops/$id/reviews';
 
   // TODO(API): GET /bookings

@@ -98,6 +98,8 @@ class AppLocalizations {
       'date': 'Date',
       'availableTimes': 'Available times',
       'availableTimesLoadFailed': 'Available times could not be loaded.',
+      'availableCalendarLoadFailed':
+          'Calendar availability could not be loaded.',
       'availableTimesRetryHint': 'Please try another date or refresh the screen.',
       'availableTimesClosedDay': 'Workshop is closed on this day',
       'availableTimesClosedDayHint':
@@ -105,6 +107,11 @@ class AppLocalizations {
       'availableTimesEmpty': 'No free times left for this day',
       'availableTimesEmptyHint':
           'Try another date or choose a different service.',
+      'nearestAvailableTitle': 'Closest free time',
+      'nearestAvailableSubtitle':
+          '{date} at {time} is the nearest open slot.',
+      'selectNearestAvailable': 'Use this slot',
+      'noAvailableDates': 'No available dates were found in the next 45 days.',
       'summary': 'Request summary',
       'serviceLabel': 'Service type: {service}',
       'vehicleSelectionTitle': 'Vehicle selection',
@@ -113,7 +120,7 @@ class AppLocalizations {
       'otherPopularVehiclesTitle': 'Other common cars',
       'popularVehiclesTitle': 'Popular models',
       'vehicleCatalogMode': 'Choose from list',
-      'vehicleOtherOption': 'Other model',
+      'vehicleOtherOption': 'Other',
       'vehicleBrandField': 'Car brand',
       'vehicleBrandHint': 'For example, Chevrolet',
       'vehicleBrandRequired': 'Enter the car brand',
@@ -131,6 +138,8 @@ class AppLocalizations {
       'timeLabel': 'Time: {time}',
       'bookingTimePending': 'Choose a free time',
       'basePriceLabel': 'Base price: {price}',
+      'vehiclePriceRuleLabel': 'Configured vehicle price: {vehicle}',
+      'vehiclePriceLoadFailed': 'Vehicle-specific price could not be loaded.',
       'vehiclePriceAdjustmentLabel': 'Vehicle adjustment: {adjustment}',
       'totalLabel': 'Total: {total}',
       'confirmBooking': 'Confirm request',
@@ -346,6 +355,8 @@ class AppLocalizations {
       'date': 'Sana',
       'availableTimes': 'Mavjud vaqtlar',
       'availableTimesLoadFailed': 'Bo‘sh vaqtlarni yuklab bo‘lmadi.',
+      'availableCalendarLoadFailed':
+          'Kalendar bo‘sh vaqtlarini yuklab bo‘lmadi.',
       'availableTimesRetryHint':
           'Boshqa sana tanlang yoki ekranni qayta urinib ko‘ring.',
       'availableTimesClosedDay': 'Bu kunda ustaxona ishlamaydi',
@@ -354,6 +365,11 @@ class AppLocalizations {
       'availableTimesEmpty': 'Bu kun uchun bo‘sh vaqt qolmagan',
       'availableTimesEmptyHint':
           'Boshqa sana yoki boshqa xizmatni tanlab ko‘ring.',
+      'nearestAvailableTitle': 'Eng yaqin bo‘sh vaqt',
+      'nearestAvailableSubtitle':
+          '{date} kuni {time} siz uchun eng yaqin bo‘sh slot.',
+      'selectNearestAvailable': 'Shu vaqtni tanlash',
+      'noAvailableDates': 'Keyingi 45 kun ichida bo‘sh sana topilmadi.',
       'summary': 'Buyurtma xulosasi',
       'serviceLabel': 'Xizmat turi: {service}',
       'vehicleSelectionTitle': 'Mashina tanlash',
@@ -362,7 +378,7 @@ class AppLocalizations {
       'otherPopularVehiclesTitle': 'Boshqa ko\'p uchraydigan mashinalar',
       'popularVehiclesTitle': 'Ko\'p ishlatiladigan modellar',
       'vehicleCatalogMode': 'Ro\'yxatdan tanlash',
-      'vehicleOtherOption': 'Boshqa model',
+      'vehicleOtherOption': 'Boshqa',
       'vehicleBrandField': 'Mashina brendi',
       'vehicleBrandHint': 'Masalan, Chevrolet',
       'vehicleBrandRequired': 'Mashina brendini kiriting',
@@ -380,6 +396,9 @@ class AppLocalizations {
       'timeLabel': 'Vaqt: {time}',
       'bookingTimePending': 'Bo‘sh vaqtni tanlang',
       'basePriceLabel': 'Bazaviy narx: {price}',
+      'vehiclePriceRuleLabel': 'Belgilangan model narxi: {vehicle}',
+      'vehiclePriceLoadFailed':
+          'Mashina modeli bo‘yicha narxni yuklab bo‘lmadi.',
       'vehiclePriceAdjustmentLabel':
           'Mashina turi bo\'yicha o\'zgarish: {adjustment}',
       'totalLabel': 'Jami: {total}',
@@ -599,6 +618,8 @@ class AppLocalizations {
       'date': 'Дата',
       'availableTimes': 'Доступное время',
       'availableTimesLoadFailed': 'Не удалось загрузить свободное время.',
+      'availableCalendarLoadFailed':
+          'Не удалось загрузить календарь свободного времени.',
       'availableTimesRetryHint':
           'Выберите другую дату или попробуйте обновить экран.',
       'availableTimesClosedDay': 'В этот день сервис не работает',
@@ -607,6 +628,12 @@ class AppLocalizations {
       'availableTimesEmpty': 'На этот день свободных слотов не осталось',
       'availableTimesEmptyHint':
           'Попробуйте другую дату или выберите другую услугу.',
+      'nearestAvailableTitle': 'Ближайшее свободное время',
+      'nearestAvailableSubtitle':
+          '{date} в {time} доступен ближайший свободный слот.',
+      'selectNearestAvailable': 'Выбрать этот слот',
+      'noAvailableDates':
+          'В ближайшие 45 дней не найдено доступных дат.',
       'summary': 'Сводка заявки',
       'serviceLabel': 'Тип услуги: {service}',
       'vehicleSelectionTitle': 'Выбор автомобиля',
@@ -615,7 +642,7 @@ class AppLocalizations {
       'otherPopularVehiclesTitle': 'Другие распространённые машины',
       'popularVehiclesTitle': 'Популярные модели',
       'vehicleCatalogMode': 'Выбрать из списка',
-      'vehicleOtherOption': 'Другая модель',
+      'vehicleOtherOption': 'Другое',
       'vehicleBrandField': 'Марка автомобиля',
       'vehicleBrandHint': 'Например, Chevrolet',
       'vehicleBrandRequired': 'Введите марку автомобиля',
@@ -633,6 +660,9 @@ class AppLocalizations {
       'timeLabel': 'Время: {time}',
       'bookingTimePending': 'Выберите свободное время',
       'basePriceLabel': 'Базовая цена: {price}',
+      'vehiclePriceRuleLabel': 'Настроенная цена для авто: {vehicle}',
+      'vehiclePriceLoadFailed':
+          'Не удалось загрузить цену для выбранной модели авто.',
       'vehiclePriceAdjustmentLabel': 'Корректировка по типу авто: {adjustment}',
       'totalLabel': 'Итого: {total}',
       'confirmBooking': 'Подтвердить заявку',
@@ -878,12 +908,20 @@ class AppLocalizations {
   String get date => _text('date');
   String get availableTimes => _text('availableTimes');
   String get availableTimesLoadFailed => _text('availableTimesLoadFailed');
+  String get availableCalendarLoadFailed => _text('availableCalendarLoadFailed');
   String get availableTimesRetryHint => _text('availableTimesRetryHint');
   String get availableTimesClosedDay => _text('availableTimesClosedDay');
   String get availableTimesClosedDayHint =>
       _text('availableTimesClosedDayHint');
   String get availableTimesEmpty => _text('availableTimesEmpty');
   String get availableTimesEmptyHint => _text('availableTimesEmptyHint');
+  String get nearestAvailableTitle => _text('nearestAvailableTitle');
+  String nearestAvailableSubtitle(String date, String time) => _fmt(
+        'nearestAvailableSubtitle',
+        <String, Object>{'date': date, 'time': time},
+      );
+  String get selectNearestAvailable => _text('selectNearestAvailable');
+  String get noAvailableDates => _text('noAvailableDates');
   String get summary => _text('summary');
   String serviceLabel(String service) =>
       _fmt('serviceLabel', <String, Object>{'service': service});
@@ -917,6 +955,9 @@ class AppLocalizations {
   String get bookingTimePending => _text('bookingTimePending');
   String basePriceLabel(String price) =>
       _fmt('basePriceLabel', <String, Object>{'price': price});
+  String vehiclePriceRuleLabel(String vehicle) =>
+      _fmt('vehiclePriceRuleLabel', <String, Object>{'vehicle': vehicle});
+  String get vehiclePriceLoadFailed => _text('vehiclePriceLoadFailed');
   String vehiclePriceAdjustmentLabel(String adjustment) => _fmt(
         'vehiclePriceAdjustmentLabel',
         <String, Object>{'adjustment': adjustment},

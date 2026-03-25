@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,9 +7,11 @@ import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
 import '../models/booking_availability.dart';
+import '../models/booking_availability_calendar.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
 import '../models/saved_vehicle_profile.dart';
+import '../models/service_price_quote.dart';
 import '../models/vehicle_catalog.dart';
 import '../models/vehicle_type.dart';
 import '../providers/auth_provider.dart';
@@ -29,6 +33,9 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  static const String _otherBrandValue = '__other_brand__';
+  static const String _otherModelValue = '__other_model__';
+
   late String _selectedServiceId;
   late String _selectedVehicleTypeId;
   late String _selectedCatalogBrand;
@@ -37,7 +44,8 @@ class _BookingScreenState extends State<BookingScreen> {
   late final TextEditingController _customBrandController;
   late final TextEditingController _customModelController;
   String? _selectedTime;
-  bool _useCustomVehicle = false;
+  bool _isOtherBrandSelected = false;
+  bool _isOtherModelSelected = false;
   bool _isSubmitting = false;
   bool _didHydrateVehicleSelection = false;
   bool _isLoadingAvailability = false;
@@ -45,6 +53,20 @@ class _BookingScreenState extends State<BookingScreen> {
   String? _availabilityError;
   List<String> _availableSlots = const <String>[];
   int _availabilityRequestId = 0;
+  bool _isLoadingCalendar = false;
+  String? _calendarError;
+  Map<String, BookingAvailabilityDay> _calendarDaysByDateKey =
+      <String, BookingAvailabilityDay>{};
+  DateTime? _nearestAvailableDate;
+  String _nearestAvailableTime = '';
+  int _calendarRequestId = 0;
+  bool _isLoadingPriceQuote = false;
+  String? _priceQuoteError;
+  ServicePriceQuote? _priceQuote;
+  int _priceQuoteRequestId = 0;
+  Timer? _priceQuoteDebounce;
+
+  static const int _calendarWindowDays = 45;
 
   @override
   void initState() {
@@ -67,7 +89,8 @@ class _BookingScreenState extends State<BookingScreen> {
     _customModelController = TextEditingController();
     _selectedDate = DateTime.now().add(const Duration(days: 1));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadAvailability();
+      _refreshAvailabilityCalendar(forceAdjustSelection: true);
+      _schedulePriceQuoteRefresh(immediate: true);
     });
   }
 
@@ -89,6 +112,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
   @override
   void dispose() {
+    _priceQuoteDebounce?.cancel();
     _customBrandController.dispose();
     _customModelController.dispose();
     super.dispose();
@@ -102,6 +126,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
   VehicleTypeOption get _selectedVehicleType =>
       vehicleTypeById(_selectedVehicleTypeId);
+
+  bool get _isCustomVehicle => _isOtherBrandSelected || _isOtherModelSelected;
 
   VehicleCatalogEntry? get _selectedCatalogVehicle {
     final String? selectedId = _selectedCatalogVehicleId;
@@ -120,11 +146,18 @@ class _BookingScreenState extends State<BookingScreen> {
   List<VehicleCatalogEntry> get _brandVehicles =>
       vehicleCatalogByBrand(_selectedCatalogBrand);
 
-  String get _selectedVehicleBrand => _useCustomVehicle
-      ? normalizeVehicleBrand(_customBrandController.text)
-      : (_selectedCatalogVehicle?.brand ?? '');
+  String get _brandDropdownValue =>
+      _isOtherBrandSelected ? _otherBrandValue : _selectedCatalogBrand;
 
-  String get _selectedVehicleModelName => _useCustomVehicle
+  String? get _modelDropdownValue => _isOtherModelSelected
+      ? _otherModelValue
+      : _selectedCatalogVehicle?.id;
+
+  String get _selectedVehicleBrand => _isOtherBrandSelected
+      ? normalizeVehicleBrand(_customBrandController.text)
+      : normalizeVehicleBrand(_selectedCatalogBrand);
+
+  String get _selectedVehicleModelName => _isCustomVehicle
       ? normalizeVehicleModelName(_customModelController.text)
       : (_selectedCatalogVehicle?.model ?? '');
 
@@ -133,10 +166,11 @@ class _BookingScreenState extends State<BookingScreen> {
         model: _selectedVehicleModelName,
       );
 
-  int get _calculatedPrice => adjustedVehiclePrice(
-        basePrice: _selectedService.price,
-        vehicleTypeId: _selectedVehicleTypeId,
-      );
+  int get _calculatedPrice => _quotedPrice;
+
+  int get _quotedBasePrice => _priceQuote?.basePrice ?? _selectedService.price;
+
+  int get _quotedPrice => _priceQuote?.price ?? _selectedService.price;
 
   @override
   Widget build(BuildContext context) {
@@ -145,12 +179,32 @@ class _BookingScreenState extends State<BookingScreen> {
     final List<SavedVehicleProfile> savedVehicles =
         authProvider.currentUser?.savedVehicles ??
             const <SavedVehicleProfile>[];
-    final List<VehicleCatalogEntry> uzbekistanGmVehicles =
-        uzbekistanGmVehicleCatalogEntries(limit: 10);
-    final List<VehicleCatalogEntry> otherPopularVehicles =
-        otherPopularVehicleCatalogEntries(limit: 6);
     final String selectedDateLabel =
         '${AppFormatters.shortDate(_selectedDate)} ${_selectedDate.year}';
+    final List<DropdownMenuItem<String>> brandItems = <DropdownMenuItem<String>>[
+      ...vehicleCatalogBrands().map(
+        (String brand) => DropdownMenuItem<String>(
+          value: brand,
+          child: Text(brand),
+        ),
+      ),
+      DropdownMenuItem<String>(
+        value: _otherBrandValue,
+        child: Text(l10n.vehicleOtherOption),
+      ),
+    ];
+    final List<DropdownMenuItem<String>> modelItems = <DropdownMenuItem<String>>[
+      ..._brandVehicles.map(
+        (VehicleCatalogEntry vehicle) => DropdownMenuItem<String>(
+          value: vehicle.id,
+          child: Text(vehicle.model),
+        ),
+      ),
+      DropdownMenuItem<String>(
+        value: _otherModelValue,
+        child: Text(l10n.vehicleOtherOption),
+      ),
+    ];
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.bookAppointment)),
@@ -186,7 +240,8 @@ class _BookingScreenState extends State<BookingScreen> {
               setState(() {
                 _selectedServiceId = value;
               });
-              _loadAvailability();
+              _refreshAvailabilityCalendar(forceAdjustSelection: true);
+              _schedulePriceQuoteRefresh(immediate: true);
             },
             decoration: InputDecoration(labelText: l10n.service),
           ),
@@ -220,124 +275,103 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
             const SizedBox(height: 14),
           ],
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              ChoiceChip(
-                label: Text(l10n.vehicleCatalogMode),
-                selected: !_useCustomVehicle,
-                onSelected: (_) {
-                  setState(() {
-                    _useCustomVehicle = false;
-                    if (_selectedCatalogVehicle == null &&
-                        _brandVehicles.isNotEmpty) {
-                      _selectCatalogVehicle(_brandVehicles.first);
-                    }
-                  });
-                },
+          DropdownButtonFormField<String>(
+            initialValue: _brandDropdownValue,
+            items: brandItems,
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              if (value == _otherBrandValue) {
+                setState(() {
+                  _isOtherBrandSelected = true;
+                  _isOtherModelSelected = true;
+                  if (_customBrandController.text.trim().isEmpty &&
+                      _selectedCatalogVehicle != null) {
+                    _customBrandController.text = _selectedCatalogVehicle!.brand;
+                  }
+                  if (_customModelController.text.trim().isEmpty &&
+                      _selectedCatalogVehicle != null) {
+                    _customModelController.text = _selectedCatalogVehicle!.model;
+                  }
+                  _selectedCatalogVehicleId = null;
+                });
+                _schedulePriceQuoteRefresh();
+                return;
+              }
+
+              final List<VehicleCatalogEntry> vehicles =
+                  vehicleCatalogByBrand(value);
+              if (vehicles.isEmpty) {
+                return;
+              }
+              setState(() {
+                _isOtherBrandSelected = false;
+                _selectedCatalogBrand = value;
+                _isOtherModelSelected = false;
+                _selectCatalogVehicle(vehicles.first);
+              });
+            },
+            decoration: InputDecoration(labelText: l10n.vehicleBrandField),
+          ),
+          if (_isOtherBrandSelected) ...<Widget>[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _customBrandController,
+              textCapitalization: TextCapitalization.words,
+              onChanged: (_) {
+                setState(() {});
+                _schedulePriceQuoteRefresh();
+              },
+              decoration: InputDecoration(
+                labelText: l10n.vehicleBrandField,
+                hintText: l10n.vehicleBrandHint,
               ),
-              ChoiceChip(
-                label: Text(l10n.vehicleOtherOption),
-                selected: _useCustomVehicle,
-                onSelected: (_) {
+            ),
+          ],
+          if (!_isOtherBrandSelected) ...<Widget>[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _modelDropdownValue,
+              items: modelItems,
+              onChanged: (String? value) {
+                if (value == null) {
+                  return;
+                }
+                if (value == _otherModelValue) {
                   setState(() {
-                    _useCustomVehicle = true;
-                    if (_customBrandController.text.trim().isEmpty &&
-                        _selectedCatalogVehicle != null) {
-                      _customBrandController.text =
-                          _selectedCatalogVehicle!.brand;
-                    }
+                    _isOtherModelSelected = true;
                     if (_customModelController.text.trim().isEmpty &&
                         _selectedCatalogVehicle != null) {
-                      _customModelController.text =
-                          _selectedCatalogVehicle!.model;
+                      _customModelController.text = _selectedCatalogVehicle!.model;
                     }
                   });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (!_useCustomVehicle) ...<Widget>[
-            _CatalogSection(
-              title: l10n.uzbekistanGmVehiclesTitle,
-              children: uzbekistanGmVehicles.map(_buildCatalogChip).toList(),
-            ),
-            const SizedBox(height: 8),
-            _CatalogSection(
-              title: l10n.otherPopularVehiclesTitle,
-              children: otherPopularVehicles.map(_buildCatalogChip).toList(),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCatalogBrand,
-              items: vehicleCatalogBrands()
-                  .map(
-                    (String brand) => DropdownMenuItem<String>(
-                      value: brand,
-                      child: Text(brand),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? value) {
-                if (value == null) {
+                  _schedulePriceQuoteRefresh();
                   return;
                 }
-                final List<VehicleCatalogEntry> vehicles =
-                    vehicleCatalogByBrand(value);
-                if (vehicles.isEmpty) {
-                  return;
-                }
-                setState(() {
-                  _selectedCatalogBrand = value;
-                  _selectCatalogVehicle(vehicles.first);
-                });
-              },
-              decoration: InputDecoration(labelText: l10n.vehicleBrandField),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCatalogVehicle?.id,
-              items: _brandVehicles
-                  .map(
-                    (VehicleCatalogEntry vehicle) => DropdownMenuItem<String>(
-                      value: vehicle.id,
-                      child: Text(vehicle.model),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? value) {
-                if (value == null) {
-                  return;
-                }
-                final VehicleCatalogEntry? vehicle =
-                    vehicleCatalogEntryById(value);
+
+                final VehicleCatalogEntry? vehicle = vehicleCatalogEntryById(value);
                 if (vehicle == null) {
                   return;
                 }
                 setState(() {
+                  _isOtherModelSelected = false;
                   _selectCatalogVehicle(vehicle);
                 });
               },
               decoration:
                   InputDecoration(labelText: l10n.vehicleCatalogModelField),
             ),
-          ] else ...<Widget>[
-            TextFormField(
-              controller: _customBrandController,
-              textCapitalization: TextCapitalization.words,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: l10n.vehicleBrandField,
-                hintText: l10n.vehicleBrandHint,
-              ),
-            ),
+          ],
+          if (_isCustomVehicle) ...<Widget>[
             const SizedBox(height: 12),
             TextFormField(
               controller: _customModelController,
               textCapitalization: TextCapitalization.words,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+                _schedulePriceQuoteRefresh();
+              },
               decoration: InputDecoration(
                 labelText: l10n.vehicleModelField,
                 hintText: l10n.vehicleModelHint,
@@ -364,18 +398,45 @@ class _BookingScreenState extends State<BookingScreen> {
               setState(() {
                 _selectedVehicleTypeId = value;
               });
+              _schedulePriceQuoteRefresh();
             },
             decoration: InputDecoration(labelText: l10n.vehicleTypeField),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () async {
+              if (_isLoadingCalendar) {
+                return;
+              }
+              if (_calendarDaysByDateKey.isEmpty) {
+                await _loadAvailabilityCalendar(
+                  forceAdjustSelection: false,
+                );
+                if (!context.mounted) {
+                  return;
+                }
+              }
+
+              final DateTime? initialDate = _resolvedPickerInitialDate();
+              if (initialDate == null) {
+                final AppLocalizations postLoadL10n =
+                    AppLocalizations.of(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(postLoadL10n.noAvailableDates)),
+                );
+                return;
+              }
               final DateTime now = DateTime.now();
+              final DateTime firstDate =
+                  DateTime(now.year, now.month, now.day);
               final DateTime? picked = await showDatePicker(
                 context: context,
-                initialDate: _selectedDate,
-                firstDate: DateTime(now.year, now.month, now.day),
-                lastDate: now.add(const Duration(days: 45)),
+                initialDate: initialDate,
+                firstDate: firstDate,
+                lastDate: firstDate.add(
+                  const Duration(days: _calendarWindowDays - 1),
+                ),
+                selectableDayPredicate: _isSelectableDay,
               );
 
               if (picked == null) {
@@ -390,6 +451,52 @@ class _BookingScreenState extends State<BookingScreen> {
             icon: const Icon(Icons.date_range),
             label: Text(l10n.dateLabel(selectedDateLabel)),
           ),
+          if (_calendarError != null) ...<Widget>[
+            const SizedBox(height: 10),
+            _AvailabilityMessageCard(
+              title: _calendarError!,
+              subtitle: l10n.availableTimesRetryHint,
+            ),
+          ] else if (_nearestAvailableDate != null) ...<Widget>[
+            const SizedBox(height: 10),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      l10n.nearestAvailableTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.nearestAvailableSubtitle(
+                        '${AppFormatters.shortDate(_nearestAvailableDate!)} ${_nearestAvailableDate!.year}',
+                        _nearestAvailableTime,
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
+                          ),
+                    ),
+                    if (_dateKey(_selectedDate) != _dateKey(_nearestAvailableDate!) ||
+                        _selectedTime != _nearestAvailableTime) ...<Widget>[
+                      const SizedBox(height: 10),
+                      FilledButton.tonal(
+                        onPressed: () {
+                          setState(() {
+                            _selectedDate = _nearestAvailableDate!;
+                          });
+                          _loadAvailability();
+                        },
+                        child: Text(l10n.selectNearestAvailable),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           Text(
             l10n.availableTimes,
@@ -450,6 +557,10 @@ class _BookingScreenState extends State<BookingScreen> {
                     l10n.summary,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  if (_isLoadingPriceQuote) ...<Widget>[
+                    const SizedBox(height: 10),
+                    const LinearProgressIndicator(minHeight: 3),
+                  ],
                   const SizedBox(height: 6),
                   Text(l10n.serviceLabel(_selectedService.name)),
                   Text(
@@ -477,14 +588,23 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   Text(
                     l10n.basePriceLabel(
-                      AppFormatters.moneyK(_selectedService.price),
+                      AppFormatters.moneyK(_quotedBasePrice),
                     ),
                   ),
-                  Text(
-                    l10n.vehiclePriceAdjustmentLabel(
-                      _selectedVehicleType.percentLabel(),
+                  if (_priceQuote?.matchedRule == true &&
+                      _priceQuote!.matchedVehicleLabel.isNotEmpty)
+                    Text(
+                      l10n.vehiclePriceRuleLabel(
+                        _priceQuote!.matchedVehicleLabel,
+                      ),
                     ),
-                  ),
+                  if (_priceQuoteError != null)
+                    Text(
+                      _priceQuoteError!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    ),
                   const SizedBox(height: 6),
                   Text(
                     l10n.totalLabel(
@@ -518,7 +638,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   bool _isSavedVehicleSelected(SavedVehicleProfile vehicle) {
-    if (_useCustomVehicle != vehicle.isCustom) {
+    if (_isCustomVehicle != vehicle.isCustom) {
       return false;
     }
 
@@ -536,24 +656,208 @@ class _BookingScreenState extends State<BookingScreen> {
           )
         : vehicleCatalogEntryById(vehicle.catalogVehicleId);
     if (!vehicle.isCustom && catalogVehicle != null) {
-      _useCustomVehicle = false;
+      _isOtherBrandSelected = false;
+      _isOtherModelSelected = false;
       _selectedCatalogBrand = catalogVehicle.brand;
       _selectedCatalogVehicleId = catalogVehicle.id;
       _customBrandController.clear();
       _customModelController.clear();
     } else {
-      _useCustomVehicle = true;
-      _customBrandController.text = vehicle.brand;
+      final String normalizedBrand = normalizeVehicleBrand(vehicle.brand);
+      final List<VehicleCatalogEntry> brandVehicles =
+          vehicleCatalogByBrand(normalizedBrand);
+      if (brandVehicles.isNotEmpty) {
+        _isOtherBrandSelected = false;
+        _isOtherModelSelected = true;
+        _selectedCatalogBrand = normalizedBrand;
+        _selectedCatalogVehicleId = brandVehicles.first.id;
+        _customBrandController.clear();
+      } else {
+        _isOtherBrandSelected = true;
+        _isOtherModelSelected = true;
+        _customBrandController.text = vehicle.brand;
+        _selectedCatalogVehicleId = null;
+      }
       _customModelController.text = vehicle.model;
     }
     _selectedVehicleTypeId = vehicle.vehicleTypeId;
+    _schedulePriceQuoteRefresh(immediate: true);
   }
 
   void _selectCatalogVehicle(VehicleCatalogEntry vehicle) {
-    _useCustomVehicle = false;
+    _isOtherBrandSelected = false;
+    _isOtherModelSelected = false;
     _selectedCatalogBrand = vehicle.brand;
     _selectedCatalogVehicleId = vehicle.id;
     _selectedVehicleTypeId = vehicle.vehicleTypeId;
+    _schedulePriceQuoteRefresh(immediate: true);
+  }
+
+  bool get _canResolvePriceQuote {
+    if (_isCustomVehicle) {
+      return _selectedVehicleBrand.length >= 2 &&
+          _selectedVehicleModelName.length >= 2;
+    }
+    return _selectedCatalogVehicle != null;
+  }
+
+  void _schedulePriceQuoteRefresh({bool immediate = false}) {
+    _priceQuoteDebounce?.cancel();
+    if (immediate) {
+      unawaited(_loadPriceQuote());
+      return;
+    }
+    _priceQuoteDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_loadPriceQuote());
+    });
+  }
+
+  Future<void> _loadPriceQuote() async {
+    if (!_canResolvePriceQuote) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingPriceQuote = false;
+        _priceQuoteError = null;
+        _priceQuote = null;
+      });
+      return;
+    }
+
+    final int requestId = ++_priceQuoteRequestId;
+    setState(() {
+      _isLoadingPriceQuote = true;
+      _priceQuoteError = null;
+    });
+
+    try {
+      final ServicePriceQuote quote =
+          await context.read<BookingProvider>().loadPriceQuote(
+                workshopId: widget.salon.id,
+                serviceId: _selectedService.id,
+                catalogVehicleId: _isCustomVehicle
+                    ? ''
+                    : (_selectedCatalogVehicle?.id ?? ''),
+                vehicleBrand: _selectedVehicleBrand,
+                vehicleModelName: _selectedVehicleModelName,
+                vehicleTypeId: _selectedVehicleTypeId,
+                fallbackBasePrice: _selectedService.price,
+              );
+      if (!mounted || requestId != _priceQuoteRequestId) {
+        return;
+      }
+      setState(() {
+        _isLoadingPriceQuote = false;
+        _priceQuote = quote;
+      });
+    } on ApiException catch (error) {
+      if (!mounted || requestId != _priceQuoteRequestId) {
+        return;
+      }
+      setState(() {
+        _isLoadingPriceQuote = false;
+        _priceQuote = null;
+        _priceQuoteError = error.message;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _priceQuoteRequestId) {
+        return;
+      }
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      setState(() {
+        _isLoadingPriceQuote = false;
+        _priceQuote = null;
+        _priceQuoteError = l10n.vehiclePriceLoadFailed;
+      });
+    }
+  }
+
+  Future<void> _refreshAvailabilityCalendar({
+    required bool forceAdjustSelection,
+  }) async {
+    await _loadAvailabilityCalendar(
+      forceAdjustSelection: forceAdjustSelection,
+    );
+    if (!mounted) {
+      return;
+    }
+    await _loadAvailability();
+  }
+
+  Future<void> _loadAvailabilityCalendar({
+    required bool forceAdjustSelection,
+  }) async {
+    final int requestId = ++_calendarRequestId;
+    setState(() {
+      _isLoadingCalendar = true;
+      _calendarError = null;
+    });
+
+    final DateTime fromDate = DateTime.now();
+    try {
+      final BookingAvailabilityCalendar calendar =
+          await context.read<BookingProvider>().loadAvailabilityCalendar(
+                workshopId: widget.salon.id,
+                serviceId: _selectedService.id,
+                fromDate: fromDate,
+                days: _calendarWindowDays,
+              );
+      if (!mounted || requestId != _calendarRequestId) {
+        return;
+      }
+
+      final Map<String, BookingAvailabilityDay> daysByKey =
+          <String, BookingAvailabilityDay>{
+        for (final BookingAvailabilityDay item in calendar.days)
+          _dateKey(item.date): item,
+      };
+      final DateTime? resolvedNearestDate = calendar.nearestAvailableDate == null
+          ? null
+          : _normalizedDate(calendar.nearestAvailableDate!);
+      DateTime nextSelectedDate = _selectedDate;
+      if (forceAdjustSelection || !_isSelectableFromMap(daysByKey, _selectedDate)) {
+        final DateTime? fallbackDate =
+            resolvedNearestDate ?? _firstSelectableDateFromMap(daysByKey);
+        if (fallbackDate != null) {
+          nextSelectedDate = fallbackDate;
+        }
+      }
+
+      setState(() {
+        _isLoadingCalendar = false;
+        _calendarDaysByDateKey = daysByKey;
+        _nearestAvailableDate = resolvedNearestDate;
+        _nearestAvailableTime = calendar.nearestAvailableTime;
+        _selectedDate = nextSelectedDate;
+      });
+    } on ApiException catch (error) {
+      if (!mounted || requestId != _calendarRequestId) {
+        return;
+      }
+      setState(() {
+        _isLoadingCalendar = false;
+        _calendarError = error.message;
+        _calendarDaysByDateKey = <String, BookingAvailabilityDay>{};
+        _nearestAvailableDate = null;
+        _nearestAvailableTime = '';
+      });
+    } catch (_) {
+      if (!mounted || requestId != _calendarRequestId) {
+        return;
+      }
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      setState(() {
+        _isLoadingCalendar = false;
+        _calendarError = l10n.availableCalendarLoadFailed;
+        _calendarDaysByDateKey = <String, BookingAvailabilityDay>{};
+        _nearestAvailableDate = null;
+        _nearestAvailableTime = '';
+      });
+    }
   }
 
   Future<void> _loadAvailability() async {
@@ -608,12 +912,61 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
+  DateTime _normalizedDate(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
+
+  String _dateKey(DateTime value) {
+    final DateTime normalized = _normalizedDate(value);
+    final String month = normalized.month.toString().padLeft(2, '0');
+    final String day = normalized.day.toString().padLeft(2, '0');
+    return '${normalized.year}-$month-$day';
+  }
+
+  BookingAvailabilityDay? _calendarDay(DateTime value) {
+    return _calendarDaysByDateKey[_dateKey(value)];
+  }
+
+  bool _isSelectableFromMap(
+    Map<String, BookingAvailabilityDay> source,
+    DateTime value,
+  ) {
+    final BookingAvailabilityDay? day = source[_dateKey(value)];
+    return day != null && day.isSelectable;
+  }
+
+  bool _isSelectableDay(DateTime value) {
+    final BookingAvailabilityDay? day = _calendarDay(value);
+    return day != null && day.isSelectable;
+  }
+
+  DateTime? _firstSelectableDateFromMap(
+    Map<String, BookingAvailabilityDay> source,
+  ) {
+    for (final BookingAvailabilityDay item in source.values) {
+      if (item.isSelectable) {
+        return _normalizedDate(item.date);
+      }
+    }
+    return null;
+  }
+
+  DateTime? _resolvedPickerInitialDate() {
+    if (_isSelectableDay(_selectedDate)) {
+      return _selectedDate;
+    }
+    if (_nearestAvailableDate != null) {
+      return _nearestAvailableDate;
+    }
+    return _firstSelectableDateFromMap(_calendarDaysByDateKey);
+  }
+
   Future<void> _submitBooking() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final String vehicleBrand = _selectedVehicleBrand;
     final String vehicleModelName = _selectedVehicleModelName;
 
-    if (_useCustomVehicle && vehicleBrand.length < 2) {
+    if (_isOtherBrandSelected && vehicleBrand.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.vehicleBrandRequired)),
       );
@@ -625,7 +978,7 @@ class _BookingScreenState extends State<BookingScreen> {
       );
       return;
     }
-    if (!_useCustomVehicle && _selectedCatalogVehicle == null) {
+    if (!_isCustomVehicle && _selectedCatalogVehicle == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.vehicleCatalogRequired)),
       );
@@ -661,13 +1014,13 @@ class _BookingScreenState extends State<BookingScreen> {
                 serviceName: _selectedService.name,
                 vehicleBrand: vehicleBrand,
                 vehicleModelName: vehicleModelName,
-                catalogVehicleId: _useCustomVehicle
+                catalogVehicleId: _isCustomVehicle
                     ? ''
                     : (_selectedCatalogVehicle?.id ?? ''),
-                isCustomVehicle: _useCustomVehicle,
+                isCustomVehicle: _isCustomVehicle,
                 vehicleTypeId: _selectedVehicleTypeId,
                 dateTime: bookingDateTime,
-                basePrice: _selectedService.price,
+                basePrice: _quotedBasePrice,
               );
 
       if (!mounted) {
@@ -681,8 +1034,8 @@ class _BookingScreenState extends State<BookingScreen> {
               model: vehicleModelName,
               vehicleTypeId: _selectedVehicleTypeId,
               catalogVehicleId:
-                  _useCustomVehicle ? '' : (_selectedCatalogVehicle?.id ?? ''),
-              isCustom: _useCustomVehicle,
+                  _isCustomVehicle ? '' : (_selectedCatalogVehicle?.id ?? ''),
+              isCustom: _isCustomVehicle,
               lastUsedAt: DateTime.now(),
             ),
           );
@@ -710,19 +1063,6 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  ChoiceChip _buildCatalogChip(VehicleCatalogEntry vehicle) {
-    final bool isSelected =
-        _selectedCatalogVehicle?.id == vehicle.id && !_useCustomVehicle;
-    return ChoiceChip(
-      label: Text(vehicle.displayName),
-      selected: isSelected,
-      onSelected: (_) {
-        setState(() {
-          _selectCatalogVehicle(vehicle);
-        });
-      },
-    );
-  }
 }
 
 class _AvailabilityMessageCard extends StatelessWidget {
@@ -756,39 +1096,6 @@ class _AvailabilityMessageCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CatalogSection extends StatelessWidget {
-  const _CatalogSection({
-    required this.title,
-    required this.children,
-  });
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    if (children.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          title,
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: children,
-        ),
-      ],
     );
   }
 }
