@@ -1679,15 +1679,15 @@ class InMemoryStore {
       }
     }
 
-    final int basePrice = service.price;
     if (matchedRule != null) {
       return (
-        basePrice: basePrice,
+        basePrice: matchedRule.price,
         price: matchedRule.price,
         matchedRule: matchedRule,
       );
     }
 
+    final int basePrice = service.price;
     return (
       basePrice: basePrice,
       price: basePrice,

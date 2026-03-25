@@ -385,9 +385,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 .map(
                   (VehicleTypeOption type) => DropdownMenuItem<String>(
                     value: type.id,
-                    child: Text(
-                      '${type.label(l10n)}  •  ${type.percentLabel()}',
-                    ),
+                    child: Text(type.label(l10n)),
                   ),
                 )
                 .toList(),
