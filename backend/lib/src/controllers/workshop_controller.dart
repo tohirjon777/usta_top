@@ -36,6 +36,54 @@ class WorkshopController {
     return jsonResponse(<String, Object>{'data': _workshopDetailJson(workshop)});
   }
 
+  Response availability(Request request, String id) {
+    final WorkshopModel? workshop = _store.workshopById(id);
+    if (workshop == null) {
+      return errorResponse('Servis topilmadi', statusCode: 404);
+    }
+
+    final String serviceId =
+        (request.url.queryParameters['serviceId'] ?? '').trim();
+    final String dateRaw = (request.url.queryParameters['date'] ?? '').trim();
+    final DateTime? date = DateTime.tryParse(dateRaw);
+    if (serviceId.isEmpty || date == null) {
+      return errorResponse(
+        'serviceId va date (YYYY-MM-DD) query paramlari kerak',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final ({
+        List<String> slotTimes,
+        bool isClosedDay,
+        WorkshopScheduleModel schedule,
+        int serviceDurationMinutes,
+      }) availability = _store.bookingAvailability(
+        workshopId: workshop.id,
+        serviceId: serviceId,
+        date: date,
+      );
+      return jsonResponse(
+        <String, Object>{
+          'data': <String, Object>{
+            'date':
+                '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+            'slots': availability.slotTimes,
+            'isClosedDay': availability.isClosedDay,
+            'serviceDurationMinutes': availability.serviceDurationMinutes,
+            'openingTime': availability.schedule.openingTime,
+            'closingTime': availability.schedule.closingTime,
+            'breakStartTime': availability.schedule.breakStartTime,
+            'breakEndTime': availability.schedule.breakEndTime,
+          },
+        },
+      );
+    } on StateError catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    }
+  }
+
   Future<Response> createReview(Request request, String id) async {
     final UserModel? user = userFromRequest(request);
     if (user == null) {

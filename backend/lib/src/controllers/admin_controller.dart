@@ -815,6 +815,10 @@ class AdminController {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    .field-grid.four {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .field {
       display: grid;
       gap: 8px;
@@ -866,6 +870,32 @@ class AdminController {
       width: 18px;
       height: 18px;
       min-height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .checkbox-pills {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .checkbox-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .checkbox-pill input {
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
       accent-color: var(--accent);
     }
 
@@ -1238,7 +1268,7 @@ class AdminController {
 
     @media (max-width: 980px) {
       .hero-grid, .editor-layout, .filter-grid { grid-template-columns: 1fr; }
-      .info-grid, .field-grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .info-grid, .field-grid.three, .field-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
     @media (max-width: 720px) {
@@ -2015,7 +2045,7 @@ class AdminController {
     final Map<String, String> values = <String, String>{};
     uri.queryParametersAll.forEach((String key, List<String> list) {
       if (list.isNotEmpty) {
-        values[key] = list.last;
+        values[key] = list.length == 1 ? list.last : list.join(',');
       }
     });
     return values;
@@ -2092,6 +2122,11 @@ class AdminController {
     );
     final bool isOpen = (form['isOpen'] ?? '').toLowerCase() == 'on' ||
         (form['isOpen'] ?? '').toLowerCase() == 'true';
+    final WorkshopScheduleModel schedule = _parseWorkshopSchedule(
+      form,
+      lang: lang,
+      fallback: currentWorkshop?.schedule ?? WorkshopScheduleModel.standard(),
+    );
     final List<ServiceModel> services = _parseServicesJson(
       form['servicesJson'] ?? '[]',
       lang: lang,
@@ -2117,7 +2152,71 @@ class AdminController {
       telegramChatId: telegramChatId,
       telegramChatLabel: telegramChatLabel,
       telegramLinkCode: telegramLinkCode,
+      schedule: schedule,
       services: services,
+    );
+  }
+
+  WorkshopScheduleModel _parseWorkshopSchedule(
+    Map<String, String> form, {
+    required String lang,
+    required WorkshopScheduleModel fallback,
+  }) {
+    final String openingTime = _parseTimeField(
+      form['openingTime'],
+      fieldLabel: _text(lang, 'fieldOpeningTime'),
+      lang: lang,
+      fallback: fallback.openingTime,
+    );
+    final String closingTime = _parseTimeField(
+      form['closingTime'],
+      fieldLabel: _text(lang, 'fieldClosingTime'),
+      lang: lang,
+      fallback: fallback.closingTime,
+    );
+    final String breakStartTime = _parseOptionalTimeField(
+      form['breakStartTime'],
+      fieldLabel: _text(lang, 'fieldBreakStart'),
+      lang: lang,
+    );
+    final String breakEndTime = _parseOptionalTimeField(
+      form['breakEndTime'],
+      fieldLabel: _text(lang, 'fieldBreakEnd'),
+      lang: lang,
+    );
+    final List<int> closedWeekdays = _parseClosedWeekdays(
+      form['closedWeekdays'],
+      fallback: fallback.closedWeekdays,
+    );
+
+    final int openingMinutes = _minutesFromTime(openingTime);
+    final int closingMinutes = _minutesFromTime(closingTime);
+    if (closingMinutes <= openingMinutes) {
+      throw FormatException(_text(lang, 'scheduleTimeRangeError'));
+    }
+
+    if (breakStartTime.isEmpty != breakEndTime.isEmpty) {
+      throw FormatException(_text(lang, 'scheduleBreakPairError'));
+    }
+
+    if (breakStartTime.isNotEmpty && breakEndTime.isNotEmpty) {
+      final int breakStartMinutes = _minutesFromTime(breakStartTime);
+      final int breakEndMinutes = _minutesFromTime(breakEndTime);
+      final bool breakOutsideRange =
+          breakStartMinutes < openingMinutes ||
+              breakEndMinutes > closingMinutes ||
+              breakEndMinutes <= breakStartMinutes;
+      if (breakOutsideRange) {
+        throw FormatException(_text(lang, 'scheduleBreakRangeError'));
+      }
+    }
+
+    return WorkshopScheduleModel(
+      openingTime: openingTime,
+      closingTime: closingTime,
+      breakStartTime: breakStartTime,
+      breakEndTime: breakEndTime,
+      closedWeekdays: List<int>.unmodifiable(closedWeekdays),
     );
   }
 
@@ -2209,6 +2308,79 @@ class AdminController {
       return fallback;
     }
     return value;
+  }
+
+  String _parseTimeField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+    required String fallback,
+  }) {
+    final String value = (raw ?? '').trim();
+    final String normalized = value.isEmpty ? fallback : value;
+    if (!_isTimeValue(normalized)) {
+      throw FormatException(
+        _text(
+          lang,
+          'invalidTimeField',
+          <String, Object>{'field': fieldLabel},
+        ),
+      );
+    }
+    return normalized;
+  }
+
+  String _parseOptionalTimeField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+  }) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return '';
+    }
+    if (!_isTimeValue(value)) {
+      throw FormatException(
+        _text(
+          lang,
+          'invalidTimeField',
+          <String, Object>{'field': fieldLabel},
+        ),
+      );
+    }
+    return value;
+  }
+
+  bool _isTimeValue(String value) {
+    return RegExp(r'^([01]\d|2[0-3]):([0-5]\d)$').hasMatch(value.trim());
+  }
+
+  int _minutesFromTime(String value) {
+    final List<String> parts = value.split(':');
+    final int hours = int.tryParse(parts.first) ?? 0;
+    final int minutes = int.tryParse(parts.last) ?? 0;
+    return (hours * 60) + minutes;
+  }
+
+  List<int> _parseClosedWeekdays(
+    String? raw, {
+    required List<int> fallback,
+  }) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return List<int>.from(fallback);
+    }
+
+    final List<int> result = <int>[];
+    for (final String part in value.split(',')) {
+      final int? weekday = int.tryParse(part.trim());
+      if (weekday == null || weekday < 1 || weekday > 7 || result.contains(weekday)) {
+        continue;
+      }
+      result.add(weekday);
+    }
+    result.sort();
+    return result;
   }
 
   int _parseIntField(
@@ -2636,6 +2808,11 @@ class AdminController {
       reviewCount: '0',
       distanceKm: '1.0',
       isOpen: true,
+      openingTime: '09:00',
+      closingTime: '19:00',
+      breakStartTime: '13:00',
+      breakEndTime: '14:00',
+      closedWeekdays: const <int>[7],
       servicesJson: '[]',
       extraActionsHtml: '',
       hiddenContextHtml:
@@ -2677,6 +2854,9 @@ class AdminController {
     final String telegramChatValue = workshop.telegramChatId.trim().isEmpty
         ? _text(lang, 'telegramNotLinked')
         : workshop.telegramChatId;
+    final String workingHoursValue = _scheduleSummary(workshop.schedule);
+    final String breakValue = _breakSummary(workshop.schedule, lang);
+    final String closedDaysValue = _daysOffSummary(workshop.schedule, lang);
 
     return '''
 <section class="card workshop-card">
@@ -2717,6 +2897,18 @@ class AdminController {
       <span>${_escapeHtml(_text(lang, 'fieldTelegramChatId'))}</span>
       <strong>${_escapeHtml(telegramChatValue)}</strong>
     </div>
+    <div class="info-item">
+      <span>${_escapeHtml(_text(lang, 'infoWorkingHours'))}</span>
+      <strong>${_escapeHtml(workingHoursValue)}</strong>
+    </div>
+    <div class="info-item">
+      <span>${_escapeHtml(_text(lang, 'infoBreakTime'))}</span>
+      <strong>${_escapeHtml(breakValue)}</strong>
+    </div>
+    <div class="info-item">
+      <span>${_escapeHtml(_text(lang, 'infoDaysOff'))}</span>
+      <strong>${_escapeHtml(closedDaysValue)}</strong>
+    </div>
   </div>
 
   <div class="service-row">$servicesSummary</div>
@@ -2743,6 +2935,11 @@ class AdminController {
       reviewCount: '${workshop.reviewCount}',
       distanceKm: workshop.distanceKm.toStringAsFixed(1),
       isOpen: workshop.isOpen,
+      openingTime: workshop.schedule.openingTime,
+      closingTime: workshop.schedule.closingTime,
+      breakStartTime: workshop.schedule.breakStartTime,
+      breakEndTime: workshop.schedule.breakEndTime,
+      closedWeekdays: workshop.schedule.closedWeekdays,
       servicesJson: _escapeHtml(jsonEncode(
         workshop.services
             .map((ServiceModel item) => item.toJson())
@@ -2766,6 +2963,59 @@ class AdminController {
 ''';
   }
 
+  String _scheduleSummary(WorkshopScheduleModel schedule) {
+    return '${schedule.openingTime} - ${schedule.closingTime}';
+  }
+
+  String _breakSummary(WorkshopScheduleModel schedule, String lang) {
+    if (!schedule.hasBreak) {
+      return _text(lang, 'noBreakLabel');
+    }
+    return '${schedule.breakStartTime} - ${schedule.breakEndTime}';
+  }
+
+  String _daysOffSummary(WorkshopScheduleModel schedule, String lang) {
+    if (schedule.closedWeekdays.isEmpty) {
+      return _text(lang, 'noClosedWeekdaysLabel');
+    }
+    return schedule.closedWeekdays
+        .map((int item) => _weekdayShortLabel(lang, item))
+        .join(', ');
+  }
+
+  String _weekdayCheckboxesHtml(String lang, List<int> selectedDays) {
+    return List<String>.generate(7, (int index) {
+      final int weekday = index + 1;
+      final bool isSelected = selectedDays.contains(weekday);
+      return '''
+<label class="checkbox-pill">
+  <input type="checkbox" name="closedWeekdays" value="$weekday"${isSelected ? ' checked' : ''}>
+  ${_escapeHtml(_weekdayShortLabel(lang, weekday))}
+</label>
+''';
+    }).join();
+  }
+
+  String _weekdayShortLabel(String lang, int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return _text(lang, 'weekdayShortMon');
+      case DateTime.tuesday:
+        return _text(lang, 'weekdayShortTue');
+      case DateTime.wednesday:
+        return _text(lang, 'weekdayShortWed');
+      case DateTime.thursday:
+        return _text(lang, 'weekdayShortThu');
+      case DateTime.friday:
+        return _text(lang, 'weekdayShortFri');
+      case DateTime.saturday:
+        return _text(lang, 'weekdayShortSat');
+      case DateTime.sunday:
+      default:
+        return _text(lang, 'weekdayShortSun');
+    }
+  }
+
   String _editorCardHtml({
     required String lang,
     required String title,
@@ -2787,6 +3037,11 @@ class AdminController {
     required String reviewCount,
     required String distanceKm,
     required bool isOpen,
+    required String openingTime,
+    required String closingTime,
+    required String breakStartTime,
+    required String breakEndTime,
+    required List<int> closedWeekdays,
     required String servicesJson,
     required String extraActionsHtml,
     required String hiddenContextHtml,
@@ -2912,6 +3167,36 @@ class AdminController {
           <input type="checkbox" name="isOpen"${isOpen ? ' checked' : ''}>
           ${_escapeHtml(_text(lang, 'openCheckbox'))}
         </label>
+      </div>
+
+      <div class="helper-box">
+        ${_escapeHtml(_text(lang, 'helperSchedule'))}
+      </div>
+
+      <div class="field-grid four">
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldOpeningTime'))}</label>
+          <input type="time" name="openingTime" value="${_escapeHtml(openingTime)}">
+        </div>
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldClosingTime'))}</label>
+          <input type="time" name="closingTime" value="${_escapeHtml(closingTime)}">
+        </div>
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldBreakStart'))}</label>
+          <input type="time" name="breakStartTime" value="${_escapeHtml(breakStartTime)}">
+        </div>
+        <div class="field">
+          <label>${_escapeHtml(_text(lang, 'fieldBreakEnd'))}</label>
+          <input type="time" name="breakEndTime" value="${_escapeHtml(breakEndTime)}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>${_escapeHtml(_text(lang, 'fieldClosedWeekdays'))}</label>
+        <div class="checkbox-pills">
+          ${_weekdayCheckboxesHtml(lang, closedWeekdays)}
+        </div>
       </div>
 
       <div class="helper-box">
@@ -3110,6 +3395,11 @@ class AdminController {
       'fieldDistanceKm': 'Masofa (km)',
       'fieldLatitude': 'Latitude',
       'fieldLongitude': 'Longitude',
+      'fieldOpeningTime': 'Ish boshlanishi',
+      'fieldClosingTime': 'Ish tugashi',
+      'fieldBreakStart': 'Tanaffus boshlanishi',
+      'fieldBreakEnd': 'Tanaffus tugashi',
+      'fieldClosedWeekdays': 'Dam olish kunlari',
       'fieldServiceName': 'Xizmat turi nomi',
       'fieldServicePrice': 'Xizmat narxi',
       'fieldServiceDuration': 'Xizmat davomiyligi',
@@ -3143,6 +3433,9 @@ class AdminController {
       'infoRating': 'Reyting',
       'infoReviews': 'Sharhlar',
       'infoDistance': 'Masofa',
+      'infoWorkingHours': 'Ish vaqti',
+      'infoBreakTime': 'Tanaffus',
+      'infoDaysOff': 'Dam olish kunlari',
       'editCardTitle': 'Avtoservis tahriri',
       'editCardSubtitle':
           'Servis nuqtasi ma’lumotlari, xizmatlari va koordinatasini yangilang.',
@@ -3168,8 +3461,26 @@ class AdminController {
       'telegramTestButton': 'Telegram test',
       'telegramTestSent': '{name} uchun test xabar yuborildi',
       'openCheckbox': 'Avtoservis hozir ochiq',
+      'helperSchedule':
+          'Ish boshlanishi, tugashi, tanaffus va dam olish kunlarini shu yerda belgilang. Keyingi bosqichda bo‘sh slotlar aynan shu jadvalga tayanadi.',
       'helperServices':
           'Xizmat turlarini shu yerda boshqaring. Ilovadagi boshlang‘ich narx va xizmat yorliqlari shu ro‘yxatdan olinadi.',
+      'noBreakLabel': 'Tanaffus yo‘q',
+      'noClosedWeekdaysLabel': 'Har kuni ochiq',
+      'invalidTimeField': '{field} vaqti noto‘g‘ri',
+      'scheduleTimeRangeError':
+          'Ish tugash vaqti ish boshlanish vaqtidan keyin bo‘lishi kerak.',
+      'scheduleBreakPairError':
+          'Tanaffus uchun boshlanish va tugash vaqtini birga kiriting yoki ikkalasini ham bo‘sh qoldiring.',
+      'scheduleBreakRangeError':
+          'Tanaffus oralig‘i ish vaqti ichida va to‘g‘ri tartibda bo‘lishi kerak.',
+      'weekdayShortMon': 'Du',
+      'weekdayShortTue': 'Se',
+      'weekdayShortWed': 'Cho',
+      'weekdayShortThu': 'Pa',
+      'weekdayShortFri': 'Ju',
+      'weekdayShortSat': 'Sha',
+      'weekdayShortSun': 'Yak',
       'servicesTitle': 'Xizmat turlari',
       'addService': 'Xizmat turi qo‘shish',
       'saveHint':
@@ -3307,6 +3618,11 @@ class AdminController {
       'fieldDistanceKm': 'Расстояние (км)',
       'fieldLatitude': 'Latitude',
       'fieldLongitude': 'Longitude',
+      'fieldOpeningTime': 'Начало работы',
+      'fieldClosingTime': 'Конец работы',
+      'fieldBreakStart': 'Начало перерыва',
+      'fieldBreakEnd': 'Конец перерыва',
+      'fieldClosedWeekdays': 'Выходные дни',
       'fieldServiceName': 'Название работы',
       'fieldServicePrice': 'Цена работы',
       'fieldServiceDuration': 'Длительность работы',
@@ -3338,6 +3654,9 @@ class AdminController {
       'infoRating': 'Рейтинг',
       'infoReviews': 'Отзывы',
       'infoDistance': 'Расстояние',
+      'infoWorkingHours': 'Часы работы',
+      'infoBreakTime': 'Перерыв',
+      'infoDaysOff': 'Выходные',
       'editCardTitle': 'Редактирование автосервиса',
       'editCardSubtitle': 'Обновите данные точки, список работ и координаты.',
       'deleteConfirm': 'Удалить карточку автосервиса?',
@@ -3362,8 +3681,26 @@ class AdminController {
       'telegramTestButton': 'Тест Telegram',
       'telegramTestSent': 'Тестовое сообщение отправлено для {name}',
       'openCheckbox': 'Автосервис сейчас открыт',
+      'helperSchedule':
+          'Укажите рабочие часы, перерыв и выходные дни. На следующем этапе свободные слоты будут строиться по этому графику.',
       'helperServices':
           'Управляйте видами работ здесь. Стартовая цена и ярлыки услуг в приложении формируются из этого списка.',
+      'noBreakLabel': 'Без перерыва',
+      'noClosedWeekdaysLabel': 'Открыт каждый день',
+      'invalidTimeField': 'Время в поле {field} указано неверно',
+      'scheduleTimeRangeError':
+          'Время окончания работы должно быть позже времени начала.',
+      'scheduleBreakPairError':
+          'Для перерыва нужно указать и начало, и конец, либо оставить оба поля пустыми.',
+      'scheduleBreakRangeError':
+          'Перерыв должен находиться внутри рабочего времени и быть задан в правильном порядке.',
+      'weekdayShortMon': 'Пн',
+      'weekdayShortTue': 'Вт',
+      'weekdayShortWed': 'Ср',
+      'weekdayShortThu': 'Чт',
+      'weekdayShortFri': 'Пт',
+      'weekdayShortSat': 'Сб',
+      'weekdayShortSun': 'Вс',
       'servicesTitle': 'Виды работ',
       'addService': 'Добавить работу',
       'saveHint':
@@ -3501,6 +3838,11 @@ class AdminController {
       'fieldDistanceKm': 'Distance (km)',
       'fieldLatitude': 'Latitude',
       'fieldLongitude': 'Longitude',
+      'fieldOpeningTime': 'Opening time',
+      'fieldClosingTime': 'Closing time',
+      'fieldBreakStart': 'Break starts',
+      'fieldBreakEnd': 'Break ends',
+      'fieldClosedWeekdays': 'Days off',
       'fieldServiceName': 'Job name',
       'fieldServicePrice': 'Job price',
       'fieldServiceDuration': 'Job duration',
@@ -3534,6 +3876,9 @@ class AdminController {
       'infoRating': 'Rating',
       'infoReviews': 'Reviews',
       'infoDistance': 'Distance',
+      'infoWorkingHours': 'Working hours',
+      'infoBreakTime': 'Break',
+      'infoDaysOff': 'Days off',
       'editCardTitle': 'Edit garage card',
       'editCardSubtitle':
           'Update the service point details, job list, and map coordinates.',
@@ -3559,8 +3904,26 @@ class AdminController {
       'telegramTestButton': 'Telegram test',
       'telegramTestSent': 'Test message sent for {name}',
       'openCheckbox': 'Garage is currently open',
+      'helperSchedule':
+          'Set working hours, break time, and days off here. The next step will use this schedule to build available slots.',
       'helperServices':
           'Manage the job list here. The app uses this list to build the starting price and service labels.',
+      'noBreakLabel': 'No break',
+      'noClosedWeekdaysLabel': 'Open every day',
+      'invalidTimeField': '{field} has an invalid time',
+      'scheduleTimeRangeError':
+          'Closing time must be later than opening time.',
+      'scheduleBreakPairError':
+          'Enter both break start and break end, or leave both empty.',
+      'scheduleBreakRangeError':
+          'The break must stay inside the working hours and follow the correct order.',
+      'weekdayShortMon': 'Mon',
+      'weekdayShortTue': 'Tue',
+      'weekdayShortWed': 'Wed',
+      'weekdayShortThu': 'Thu',
+      'weekdayShortFri': 'Fri',
+      'weekdayShortSat': 'Sat',
+      'weekdayShortSun': 'Sun',
       'servicesTitle': 'Job types',
       'addService': 'Add job type',
       'saveHint':

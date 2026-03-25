@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import '../models/booking_availability.dart';
 import '../models/booking_chat_message.dart';
 import '../models/booking_item.dart';
 import '../models/saved_vehicle_profile.dart';
@@ -20,6 +21,10 @@ class BookingProvider extends BookingController {
   final Set<String> _loadingMessageBookings = <String>{};
   final Set<String> _sendingMessageBookings = <String>{};
   final Map<String, String?> _messageErrors = <String, String?>{};
+  final Map<String, BookingAvailability> _availabilityByKey =
+      <String, BookingAvailability>{};
+  final Set<String> _loadingAvailabilityKeys = <String>{};
+  final Map<String, String?> _availabilityErrors = <String, String?>{};
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -42,6 +47,44 @@ class BookingProvider extends BookingController {
   }
 
   String? messageError(String bookingId) => _messageErrors[bookingId];
+
+  BookingAvailability? availabilityFor({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) {
+    return _availabilityByKey[_availabilityKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      date: date,
+    )];
+  }
+
+  bool isLoadingAvailability({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) {
+    return _loadingAvailabilityKeys.contains(
+      _availabilityKey(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        date: date,
+      ),
+    );
+  }
+
+  String? availabilityError({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) {
+    return _availabilityErrors[_availabilityKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      date: date,
+    )];
+  }
 
   void seedIfEmpty(List<BookingItem> items) {
     if (bookings.isNotEmpty) {
@@ -140,6 +183,11 @@ class BookingProvider extends BookingController {
         vehicleTypeId: vehicleTypeId,
         dateTime: dateTime,
       );
+      _invalidateAvailability(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        date: dateTime,
+      );
       upsertBooking(created);
       return created;
     } on ApiException catch (error) {
@@ -150,6 +198,46 @@ class BookingProvider extends BookingController {
       _errorMessage = 'Buyurtma yaratishda xatolik yuz berdi';
       notifyListeners();
       rethrow;
+    }
+  }
+
+  Future<BookingAvailability> loadAvailability({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) async {
+    final String key = _availabilityKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      date: date,
+    );
+    _availabilityErrors.remove(key);
+    _loadingAvailabilityKeys.add(key);
+    notifyListeners();
+
+    try {
+      if (_service == null) {
+        final BookingAvailability fallback = _localAvailability(date);
+        _availabilityByKey[key] = fallback;
+        return fallback;
+      }
+
+      final BookingAvailability availability = await _service.fetchAvailability(
+        workshopId: workshopId,
+        serviceId: serviceId,
+        date: date,
+      );
+      _availabilityByKey[key] = availability;
+      return availability;
+    } on ApiException catch (error) {
+      _availabilityErrors[key] = error.message;
+      rethrow;
+    } catch (_) {
+      _availabilityErrors[key] = 'Bo‘sh vaqtlarni yuklab bo‘lmadi';
+      rethrow;
+    } finally {
+      _loadingAvailabilityKeys.remove(key);
+      notifyListeners();
     }
   }
 
@@ -315,6 +403,80 @@ class BookingProvider extends BookingController {
       booking.copyWith(
         unreadForCustomerCount: 0,
       ),
+    );
+  }
+
+  String _availabilityKey({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) {
+    final DateTime normalized = DateTime(date.year, date.month, date.day);
+    final String month = normalized.month.toString().padLeft(2, '0');
+    final String day = normalized.day.toString().padLeft(2, '0');
+    return '$workshopId|$serviceId|${normalized.year}-$month-$day';
+  }
+
+  void _invalidateAvailability({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) {
+    final String key = _availabilityKey(
+      workshopId: workshopId,
+      serviceId: serviceId,
+      date: date,
+    );
+    _availabilityByKey.remove(key);
+    _availabilityErrors.remove(key);
+  }
+
+  BookingAvailability _localAvailability(DateTime date) {
+    final DateTime normalized = DateTime(date.year, date.month, date.day);
+    if (normalized.weekday == DateTime.sunday) {
+      return BookingAvailability(
+        date: normalized,
+        slotTimes: const <String>[],
+        isClosedDay: true,
+        serviceDurationMinutes: 30,
+        openingTime: '10:00',
+        closingTime: '19:00',
+        breakStartTime: '13:00',
+        breakEndTime: '14:00',
+      );
+    }
+
+    const List<String> fallbackSlots = <String>[
+      '10:00',
+      '11:00',
+      '12:00',
+      '14:00',
+      '15:00',
+      '16:00',
+      '18:00',
+    ];
+    final DateTime now = DateTime.now();
+    final List<String> filtered = fallbackSlots.where((String item) {
+      final List<String> parts = item.split(':');
+      final DateTime slotDate = DateTime(
+        normalized.year,
+        normalized.month,
+        normalized.day,
+        int.parse(parts.first),
+        int.parse(parts.last),
+      );
+      return slotDate.isAfter(now);
+    }).toList(growable: false);
+
+    return BookingAvailability(
+      date: normalized,
+      slotTimes: filtered,
+      isClosedDay: false,
+      serviceDurationMinutes: 30,
+      openingTime: '10:00',
+      closingTime: '19:00',
+      breakStartTime: '13:00',
+      breakEndTime: '14:00',
     );
   }
 

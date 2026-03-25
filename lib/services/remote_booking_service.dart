@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../core/config/api_endpoints.dart';
 import '../core/storage/auth_token_storage.dart';
+import '../models/booking_availability.dart';
 import '../models/booking_chat_message.dart';
 import '../models/booking_item.dart';
 import '../models/saved_vehicle_profile.dart';
@@ -85,6 +86,30 @@ class RemoteBookingService implements BookingService {
     }
 
     return BookingItem.fromJson(data);
+  }
+
+  @override
+  Future<BookingAvailability> fetchAvailability({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) async {
+    final String normalizedDate =
+        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.get,
+      path: ApiEndpoints.workshopAvailability(
+        workshopId,
+        serviceId: serviceId,
+        date: normalizedDate,
+      ),
+    );
+
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Server bo‘sh vaqtlarni qaytarmadi');
+    }
+    return BookingAvailability.fromJson(data);
   }
 
   @override

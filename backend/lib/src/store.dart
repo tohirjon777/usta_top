@@ -7,6 +7,8 @@ import 'models.dart';
 import 'vehicle_types.dart';
 
 class InMemoryStore {
+  static const int bookingSlotStepMinutes = 15;
+
   InMemoryStore({
     required List<UserModel> users,
     required List<WorkshopModel> workshops,
@@ -52,6 +54,13 @@ class InMemoryStore {
         telegramChatId: '',
         telegramChatLabel: '',
         telegramLinkCode: '',
+        schedule: WorkshopScheduleModel(
+          openingTime: '09:00',
+          closingTime: '19:00',
+          breakStartTime: '13:00',
+          breakEndTime: '14:00',
+          closedWeekdays: <int>[7],
+        ),
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-1',
@@ -91,6 +100,13 @@ class InMemoryStore {
         telegramChatId: '',
         telegramChatLabel: '',
         telegramLinkCode: '',
+        schedule: WorkshopScheduleModel(
+          openingTime: '08:30',
+          closingTime: '18:30',
+          breakStartTime: '12:30',
+          breakEndTime: '13:15',
+          closedWeekdays: <int>[7],
+        ),
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-4',
@@ -130,6 +146,13 @@ class InMemoryStore {
         telegramChatId: '',
         telegramChatLabel: '',
         telegramLinkCode: '',
+        schedule: WorkshopScheduleModel(
+          openingTime: '10:00',
+          closingTime: '20:00',
+          breakStartTime: '14:00',
+          breakEndTime: '15:00',
+          closedWeekdays: <int>[6],
+        ),
         services: <ServiceModel>[
           ServiceModel(
             id: 'srv-7',
@@ -1365,6 +1388,95 @@ class InMemoryStore {
     );
   }
 
+  ({
+    List<String> slotTimes,
+    bool isClosedDay,
+    WorkshopScheduleModel schedule,
+    int serviceDurationMinutes,
+  }) bookingAvailability({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
+  }) {
+    final WorkshopModel? workshop = workshopById(workshopId);
+    if (workshop == null) {
+      throw StateError('Servis topilmadi');
+    }
+
+    final ServiceModel? service = workshop.getServiceById(serviceId);
+    if (service == null) {
+      throw StateError('Xizmat topilmadi');
+    }
+
+    final WorkshopScheduleModel schedule = workshop.schedule;
+    final DateTime localDate = _calendarDate(date.toLocal());
+    final int durationMinutes = _serviceDurationMinutes(service);
+    if (schedule.closedWeekdays.contains(localDate.weekday)) {
+      return (
+        slotTimes: const <String>[],
+        isClosedDay: true,
+        schedule: schedule,
+        serviceDurationMinutes: durationMinutes,
+      );
+    }
+
+    final int openingMinutes = _minutesFromTime(schedule.openingTime);
+    final int closingMinutes = _minutesFromTime(schedule.closingTime);
+    final int? breakStartMinutes =
+        schedule.hasBreak ? _minutesFromTime(schedule.breakStartTime) : null;
+    final int? breakEndMinutes =
+        schedule.hasBreak ? _minutesFromTime(schedule.breakEndTime) : null;
+    final List<BookingModel> activeBookings = _bookings.where(
+      (BookingModel item) {
+        if (item.workshopId != workshop.id || !_blocksAvailability(item.status)) {
+          return false;
+        }
+        return _calendarDate(item.dateTime.toLocal()) == localDate;
+      },
+    ).toList(growable: false);
+
+    final DateTime now = DateTime.now();
+    final List<String> slotTimes = <String>[];
+    for (int startMinutes = openingMinutes;
+        startMinutes + durationMinutes <= closingMinutes;
+        startMinutes += bookingSlotStepMinutes) {
+      final int endMinutes = startMinutes + durationMinutes;
+      if (_slotTouchesBreak(
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+        breakStartMinutes: breakStartMinutes,
+        breakEndMinutes: breakEndMinutes,
+      )) {
+        continue;
+      }
+
+      final DateTime slotDateTime = DateTime(
+        localDate.year,
+        localDate.month,
+        localDate.day,
+      ).add(Duration(minutes: startMinutes));
+      if (!slotDateTime.isAfter(now)) {
+        continue;
+      }
+      if (_slotOverlapsExistingBooking(
+        workshop: workshop,
+        bookings: activeBookings,
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+      )) {
+        continue;
+      }
+      slotTimes.add(_formatTime(startMinutes));
+    }
+
+    return (
+      slotTimes: List<String>.unmodifiable(slotTimes),
+      isClosedDay: false,
+      schedule: schedule,
+      serviceDurationMinutes: durationMinutes,
+    );
+  }
+
   BookingModel createBooking({
     required String userId,
     required String workshopId,
@@ -1392,10 +1504,19 @@ class InMemoryStore {
       throw StateError('Xizmat topilmadi');
     }
 
+    final DateTime normalizedBookingDateTime =
+        dateTime.isUtc ? dateTime : dateTime.toUtc();
+    final DateTime localBookingDateTime = normalizedBookingDateTime.toLocal();
     final DateTime now = DateTime.now();
-    if (dateTime.isBefore(now.subtract(const Duration(minutes: 1)))) {
+    if (localBookingDateTime
+        .isBefore(now.subtract(const Duration(minutes: 1)))) {
       throw StateError('Sana kelajakdagi vaqt bo\'lishi kerak');
     }
+    _ensureBookingSlotAvailable(
+      workshop: workshop,
+      service: service,
+      bookingDateTime: localBookingDateTime,
+    );
     final String normalizedVehicleBrand = normalizeSavedVehicleBrand(
       vehicleBrand,
     );
@@ -1430,7 +1551,7 @@ class InMemoryStore {
       serviceName: service.name,
       vehicleModel: normalizedVehicleModel,
       vehicleTypeId: vehicleType.id,
-      dateTime: dateTime,
+      dateTime: normalizedBookingDateTime,
       basePrice: service.price,
       price: finalPrice,
       status: BookingStatus.upcoming,
@@ -1644,6 +1765,60 @@ class InMemoryStore {
     }
   }
 
+  void _ensureBookingSlotAvailable({
+    required WorkshopModel workshop,
+    required ServiceModel service,
+    required DateTime bookingDateTime,
+  }) {
+    final WorkshopScheduleModel schedule = workshop.schedule;
+    final DateTime bookingDate = _calendarDate(bookingDateTime);
+    if (schedule.closedWeekdays.contains(bookingDate.weekday)) {
+      throw StateError('Servis tanlangan kunda ishlamaydi');
+    }
+
+    final int openingMinutes = _minutesFromTime(schedule.openingTime);
+    final int closingMinutes = _minutesFromTime(schedule.closingTime);
+    final int startMinutes = _minutesSinceMidnight(bookingDateTime);
+    final int durationMinutes = _serviceDurationMinutes(service);
+    final int endMinutes = startMinutes + durationMinutes;
+    if (startMinutes < openingMinutes || endMinutes > closingMinutes) {
+      throw StateError('Tanlangan vaqt ish jadvalidan tashqarida');
+    }
+    if ((startMinutes - openingMinutes) % bookingSlotStepMinutes != 0) {
+      throw StateError('Tanlangan vaqt mavjud slotlarga mos emas');
+    }
+
+    final int? breakStartMinutes =
+        schedule.hasBreak ? _minutesFromTime(schedule.breakStartTime) : null;
+    final int? breakEndMinutes =
+        schedule.hasBreak ? _minutesFromTime(schedule.breakEndTime) : null;
+    if (_slotTouchesBreak(
+      startMinutes: startMinutes,
+      endMinutes: endMinutes,
+      breakStartMinutes: breakStartMinutes,
+      breakEndMinutes: breakEndMinutes,
+    )) {
+      throw StateError('Tanlangan vaqt tanaffusga to‘g‘ri keladi');
+    }
+
+    final List<BookingModel> activeBookings = _bookings.where(
+      (BookingModel item) {
+        if (item.workshopId != workshop.id || !_blocksAvailability(item.status)) {
+          return false;
+        }
+        return _calendarDate(item.dateTime.toLocal()) == bookingDate;
+      },
+    ).toList(growable: false);
+    if (_slotOverlapsExistingBooking(
+      workshop: workshop,
+      bookings: activeBookings,
+      startMinutes: startMinutes,
+      endMinutes: endMinutes,
+    )) {
+      throw StateError('Tanlangan vaqt band bo‘lib qoldi. Boshqa vaqt tanlang');
+    }
+  }
+
   List<BookingChatMessageModel> _messagesForBooking(String bookingId) {
     final List<BookingChatMessageModel> items = _bookingMessages
         .where((BookingChatMessageModel item) => item.bookingId == bookingId)
@@ -1702,6 +1877,100 @@ class InMemoryStore {
   String _newId(String prefix) {
     final String randomPart = _random.nextInt(10000).toString().padLeft(4, '0');
     return '$prefix-${DateTime.now().microsecondsSinceEpoch}-$randomPart';
+  }
+
+  bool _blocksAvailability(BookingStatus status) {
+    return status == BookingStatus.upcoming || status == BookingStatus.accepted;
+  }
+
+  DateTime _calendarDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  int _minutesSinceMidnight(DateTime value) {
+    final DateTime local = value.toLocal();
+    return (local.hour * 60) + local.minute;
+  }
+
+  int _minutesFromTime(String value) {
+    final List<String> parts = value.split(':');
+    final int hours = int.tryParse(parts.first) ?? 0;
+    final int minutes = int.tryParse(parts.last) ?? 0;
+    return (hours * 60) + minutes;
+  }
+
+  int _serviceDurationMinutes(ServiceModel service) {
+    final int value = service.durationMinutes;
+    if (value <= 0) {
+      return 30;
+    }
+    return value;
+  }
+
+  int _bookingDurationMinutes(
+    BookingModel booking,
+    WorkshopModel workshop,
+  ) {
+    final ServiceModel? service = workshop.getServiceById(booking.serviceId);
+    if (service == null) {
+      return 30;
+    }
+    return _serviceDurationMinutes(service);
+  }
+
+  bool _slotTouchesBreak({
+    required int startMinutes,
+    required int endMinutes,
+    required int? breakStartMinutes,
+    required int? breakEndMinutes,
+  }) {
+    if (breakStartMinutes == null || breakEndMinutes == null) {
+      return false;
+    }
+    return _intervalsOverlap(
+      startA: startMinutes,
+      endA: endMinutes,
+      startB: breakStartMinutes,
+      endB: breakEndMinutes,
+    );
+  }
+
+  bool _slotOverlapsExistingBooking({
+    required WorkshopModel workshop,
+    required List<BookingModel> bookings,
+    required int startMinutes,
+    required int endMinutes,
+  }) {
+    for (final BookingModel item in bookings) {
+      final int bookingStartMinutes = _minutesSinceMidnight(item.dateTime);
+      final int bookingEndMinutes =
+          bookingStartMinutes + _bookingDurationMinutes(item, workshop);
+      if (_intervalsOverlap(
+        startA: startMinutes,
+        endA: endMinutes,
+        startB: bookingStartMinutes,
+        endB: bookingEndMinutes,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _intervalsOverlap({
+    required int startA,
+    required int endA,
+    required int startB,
+    required int endB,
+  }) {
+    return startA < endB && startB < endA;
+  }
+
+  String _formatTime(int minutes) {
+    final int hours = minutes ~/ 60;
+    final int minute = minutes % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
   }
 
   void _pruneInvalidAuthSessions() {

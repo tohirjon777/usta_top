@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
+import '../models/booking_availability.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
 import '../models/saved_vehicle_profile.dart';
@@ -35,20 +36,15 @@ class _BookingScreenState extends State<BookingScreen> {
   late DateTime _selectedDate;
   late final TextEditingController _customBrandController;
   late final TextEditingController _customModelController;
-  String _selectedTime = _timeSlots.first;
+  String? _selectedTime;
   bool _useCustomVehicle = false;
   bool _isSubmitting = false;
   bool _didHydrateVehicleSelection = false;
-
-  static const List<String> _timeSlots = <String>[
-    '10:00',
-    '11:00',
-    '12:00',
-    '14:00',
-    '15:00',
-    '16:00',
-    '18:00',
-  ];
+  bool _isLoadingAvailability = false;
+  bool _isClosedDay = false;
+  String? _availabilityError;
+  List<String> _availableSlots = const <String>[];
+  int _availabilityRequestId = 0;
 
   @override
   void initState() {
@@ -70,6 +66,9 @@ class _BookingScreenState extends State<BookingScreen> {
     _customBrandController = TextEditingController();
     _customModelController = TextEditingController();
     _selectedDate = DateTime.now().add(const Duration(days: 1));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAvailability();
+    });
   }
 
   @override
@@ -187,6 +186,7 @@ class _BookingScreenState extends State<BookingScreen> {
               setState(() {
                 _selectedServiceId = value;
               });
+              _loadAvailability();
             },
             decoration: InputDecoration(labelText: l10n.service),
           ),
@@ -385,6 +385,7 @@ class _BookingScreenState extends State<BookingScreen> {
               setState(() {
                 _selectedDate = picked;
               });
+              _loadAvailability();
             },
             icon: const Icon(Icons.date_range),
             label: Text(l10n.dateLabel(selectedDateLabel)),
@@ -395,23 +396,49 @@ class _BookingScreenState extends State<BookingScreen> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _timeSlots
-                .map(
-                  (String slot) => ChoiceChip(
-                    label: Text(slot),
-                    selected: slot == _selectedTime,
-                    onSelected: (_) {
-                      setState(() {
-                        _selectedTime = slot;
-                      });
-                    },
-                  ),
-                )
-                .toList(),
-          ),
+          if (_isLoadingAvailability)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+              ),
+            )
+          else if (_availabilityError != null)
+            _AvailabilityMessageCard(
+              title: _availabilityError!,
+              subtitle: l10n.availableTimesRetryHint,
+            )
+          else if (_availableSlots.isEmpty)
+            _AvailabilityMessageCard(
+              title: _isClosedDay
+                  ? l10n.availableTimesClosedDay
+                  : l10n.availableTimesEmpty,
+              subtitle: _isClosedDay
+                  ? l10n.availableTimesClosedDayHint
+                  : l10n.availableTimesEmptyHint,
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _availableSlots
+                  .map(
+                    (String slot) => ChoiceChip(
+                      label: Text(slot),
+                      selected: slot == _selectedTime,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedTime = slot;
+                        });
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
           const SizedBox(height: 18),
           Card(
             child: Padding(
@@ -443,7 +470,11 @@ class _BookingScreenState extends State<BookingScreen> {
                     ),
                   ),
                   Text(l10n.dateLabel(selectedDateLabel)),
-                  Text(l10n.timeLabel(_selectedTime)),
+                  Text(
+                    l10n.timeLabel(
+                      _selectedTime ?? l10n.bookingTimePending,
+                    ),
+                  ),
                   Text(
                     l10n.basePriceLabel(
                       AppFormatters.moneyK(_selectedService.price),
@@ -470,7 +501,9 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: _isSubmitting ? null : _submitBooking,
+            onPressed: _isSubmitting || _selectedTime == null
+                ? null
+                : _submitBooking,
             child: _isSubmitting
                 ? const SizedBox(
                     width: 18,
@@ -523,6 +556,58 @@ class _BookingScreenState extends State<BookingScreen> {
     _selectedVehicleTypeId = vehicle.vehicleTypeId;
   }
 
+  Future<void> _loadAvailability() async {
+    final int requestId = ++_availabilityRequestId;
+    setState(() {
+      _isLoadingAvailability = true;
+      _availabilityError = null;
+    });
+
+    try {
+      final BookingAvailability availability =
+          await context.read<BookingProvider>().loadAvailability(
+                workshopId: widget.salon.id,
+                serviceId: _selectedService.id,
+                date: _selectedDate,
+              );
+      if (!mounted || requestId != _availabilityRequestId) {
+        return;
+      }
+
+      setState(() {
+        _isLoadingAvailability = false;
+        _isClosedDay = availability.isClosedDay;
+        _availableSlots = availability.slotTimes;
+        if (_selectedTime == null || !_availableSlots.contains(_selectedTime)) {
+          _selectedTime = _availableSlots.isEmpty ? null : _availableSlots.first;
+        }
+      });
+    } on ApiException catch (error) {
+      if (!mounted || requestId != _availabilityRequestId) {
+        return;
+      }
+      setState(() {
+        _isLoadingAvailability = false;
+        _isClosedDay = false;
+        _availableSlots = const <String>[];
+        _selectedTime = null;
+        _availabilityError = error.message;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _availabilityRequestId) {
+        return;
+      }
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      setState(() {
+        _isLoadingAvailability = false;
+        _isClosedDay = false;
+        _availableSlots = const <String>[];
+        _selectedTime = null;
+        _availabilityError = l10n.availableTimesLoadFailed;
+      });
+    }
+  }
+
   Future<void> _submitBooking() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final String vehicleBrand = _selectedVehicleBrand;
@@ -546,8 +631,14 @@ class _BookingScreenState extends State<BookingScreen> {
       );
       return;
     }
+    if (_selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.bookingTimeRequired)),
+      );
+      return;
+    }
 
-    final List<String> parts = _selectedTime.split(':');
+    final List<String> parts = _selectedTime!.split(':');
     final DateTime bookingDateTime = DateTime(
       _selectedDate.year,
       _selectedDate.month,
@@ -630,6 +721,41 @@ class _BookingScreenState extends State<BookingScreen> {
           _selectCatalogVehicle(vehicle);
         });
       },
+    );
+  }
+}
+
+class _AvailabilityMessageCard extends StatelessWidget {
+  const _AvailabilityMessageCard({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.secondaryTextOf(context),
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

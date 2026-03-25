@@ -635,6 +635,11 @@ class OwnerController {
       lang: lang,
       status: status,
     );
+    final String scheduleCard = _scheduleCardHtml(
+      workshop: workshop,
+      lang: lang,
+      status: status,
+    );
     final String reviewInboxCard = _reviewInboxCardHtml(
       workshop: workshop,
       reviews: reviews,
@@ -1163,6 +1168,32 @@ class OwnerController {
       flex-wrap: wrap;
     }
 
+    .schedule-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .schedule-form {
+      display: grid;
+      gap: 14px;
+      margin: 0;
+    }
+
+    .schedule-fields {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .schedule-days {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
     .service-pricing-field {
       display: grid;
       gap: 6px;
@@ -1182,6 +1213,32 @@ class OwnerController {
       padding: 12px 14px;
       font-size: 15px;
       background: rgba(255, 255, 255, 0.92);
+    }
+
+    .checkbox-pills {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .checkbox-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .checkbox-pill input {
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
+      accent-color: var(--accent);
     }
 
     .telegram-status {
@@ -1358,7 +1415,8 @@ class OwnerController {
     @media (max-width: 760px) {
       .wrap { padding: 18px 12px 36px; }
       .summary-grid { grid-template-columns: 1fr; }
-      .stats-grid, .meta-grid, .review-stat-grid, .review-analytics-grid {
+      .stats-grid, .meta-grid, .review-stat-grid, .review-analytics-grid,
+      .schedule-summary-grid, .schedule-fields {
         grid-template-columns: 1fr;
       }
     }
@@ -1425,6 +1483,7 @@ class OwnerController {
     ${_flashHtml(message: message, error: error)}
 
     $servicePricingCard
+    $scheduleCard
     $reviewInboxCard
 
     <section class="booking-list">
@@ -1479,10 +1538,23 @@ class OwnerController {
         lang: lang,
         min: 0,
       );
+      final int nextDurationMinutes = _parseIntField(
+        form['durationMinutes'],
+        fieldLabel: _text(
+          lang,
+          'serviceDurationFieldLabel',
+          <String, Object>{'service': currentService.name},
+        ),
+        lang: lang,
+        min: 1,
+      );
 
       final List<ServiceModel> updatedServices = workshop.services
           .map((ServiceModel item) => item.id == currentService.id
-              ? item.copyWith(price: nextPrice)
+              ? item.copyWith(
+                  price: nextPrice,
+                  durationMinutes: nextDurationMinutes,
+                )
               : item)
           .toList(growable: false);
       final WorkshopModel updated =
@@ -1496,12 +1568,55 @@ class OwnerController {
           status: returnStatus,
           message: _text(
             lang,
-            'servicePriceUpdated',
+            'serviceSettingsUpdated',
             <String, Object>{
               'service': currentService.name,
               'price': '${nextPrice}k',
+              'duration': '$nextDurationMinutes',
             },
           ),
+        ),
+      );
+    } on FormatException catch (error) {
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          error: error.message,
+        ),
+      );
+    }
+  }
+
+  Future<Response> updateSchedule(Request request) async {
+    final Response? authRedirect = _requireOwner(request);
+    if (authRedirect != null) {
+      return authRedirect;
+    }
+
+    final Map<String, String> form = await _readForm(request);
+    final String lang = _normalizeLang(form['lang']);
+    final String returnStatus = _normalizeStatus(form['returnStatus']);
+    final WorkshopModel? workshop = _ownerWorkshopFromRequest(request);
+    if (workshop == null) {
+      return Response.seeOther(_ownerLoginUri(lang: lang));
+    }
+
+    try {
+      final WorkshopScheduleModel schedule = _parseWorkshopSchedule(
+        form,
+        lang: lang,
+        fallback: workshop.schedule,
+      );
+      final WorkshopModel updated = workshop.copyWith(schedule: schedule);
+      _store.updateWorkshop(workshopId: workshop.id, workshop: updated);
+      await _store.saveWorkshops(workshopsFilePath);
+
+      return Response.seeOther(
+        _ownerBookingsUri(
+          lang: lang,
+          status: returnStatus,
+          message: _text(lang, 'scheduleSaved'),
         ),
       );
     } on FormatException catch (error) {
@@ -1703,6 +1818,10 @@ class OwnerController {
       <span>${_escapeHtml(_text(lang, 'serviceNewPriceLabel'))}</span>
       <input type="number" name="price" min="0" step="1" value="${_escapeHtml(service.price.toString())}" placeholder="${_escapeHtml(_text(lang, 'servicePricePlaceholder'))}">
     </label>
+    <label class="service-pricing-field">
+      <span>${_escapeHtml(_text(lang, 'serviceNewDurationLabel'))}</span>
+      <input type="number" name="durationMinutes" min="1" step="1" value="${_escapeHtml(service.durationMinutes.toString())}" placeholder="${_escapeHtml(_text(lang, 'serviceDurationPlaceholder'))}">
+    </label>
     <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'servicePriceSave'))}</button>
   </div>
 </form>
@@ -1724,6 +1843,130 @@ class OwnerController {
   </div>
 </section>
 ''';
+  }
+
+  String _scheduleCardHtml({
+    required WorkshopModel workshop,
+    required String lang,
+    required String status,
+  }) {
+    final String hiddenFields = '''
+<input type="hidden" name="lang" value="${_escapeHtml(lang)}">
+<input type="hidden" name="returnStatus" value="${_escapeHtml(status)}">
+''';
+
+    return '''
+<section class="card service-pricing-card">
+  <div>
+    <div class="eyebrow">${_escapeHtml(_text(lang, 'scheduleEyebrow'))}</div>
+    <h2>${_escapeHtml(_text(lang, 'scheduleTitle'))}</h2>
+    <p>${_escapeHtml(_text(lang, 'scheduleDescription'))}</p>
+  </div>
+
+  <div class="schedule-summary-grid">
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'infoWorkingHours'))}</div>
+      <strong>${_escapeHtml(_scheduleSummary(workshop.schedule))}</strong>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'infoBreakTime'))}</div>
+      <strong>${_escapeHtml(_breakSummary(workshop.schedule, lang))}</strong>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'infoDaysOff'))}</div>
+      <strong>${_escapeHtml(_daysOffSummary(workshop.schedule, lang))}</strong>
+    </div>
+  </div>
+
+  <div class="service-pricing-note">${_escapeHtml(_text(lang, 'scheduleHint'))}</div>
+
+  <form class="schedule-form" method="post" action="/owner/schedule?lang=${Uri.encodeQueryComponent(lang)}">
+    $hiddenFields
+    <div class="schedule-fields">
+      <label class="service-pricing-field">
+        <span>${_escapeHtml(_text(lang, 'fieldOpeningTime'))}</span>
+        <input type="time" name="openingTime" value="${_escapeHtml(workshop.schedule.openingTime)}">
+      </label>
+      <label class="service-pricing-field">
+        <span>${_escapeHtml(_text(lang, 'fieldClosingTime'))}</span>
+        <input type="time" name="closingTime" value="${_escapeHtml(workshop.schedule.closingTime)}">
+      </label>
+      <label class="service-pricing-field">
+        <span>${_escapeHtml(_text(lang, 'fieldBreakStart'))}</span>
+        <input type="time" name="breakStartTime" value="${_escapeHtml(workshop.schedule.breakStartTime)}">
+      </label>
+      <label class="service-pricing-field">
+        <span>${_escapeHtml(_text(lang, 'fieldBreakEnd'))}</span>
+        <input type="time" name="breakEndTime" value="${_escapeHtml(workshop.schedule.breakEndTime)}">
+      </label>
+    </div>
+
+    <div class="schedule-days">
+      <span>${_escapeHtml(_text(lang, 'fieldClosedWeekdays'))}</span>
+      <div class="checkbox-pills">
+        ${_weekdayCheckboxesHtml(lang, workshop.schedule.closedWeekdays)}
+      </div>
+    </div>
+
+    <div class="quick-links">
+      <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'scheduleSave'))}</button>
+    </div>
+  </form>
+</section>
+''';
+  }
+
+  String _scheduleSummary(WorkshopScheduleModel schedule) {
+    return '${schedule.openingTime} - ${schedule.closingTime}';
+  }
+
+  String _breakSummary(WorkshopScheduleModel schedule, String lang) {
+    if (!schedule.hasBreak) {
+      return _text(lang, 'noBreakLabel');
+    }
+    return '${schedule.breakStartTime} - ${schedule.breakEndTime}';
+  }
+
+  String _daysOffSummary(WorkshopScheduleModel schedule, String lang) {
+    if (schedule.closedWeekdays.isEmpty) {
+      return _text(lang, 'noClosedWeekdaysLabel');
+    }
+    return schedule.closedWeekdays
+        .map((int item) => _weekdayShortLabel(lang, item))
+        .join(', ');
+  }
+
+  String _weekdayCheckboxesHtml(String lang, List<int> selectedDays) {
+    return List<String>.generate(7, (int index) {
+      final int weekday = index + 1;
+      final bool selected = selectedDays.contains(weekday);
+      return '''
+<label class="checkbox-pill">
+  <input type="checkbox" name="closedWeekdays" value="$weekday"${selected ? ' checked' : ''}>
+  ${_escapeHtml(_weekdayShortLabel(lang, weekday))}
+</label>
+''';
+    }).join();
+  }
+
+  String _weekdayShortLabel(String lang, int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return _text(lang, 'weekdayShortMon');
+      case DateTime.tuesday:
+        return _text(lang, 'weekdayShortTue');
+      case DateTime.wednesday:
+        return _text(lang, 'weekdayShortWed');
+      case DateTime.thursday:
+        return _text(lang, 'weekdayShortThu');
+      case DateTime.friday:
+        return _text(lang, 'weekdayShortFri');
+      case DateTime.saturday:
+        return _text(lang, 'weekdayShortSat');
+      case DateTime.sunday:
+      default:
+        return _text(lang, 'weekdayShortSun');
+    }
   }
 
   String _reviewInboxCardHtml({
@@ -2735,7 +2978,7 @@ class OwnerController {
     final Map<String, String> values = <String, String>{};
     uri.queryParametersAll.forEach((String key, List<String> list) {
       if (list.isNotEmpty) {
-        values[key] = list.last;
+        values[key] = list.length == 1 ? list.last : list.join(',');
       }
     });
     return values;
@@ -2822,6 +3065,140 @@ class OwnerController {
       );
     }
     return value;
+  }
+
+  WorkshopScheduleModel _parseWorkshopSchedule(
+    Map<String, String> form, {
+    required String lang,
+    required WorkshopScheduleModel fallback,
+  }) {
+    final String openingTime = _parseTimeField(
+      form['openingTime'],
+      fieldLabel: _text(lang, 'fieldOpeningTime'),
+      lang: lang,
+      fallback: fallback.openingTime,
+    );
+    final String closingTime = _parseTimeField(
+      form['closingTime'],
+      fieldLabel: _text(lang, 'fieldClosingTime'),
+      lang: lang,
+      fallback: fallback.closingTime,
+    );
+    final String breakStartTime = _parseOptionalTimeField(
+      form['breakStartTime'],
+      fieldLabel: _text(lang, 'fieldBreakStart'),
+      lang: lang,
+    );
+    final String breakEndTime = _parseOptionalTimeField(
+      form['breakEndTime'],
+      fieldLabel: _text(lang, 'fieldBreakEnd'),
+      lang: lang,
+    );
+    final List<int> closedWeekdays = _parseClosedWeekdays(
+      form['closedWeekdays'],
+      fallback: fallback.closedWeekdays,
+    );
+
+    final int openingMinutes = _minutesFromTime(openingTime);
+    final int closingMinutes = _minutesFromTime(closingTime);
+    if (closingMinutes <= openingMinutes) {
+      throw FormatException(_text(lang, 'scheduleTimeRangeError'));
+    }
+    if (breakStartTime.isEmpty != breakEndTime.isEmpty) {
+      throw FormatException(_text(lang, 'scheduleBreakPairError'));
+    }
+    if (breakStartTime.isNotEmpty && breakEndTime.isNotEmpty) {
+      final int breakStartMinutes = _minutesFromTime(breakStartTime);
+      final int breakEndMinutes = _minutesFromTime(breakEndTime);
+      final bool breakOutsideRange =
+          breakStartMinutes < openingMinutes ||
+              breakEndMinutes > closingMinutes ||
+              breakEndMinutes <= breakStartMinutes;
+      if (breakOutsideRange) {
+        throw FormatException(_text(lang, 'scheduleBreakRangeError'));
+      }
+    }
+
+    return WorkshopScheduleModel(
+      openingTime: openingTime,
+      closingTime: closingTime,
+      breakStartTime: breakStartTime,
+      breakEndTime: breakEndTime,
+      closedWeekdays: List<int>.unmodifiable(closedWeekdays),
+    );
+  }
+
+  String _parseTimeField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+    required String fallback,
+  }) {
+    final String value = (raw ?? '').trim();
+    final String normalized = value.isEmpty ? fallback : value;
+    if (!_isTimeValue(normalized)) {
+      throw FormatException(
+        _text(
+          lang,
+          'invalidTimeField',
+          <String, Object>{'field': fieldLabel},
+        ),
+      );
+    }
+    return normalized;
+  }
+
+  String _parseOptionalTimeField(
+    String? raw, {
+    required String fieldLabel,
+    required String lang,
+  }) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return '';
+    }
+    if (!_isTimeValue(value)) {
+      throw FormatException(
+        _text(
+          lang,
+          'invalidTimeField',
+          <String, Object>{'field': fieldLabel},
+        ),
+      );
+    }
+    return value;
+  }
+
+  List<int> _parseClosedWeekdays(
+    String? raw, {
+    required List<int> fallback,
+  }) {
+    final String value = (raw ?? '').trim();
+    if (value.isEmpty) {
+      return List<int>.from(fallback);
+    }
+
+    final List<int> result = <int>[];
+    for (final String part in value.split(',')) {
+      final int? weekday = int.tryParse(part.trim());
+      if (weekday == null || weekday < 1 || weekday > 7 || result.contains(weekday)) {
+        continue;
+      }
+      result.add(weekday);
+    }
+    result.sort();
+    return result;
+  }
+
+  bool _isTimeValue(String value) {
+    return RegExp(r'^([01]\d|2[0-3]):([0-5]\d)$').hasMatch(value.trim());
+  }
+
+  int _minutesFromTime(String value) {
+    final List<String> parts = value.split(':');
+    final int hours = int.tryParse(parts.first) ?? 0;
+    final int minutes = int.tryParse(parts.last) ?? 0;
+    return (hours * 60) + minutes;
   }
 
   String _normalizeLang(String? raw) {
@@ -3008,20 +3385,56 @@ class OwnerController {
       'reviewAnalyticsCount': '{count} ta sharh',
       'reviewAnalyticsStars': '{stars} yulduz',
       'servicePricingEyebrow': 'Narx boshqaruvi',
-      'servicePricingTitle': 'Xizmat narxlarini o‘zingiz belgilang',
+      'servicePricingTitle': 'Xizmat narxi va davomiyligini boshqaring',
       'servicePricingDescription':
-          'Quyida faqat shu ustaxonaga tegishli xizmatlar narxini yangilaysiz.',
+          'Quyida faqat shu ustaxonaga tegishli xizmatlar narxi va davomiyligini yangilaysiz.',
       'servicePricingHint':
-          'Saqlangan narx appdagi keyingi yangilanishda ko‘rinadi va keyingi zakazlar shu bazaviy narx bilan hisoblanadi.',
+          'Saqlangan narx va davomiylik appdagi keyingi yangilanishda ko‘rinadi va keyingi zakazlar shu bazaviy qiymatlar bilan ishlaydi.',
       'servicePricingEmpty': 'Bu ustaxonaga hali xizmatlar qo‘shilmagan.',
       'serviceDurationMinutes': '{minutes} daqiqa',
       'serviceCurrentPriceLabel': 'Joriy narx: {price}',
       'serviceNewPriceLabel': 'Yangi narx',
+      'serviceNewDurationLabel': 'Yangi davomiylik',
       'servicePricePlaceholder': 'Masalan: 150',
+      'serviceDurationPlaceholder': 'Masalan: 45',
       'servicePriceSave': 'Narxni saqlash',
-      'servicePriceUpdated': '{service} narxi {price} ga yangilandi',
+      'serviceSettingsUpdated':
+          '{service} uchun narx {price}, davomiylik esa {duration} daqiqaga yangilandi',
       'servicePriceFieldLabel': '{service} narxi',
+      'serviceDurationFieldLabel': '{service} davomiyligi',
       'ownerServiceNotFound': 'Xizmat topilmadi',
+      'scheduleEyebrow': 'Ish jadvali',
+      'scheduleTitle': 'Qabul vaqtini boshqaring',
+      'scheduleDescription':
+          'Ish boshlanishi, tugashi, tanaffus va dam olish kunlarini shu workshop uchun alohida saqlang.',
+      'scheduleHint':
+          'Keyingi bosqichda bo‘sh slotlar aynan shu jadval asosida hisoblanadi.',
+      'scheduleSave': 'Jadvalni saqlash',
+      'scheduleSaved': 'Workshop ish jadvali saqlandi',
+      'infoWorkingHours': 'Ish vaqti',
+      'infoBreakTime': 'Tanaffus',
+      'infoDaysOff': 'Dam olish kunlari',
+      'fieldOpeningTime': 'Ish boshlanishi',
+      'fieldClosingTime': 'Ish tugashi',
+      'fieldBreakStart': 'Tanaffus boshlanishi',
+      'fieldBreakEnd': 'Tanaffus tugashi',
+      'fieldClosedWeekdays': 'Dam olish kunlari',
+      'noBreakLabel': 'Tanaffus yo‘q',
+      'noClosedWeekdaysLabel': 'Har kuni ochiq',
+      'invalidTimeField': '{field} vaqti noto‘g‘ri',
+      'scheduleTimeRangeError':
+          'Ish tugash vaqti ish boshlanish vaqtidan keyin bo‘lishi kerak.',
+      'scheduleBreakPairError':
+          'Tanaffus uchun boshlanish va tugash vaqtini birga kiriting yoki ikkalasini ham bo‘sh qoldiring.',
+      'scheduleBreakRangeError':
+          'Tanaffus oralig‘i ish vaqti ichida va to‘g‘ri tartibda bo‘lishi kerak.',
+      'weekdayShortMon': 'Du',
+      'weekdayShortTue': 'Se',
+      'weekdayShortWed': 'Cho',
+      'weekdayShortThu': 'Pa',
+      'weekdayShortFri': 'Ju',
+      'weekdayShortSat': 'Sha',
+      'weekdayShortSun': 'Yak',
       'requiredField': '{field} majburiy',
       'invalidNumber': '{field} noto‘g‘ri',
       'numberMin': '{field} kamida {min} bo‘lishi kerak',
@@ -3151,20 +3564,56 @@ class OwnerController {
       'reviewAnalyticsCount': '{count} отзывов',
       'reviewAnalyticsStars': '{stars} звезды',
       'servicePricingEyebrow': 'Управление ценами',
-      'servicePricingTitle': 'Устанавливайте цены на услуги сами',
+      'servicePricingTitle': 'Управляйте ценой и длительностью услуг',
       'servicePricingDescription':
-          'Ниже вы обновляете цены только для услуг своего автосервиса.',
+          'Ниже вы обновляете только цену и длительность услуг своего автосервиса.',
       'servicePricingHint':
-          'Сохраненная цена появится в приложении после следующего обновления, а новые заказы будут считаться по этой базовой цене.',
+          'Сохраненные цена и длительность появятся в приложении после следующего обновления, а новые заказы будут использовать эти базовые значения.',
       'servicePricingEmpty': 'Для этого workshop пока не добавлены услуги.',
       'serviceDurationMinutes': '{minutes} мин',
       'serviceCurrentPriceLabel': 'Текущая цена: {price}',
       'serviceNewPriceLabel': 'Новая цена',
+      'serviceNewDurationLabel': 'Новая длительность',
       'servicePricePlaceholder': 'Например: 150',
+      'serviceDurationPlaceholder': 'Например: 45',
       'servicePriceSave': 'Сохранить цену',
-      'servicePriceUpdated': 'Цена услуги {service} обновлена до {price}',
+      'serviceSettingsUpdated':
+          'Для услуги {service} цена обновлена до {price}, а длительность до {duration} мин',
       'servicePriceFieldLabel': 'Цена для {service}',
+      'serviceDurationFieldLabel': 'Длительность для {service}',
       'ownerServiceNotFound': 'Услуга не найдена',
+      'scheduleEyebrow': 'График работы',
+      'scheduleTitle': 'Управляйте временем приема',
+      'scheduleDescription':
+          'Сохраняйте часы работы, перерыв и выходные отдельно для этого workshop.',
+      'scheduleHint':
+          'На следующем этапе свободные слоты будут строиться по этому графику.',
+      'scheduleSave': 'Сохранить график',
+      'scheduleSaved': 'График workshop сохранен',
+      'infoWorkingHours': 'Часы работы',
+      'infoBreakTime': 'Перерыв',
+      'infoDaysOff': 'Выходные',
+      'fieldOpeningTime': 'Начало работы',
+      'fieldClosingTime': 'Конец работы',
+      'fieldBreakStart': 'Начало перерыва',
+      'fieldBreakEnd': 'Конец перерыва',
+      'fieldClosedWeekdays': 'Выходные дни',
+      'noBreakLabel': 'Без перерыва',
+      'noClosedWeekdaysLabel': 'Открыт каждый день',
+      'invalidTimeField': 'Время в поле {field} указано неверно',
+      'scheduleTimeRangeError':
+          'Время окончания работы должно быть позже времени начала.',
+      'scheduleBreakPairError':
+          'Для перерыва нужно указать и начало, и конец, либо оставить оба поля пустыми.',
+      'scheduleBreakRangeError':
+          'Перерыв должен находиться внутри рабочего времени и быть задан в правильном порядке.',
+      'weekdayShortMon': 'Пн',
+      'weekdayShortTue': 'Вт',
+      'weekdayShortWed': 'Ср',
+      'weekdayShortThu': 'Чт',
+      'weekdayShortFri': 'Пт',
+      'weekdayShortSat': 'Сб',
+      'weekdayShortSun': 'Вс',
       'requiredField': 'Поле {field} обязательно',
       'invalidNumber': 'Поле {field} заполнено неверно',
       'numberMin': 'Поле {field} должно быть не меньше {min}',
@@ -3294,21 +3743,57 @@ class OwnerController {
       'reviewAnalyticsCount': '{count} reviews',
       'reviewAnalyticsStars': '{stars} stars',
       'servicePricingEyebrow': 'Price control',
-      'servicePricingTitle': 'Set your own service prices',
+      'servicePricingTitle': 'Manage service price and duration',
       'servicePricingDescription':
-          'Update prices here only for the services that belong to your workshop.',
+          'Update only the price and duration of services that belong to your workshop.',
       'servicePricingHint':
-          'The saved price appears in the app on the next refresh, and new bookings will use that base price immediately.',
+          'The saved price and duration appear in the app on the next refresh, and new bookings will use those base values immediately.',
       'servicePricingEmpty':
           'No services have been added to this workshop yet.',
       'serviceDurationMinutes': '{minutes} min',
       'serviceCurrentPriceLabel': 'Current price: {price}',
       'serviceNewPriceLabel': 'New price',
+      'serviceNewDurationLabel': 'New duration',
       'servicePricePlaceholder': 'For example: 150',
+      'serviceDurationPlaceholder': 'For example: 45',
       'servicePriceSave': 'Save price',
-      'servicePriceUpdated': '{service} price was updated to {price}',
+      'serviceSettingsUpdated':
+          '{service} was updated to {price} and {duration} minutes',
       'servicePriceFieldLabel': 'Price for {service}',
+      'serviceDurationFieldLabel': 'Duration for {service}',
       'ownerServiceNotFound': 'Service not found',
+      'scheduleEyebrow': 'Working schedule',
+      'scheduleTitle': 'Manage intake hours',
+      'scheduleDescription':
+          'Save opening time, closing time, break, and days off separately for this workshop.',
+      'scheduleHint':
+          'In the next step, available slots will be generated from this schedule.',
+      'scheduleSave': 'Save schedule',
+      'scheduleSaved': 'Workshop schedule saved',
+      'infoWorkingHours': 'Working hours',
+      'infoBreakTime': 'Break',
+      'infoDaysOff': 'Days off',
+      'fieldOpeningTime': 'Opening time',
+      'fieldClosingTime': 'Closing time',
+      'fieldBreakStart': 'Break starts',
+      'fieldBreakEnd': 'Break ends',
+      'fieldClosedWeekdays': 'Days off',
+      'noBreakLabel': 'No break',
+      'noClosedWeekdaysLabel': 'Open every day',
+      'invalidTimeField': '{field} has an invalid time',
+      'scheduleTimeRangeError':
+          'Closing time must be later than opening time.',
+      'scheduleBreakPairError':
+          'Enter both break start and break end, or leave both empty.',
+      'scheduleBreakRangeError':
+          'The break must stay inside the working hours and follow the correct order.',
+      'weekdayShortMon': 'Mon',
+      'weekdayShortTue': 'Tue',
+      'weekdayShortWed': 'Wed',
+      'weekdayShortThu': 'Thu',
+      'weekdayShortFri': 'Fri',
+      'weekdayShortSat': 'Sat',
+      'weekdayShortSun': 'Sun',
       'requiredField': '{field} is required',
       'invalidNumber': '{field} must be a valid number',
       'numberMin': '{field} must be at least {min}',

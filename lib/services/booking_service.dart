@@ -1,4 +1,5 @@
 import '../models/booking_item.dart';
+import '../models/booking_availability.dart';
 import '../models/booking_chat_message.dart';
 
 abstract interface class BookingService {
@@ -14,6 +15,12 @@ abstract interface class BookingService {
     required bool isCustomVehicle,
     required String vehicleTypeId,
     required DateTime dateTime,
+  });
+
+  Future<BookingAvailability> fetchAvailability({
+    required String workshopId,
+    required String serviceId,
+    required DateTime date,
   });
 
   Future<BookingItem> cancelBooking({

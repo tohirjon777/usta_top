@@ -5,6 +5,128 @@ enum BookingStatus { upcoming, accepted, completed, cancelled }
 
 enum BookingChatSenderRole { customer, workshopOwner }
 
+class WorkshopScheduleModel {
+  const WorkshopScheduleModel({
+    required this.openingTime,
+    required this.closingTime,
+    required this.breakStartTime,
+    required this.breakEndTime,
+    required this.closedWeekdays,
+  });
+
+  final String openingTime;
+  final String closingTime;
+  final String breakStartTime;
+  final String breakEndTime;
+  final List<int> closedWeekdays;
+
+  bool get hasBreak =>
+      breakStartTime.trim().isNotEmpty && breakEndTime.trim().isNotEmpty;
+
+  WorkshopScheduleModel copyWith({
+    String? openingTime,
+    String? closingTime,
+    String? breakStartTime,
+    String? breakEndTime,
+    List<int>? closedWeekdays,
+  }) {
+    return WorkshopScheduleModel(
+      openingTime: openingTime ?? this.openingTime,
+      closingTime: closingTime ?? this.closingTime,
+      breakStartTime: breakStartTime ?? this.breakStartTime,
+      breakEndTime: breakEndTime ?? this.breakEndTime,
+      closedWeekdays: closedWeekdays ?? this.closedWeekdays,
+    );
+  }
+
+  factory WorkshopScheduleModel.standard() {
+    return const WorkshopScheduleModel(
+      openingTime: '09:00',
+      closingTime: '19:00',
+      breakStartTime: '13:00',
+      breakEndTime: '14:00',
+      closedWeekdays: <int>[7],
+    );
+  }
+
+  factory WorkshopScheduleModel.fromJson(Map<String, dynamic> json) {
+    final WorkshopScheduleModel defaults = WorkshopScheduleModel.standard();
+    final bool hasBreakStartTime = json.containsKey('breakStartTime');
+    final bool hasBreakEndTime = json.containsKey('breakEndTime');
+    final bool hasClosedWeekdays = json.containsKey('closedWeekdays');
+    return WorkshopScheduleModel(
+      openingTime: _normalizeTime(
+        (json['openingTime'] ?? '').toString(),
+        fallback: defaults.openingTime,
+      ),
+      closingTime: _normalizeTime(
+        (json['closingTime'] ?? '').toString(),
+        fallback: defaults.closingTime,
+      ),
+      breakStartTime: _normalizeTime(
+        (json['breakStartTime'] ?? '').toString(),
+        fallback: hasBreakStartTime ? '' : defaults.breakStartTime,
+      ),
+      breakEndTime: _normalizeTime(
+        (json['breakEndTime'] ?? '').toString(),
+        fallback: hasBreakEndTime ? '' : defaults.breakEndTime,
+      ),
+      closedWeekdays: _normalizeWeekdays(
+        json['closedWeekdays'],
+        fallback: hasClosedWeekdays ? const <int>[] : defaults.closedWeekdays,
+      ),
+    );
+  }
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'openingTime': openingTime,
+      'closingTime': closingTime,
+      'breakStartTime': breakStartTime,
+      'breakEndTime': breakEndTime,
+      'closedWeekdays': List<int>.from(closedWeekdays),
+    };
+  }
+
+  static String _normalizeTime(
+    String raw, {
+    required String fallback,
+  }) {
+    final String value = raw.trim();
+    final RegExpMatch? match = RegExp(
+      r'^([01]\d|2[0-3]):([0-5]\d)$',
+    ).firstMatch(value);
+    if (match == null) {
+      return fallback;
+    }
+    return '${match.group(1)}:${match.group(2)}';
+  }
+
+  static List<int> _normalizeWeekdays(
+    Object? raw, {
+    required List<int> fallback,
+  }) {
+    final List<int> values = <int>[];
+    final Iterable<dynamic> source = raw is List
+        ? raw
+        : raw is String
+            ? raw.split(',')
+            : const <dynamic>[];
+    for (final dynamic item in source) {
+      final int? parsed = int.tryParse(item.toString().trim());
+      if (parsed == null || parsed < 1 || parsed > 7 || values.contains(parsed)) {
+        continue;
+      }
+      values.add(parsed);
+    }
+    values.sort();
+    if (values.isEmpty) {
+      return List<int>.from(fallback);
+    }
+    return List<int>.unmodifiable(values);
+  }
+}
+
 class ServiceModel {
   const ServiceModel({
     required this.id,
@@ -79,6 +201,7 @@ class WorkshopModel {
     required this.telegramChatId,
     required this.telegramChatLabel,
     required this.telegramLinkCode,
+    required this.schedule,
     required this.services,
   });
 
@@ -98,6 +221,7 @@ class WorkshopModel {
   final String telegramChatId;
   final String telegramChatLabel;
   final String telegramLinkCode;
+  final WorkshopScheduleModel schedule;
   final List<ServiceModel> services;
 
   WorkshopModel copyWith({
@@ -117,6 +241,7 @@ class WorkshopModel {
     String? telegramChatId,
     String? telegramChatLabel,
     String? telegramLinkCode,
+    WorkshopScheduleModel? schedule,
     List<ServiceModel>? services,
   }) {
     return WorkshopModel(
@@ -136,6 +261,7 @@ class WorkshopModel {
       telegramChatId: telegramChatId ?? this.telegramChatId,
       telegramChatLabel: telegramChatLabel ?? this.telegramChatLabel,
       telegramLinkCode: telegramLinkCode ?? this.telegramLinkCode,
+      schedule: schedule ?? this.schedule,
       services: services ?? this.services,
     );
   }
@@ -148,6 +274,7 @@ class WorkshopModel {
             .map(ServiceModel.fromJson)
             .toList(growable: false)
         : <ServiceModel>[];
+    final dynamic rawSchedule = json['schedule'];
 
     return WorkshopModel(
       id: (json['id'] ?? '').toString(),
@@ -175,6 +302,9 @@ class WorkshopModel {
       telegramLinkCode: _normalizeTelegramLinkCode(
         (json['telegramLinkCode'] ?? '').toString(),
       ),
+      schedule: rawSchedule is Map<String, dynamic>
+          ? WorkshopScheduleModel.fromJson(rawSchedule)
+          : WorkshopScheduleModel.standard(),
       services: services,
     );
   }
@@ -233,6 +363,7 @@ class WorkshopModel {
       'telegramChatId': telegramChatId,
       'telegramChatLabel': telegramChatLabel,
       'telegramLinkCode': telegramLinkCode,
+      'schedule': schedule.toJson(),
       'startingPrice': startingPrice,
       'services': services.map((ServiceModel item) => item.toJson()).toList(),
     };

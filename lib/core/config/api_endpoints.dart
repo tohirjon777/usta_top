@@ -85,6 +85,19 @@ abstract final class ApiEndpoints {
   // TODO(API): GET /workshops/:id
   // Success response sample: { "data": { ...workshop object... } }
   static String workshopById(String id) => '/workshops/$id';
+  static String workshopAvailability(
+    String id, {
+    required String serviceId,
+    required String date,
+  }) {
+    return Uri(
+      path: '/workshops/$id/availability',
+      queryParameters: <String, String>{
+        'serviceId': serviceId,
+        'date': date,
+      },
+    ).toString();
+  }
   static String workshopReviews(String id) => '/workshops/$id/reviews';
 
   // TODO(API): GET /bookings

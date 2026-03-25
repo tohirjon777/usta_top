@@ -97,6 +97,14 @@ class AppLocalizations {
       'service': 'Service type',
       'date': 'Date',
       'availableTimes': 'Available times',
+      'availableTimesLoadFailed': 'Available times could not be loaded.',
+      'availableTimesRetryHint': 'Please try another date or refresh the screen.',
+      'availableTimesClosedDay': 'Workshop is closed on this day',
+      'availableTimesClosedDayHint':
+          'Choose another day to see free appointment times.',
+      'availableTimesEmpty': 'No free times left for this day',
+      'availableTimesEmptyHint':
+          'Try another date or choose a different service.',
       'summary': 'Request summary',
       'serviceLabel': 'Service type: {service}',
       'vehicleSelectionTitle': 'Vehicle selection',
@@ -121,10 +129,12 @@ class AppLocalizations {
       'durationLabel': 'Duration: {duration}',
       'dateLabel': 'Date: {date}',
       'timeLabel': 'Time: {time}',
+      'bookingTimePending': 'Choose a free time',
       'basePriceLabel': 'Base price: {price}',
       'vehiclePriceAdjustmentLabel': 'Vehicle adjustment: {adjustment}',
       'totalLabel': 'Total: {total}',
       'confirmBooking': 'Confirm request',
+      'bookingTimeRequired': 'Choose one of the available times',
       'chatWithWorkshop': 'Chat with workshop',
       'chatOpen': 'Chat',
       'chatInputHint': 'Write a message about this booking',
@@ -335,6 +345,15 @@ class AppLocalizations {
       'service': 'Xizmat turi',
       'date': 'Sana',
       'availableTimes': 'Mavjud vaqtlar',
+      'availableTimesLoadFailed': 'Bo‘sh vaqtlarni yuklab bo‘lmadi.',
+      'availableTimesRetryHint':
+          'Boshqa sana tanlang yoki ekranni qayta urinib ko‘ring.',
+      'availableTimesClosedDay': 'Bu kunda ustaxona ishlamaydi',
+      'availableTimesClosedDayHint':
+          'Bo‘sh vaqtlarni ko‘rish uchun boshqa kunni tanlang.',
+      'availableTimesEmpty': 'Bu kun uchun bo‘sh vaqt qolmagan',
+      'availableTimesEmptyHint':
+          'Boshqa sana yoki boshqa xizmatni tanlab ko‘ring.',
       'summary': 'Buyurtma xulosasi',
       'serviceLabel': 'Xizmat turi: {service}',
       'vehicleSelectionTitle': 'Mashina tanlash',
@@ -359,11 +378,13 @@ class AppLocalizations {
       'durationLabel': 'Davomiyligi: {duration}',
       'dateLabel': 'Sana: {date}',
       'timeLabel': 'Vaqt: {time}',
+      'bookingTimePending': 'Bo‘sh vaqtni tanlang',
       'basePriceLabel': 'Bazaviy narx: {price}',
       'vehiclePriceAdjustmentLabel':
           'Mashina turi bo\'yicha o\'zgarish: {adjustment}',
       'totalLabel': 'Jami: {total}',
       'confirmBooking': 'Buyurtmani tasdiqlash',
+      'bookingTimeRequired': 'Mavjud vaqtlarning birini tanlang',
       'chatWithWorkshop': 'Usta bilan chat',
       'chatOpen': 'Chat',
       'chatInputHint': 'Shu zakaz bo\'yicha xabar yozing',
@@ -577,6 +598,15 @@ class AppLocalizations {
       'service': 'Тип услуги',
       'date': 'Дата',
       'availableTimes': 'Доступное время',
+      'availableTimesLoadFailed': 'Не удалось загрузить свободное время.',
+      'availableTimesRetryHint':
+          'Выберите другую дату или попробуйте обновить экран.',
+      'availableTimesClosedDay': 'В этот день сервис не работает',
+      'availableTimesClosedDayHint':
+          'Выберите другой день, чтобы увидеть свободные слоты.',
+      'availableTimesEmpty': 'На этот день свободных слотов не осталось',
+      'availableTimesEmptyHint':
+          'Попробуйте другую дату или выберите другую услугу.',
       'summary': 'Сводка заявки',
       'serviceLabel': 'Тип услуги: {service}',
       'vehicleSelectionTitle': 'Выбор автомобиля',
@@ -601,10 +631,12 @@ class AppLocalizations {
       'durationLabel': 'Длительность: {duration}',
       'dateLabel': 'Дата: {date}',
       'timeLabel': 'Время: {time}',
+      'bookingTimePending': 'Выберите свободное время',
       'basePriceLabel': 'Базовая цена: {price}',
       'vehiclePriceAdjustmentLabel': 'Корректировка по типу авто: {adjustment}',
       'totalLabel': 'Итого: {total}',
       'confirmBooking': 'Подтвердить заявку',
+      'bookingTimeRequired': 'Выберите один из доступных слотов',
       'chatWithWorkshop': 'Чат с мастером',
       'chatOpen': 'Чат',
       'chatInputHint': 'Напишите сообщение по этому заказу',
@@ -845,6 +877,13 @@ class AppLocalizations {
   String get service => _text('service');
   String get date => _text('date');
   String get availableTimes => _text('availableTimes');
+  String get availableTimesLoadFailed => _text('availableTimesLoadFailed');
+  String get availableTimesRetryHint => _text('availableTimesRetryHint');
+  String get availableTimesClosedDay => _text('availableTimesClosedDay');
+  String get availableTimesClosedDayHint =>
+      _text('availableTimesClosedDayHint');
+  String get availableTimesEmpty => _text('availableTimesEmpty');
+  String get availableTimesEmptyHint => _text('availableTimesEmptyHint');
   String get summary => _text('summary');
   String serviceLabel(String service) =>
       _fmt('serviceLabel', <String, Object>{'service': service});
@@ -875,6 +914,7 @@ class AppLocalizations {
       _fmt('dateLabel', <String, Object>{'date': date});
   String timeLabel(String time) =>
       _fmt('timeLabel', <String, Object>{'time': time});
+  String get bookingTimePending => _text('bookingTimePending');
   String basePriceLabel(String price) =>
       _fmt('basePriceLabel', <String, Object>{'price': price});
   String vehiclePriceAdjustmentLabel(String adjustment) => _fmt(
@@ -884,6 +924,7 @@ class AppLocalizations {
   String totalLabel(String total) =>
       _fmt('totalLabel', <String, Object>{'total': total});
   String get confirmBooking => _text('confirmBooking');
+  String get bookingTimeRequired => _text('bookingTimeRequired');
   String get chatWithWorkshop => _text('chatWithWorkshop');
   String get chatOpen => _text('chatOpen');
   String get chatInputHint => _text('chatInputHint');
