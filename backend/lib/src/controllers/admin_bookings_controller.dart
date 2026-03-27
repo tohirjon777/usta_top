@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:shelf/shelf.dart';
 
 import '../admin_auth.dart';
+import '../booking_analytics.dart';
 import '../booking_cancellation.dart';
+import '../booking_payment_methods.dart';
 import '../money.dart';
 import '../models.dart';
 import '../store.dart';
@@ -71,7 +73,8 @@ class AdminBookingsController {
           item.id.toLowerCase().contains(q);
     }).toList(growable: false);
 
-    final int upcomingCount = _store.bookings(status: BookingStatus.upcoming).length;
+    final int upcomingCount =
+        _store.bookings(status: BookingStatus.upcoming).length;
     final int acceptedCount = allBookings
         .where((BookingModel item) => item.status == BookingStatus.accepted)
         .length;
@@ -81,6 +84,12 @@ class AdminBookingsController {
     final int cancelledCount = allBookings
         .where((BookingModel item) => item.status == BookingStatus.cancelled)
         .length;
+    final List<BookingModel> analyticsBookings =
+        (query.isEmpty && workshopId.isEmpty && status == 'all')
+            ? allBookings
+            : filtered;
+    final BookingAnalyticsSummary analytics =
+        buildBookingAnalytics(analyticsBookings);
 
     final Uri workshopsUri = _adminWorkshopsUri(lang: lang);
     final Uri bookingsUri = _adminBookingsUri(
@@ -123,13 +132,17 @@ class AdminBookingsController {
       status: status,
       selectedDate: calendarDate,
     );
+    final String analyticsSection = _analyticsSectionHtml(
+      lang: lang,
+      analytics: analytics,
+    );
 
     final String workshopOptions = workshops.map((WorkshopModel workshop) {
       final bool selected = workshop.id == workshopId;
       return '<option value="${_escapeHtml(workshop.id)}"${selected ? ' selected' : ''}>${_escapeHtml(workshop.name)}</option>';
     }).join();
 
-  final String bookingCards = filtered.isEmpty
+    final String bookingCards = filtered.isEmpty
         ? '''
 <section class="empty-card">
   <div class="eyebrow">${_escapeHtml(_text(lang, 'emptyEyebrow'))}</div>
@@ -200,11 +213,13 @@ class AdminBookingsController {
 	      ${_statusActionsHtml(item, lang, query, workshopId, status)}
 	    </div>
 	  </div>
-	  ${item.status == BookingStatus.rescheduled && item.previousDateTime != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'rescheduledFromLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.previousDateTime!))}</strong></div>' : ''}
-	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong> · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
+	  ${item.status == BookingStatus.rescheduled && item.previousDateTime != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'rescheduledFromLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.previousDateTime!))}</strong>${item.rescheduledByRole.isNotEmpty ? ' · ${_escapeHtml(_text(lang, 'rescheduledByLabel'))}: <strong>${_escapeHtml(bookingRescheduleActorLabel(item.rescheduledByRole, lang))}</strong>' : ''}${item.rescheduledAt != null ? ' · ${_escapeHtml(_text(lang, 'rescheduledAtLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.rescheduledAt!))}</strong>' : ''}</div>' : ''}
+	  ${item.status == BookingStatus.completed && item.completedAt != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'completedAtLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.completedAt!))}</strong></div>' : ''}
+	  <div class="cancel-meta">${_escapeHtml(_text(lang, 'paymentStatusLabel'))}: <strong>${_escapeHtml(_paymentStatusLabel(item.paymentStatus, lang))}</strong>${item.prepaymentAmount > 0 ? ' · ${_escapeHtml(_text(lang, 'prepaymentLabel'))}: <strong>${_escapeHtml(formatMoneyUzs(item.prepaymentAmount))}</strong> · ${_escapeHtml(_text(lang, 'remainingPaymentLabel'))}: <strong>${_escapeHtml(formatMoneyUzs(item.remainingAmount))}</strong>' : ''}${item.paymentMethod.trim().isNotEmpty ? ' · ${_escapeHtml(_text(lang, 'paymentMethodLabel'))}: <strong>${_escapeHtml(bookingPaymentMethodLabel(item.paymentMethod, lang: lang))}</strong>' : ''}</div>
+	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong>${item.cancelledAt != null ? ' · ${_escapeHtml(_text(lang, 'cancelledAtLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.cancelledAt!))}</strong>' : ''} · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
 	</article>
 	''';
-	          }).join();
+          }).join();
 
     final String ownerFlow = workshopId.isEmpty
         ? _text(lang, 'ownerFlowAll')
@@ -741,6 +756,7 @@ class AdminBookingsController {
 
     ${_flashHtml(message: message, error: error)}
     $calendarSection
+    $analyticsSection
 
     <section class="filter-card">
       <div class="eyebrow">${_escapeHtml(_text(lang, 'filterEyebrow'))}</div>
@@ -992,11 +1008,14 @@ class AdminBookingsController {
       now.add(workshopCancellationLeadTime),
     );
     if (!canCancel) {
-      return '<span class="muted">${_escapeHtml(_text(lang, 'cancelGuardHint', <String, Object>{'minutes': workshopCancellationLeadTime.inMinutes}))}</span>';
+      return '<span class="muted">${_escapeHtml(_text(lang, 'cancelGuardHint', <String, Object>{
+            'minutes': workshopCancellationLeadTime.inMinutes
+          }))}</span>';
     }
 
     final String options = bookingCancellationReasons
-        .where((BookingCancellationReason item) => item.id != 'customer_request')
+        .where(
+            (BookingCancellationReason item) => item.id != 'customer_request')
         .map(
           (BookingCancellationReason item) =>
               '<option value="${_escapeHtml(item.id)}">${_escapeHtml(item.label(lang))}</option>',
@@ -1038,12 +1057,14 @@ class AdminBookingsController {
     final List<String> dayCards = <String>[];
     for (int offset = 0; offset < 14; offset++) {
       final DateTime date = startDate.add(Duration(days: offset));
-      final List<BookingModel> dayBookings = bookings.where((BookingModel item) {
+      final List<BookingModel> dayBookings = bookings
+          .where((BookingModel item) {
         return _sameDate(item.dateTime.toLocal(), date);
       }).toList(growable: false)
-        ..sort((BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime));
-      final bool isClosedDay =
-          workshop != null && workshop.schedule.closedWeekdays.contains(date.weekday);
+        ..sort((BookingModel a, BookingModel b) =>
+            a.dateTime.compareTo(b.dateTime));
+      final bool isClosedDay = workshop != null &&
+          workshop.schedule.closedWeekdays.contains(date.weekday);
       final String tagClass = isClosedDay
           ? 'closed'
           : dayBookings.isEmpty
@@ -1063,7 +1084,9 @@ class AdminBookingsController {
           : _text(
               lang,
               'calendarFirstAppointment',
-              <String, Object>{'time': _formatClock(dayBookings.first.dateTime)},
+              <String, Object>{
+                'time': _formatClock(dayBookings.first.dateTime)
+              },
             );
       final Uri dayUri = _adminBookingsUri(
         lang: lang,
@@ -1082,10 +1105,12 @@ class AdminBookingsController {
 ''');
     }
 
-    final List<BookingModel> selectedDayBookings = bookings.where((BookingModel item) {
+    final List<BookingModel> selectedDayBookings = bookings
+        .where((BookingModel item) {
       return _sameDate(item.dateTime.toLocal(), selectedDate);
     }).toList(growable: false)
-      ..sort((BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime));
+      ..sort(
+          (BookingModel a, BookingModel b) => a.dateTime.compareTo(b.dateTime));
     final String agendaHtml = selectedDayBookings.isEmpty
         ? '''
 <section class="empty-card">
@@ -1119,8 +1144,82 @@ class AdminBookingsController {
   <p class="muted">${_escapeHtml(_text(lang, 'calendarDescription'))}</p>
   <div class="calendar-strip">${dayCards.join()}</div>
   <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarSelectedEyebrow'))}</div>
-  <h3>${_escapeHtml(_text(lang, 'calendarSelectedTitle', <String, Object>{'date': _formatShortDate(selectedDate)}))}</h3>
+  <h3>${_escapeHtml(_text(lang, 'calendarSelectedTitle', <String, Object>{
+          'date': _formatShortDate(selectedDate)
+        }))}</h3>
   <div class="agenda-list">$agendaHtml</div>
+</section>
+''';
+  }
+
+  String _analyticsSectionHtml({
+    required String lang,
+    required BookingAnalyticsSummary analytics,
+  }) {
+    final String topServices = analytics.topServices.isEmpty
+        ? '<div class="muted">${_escapeHtml(_text(lang, 'analyticsNoData'))}</div>'
+        : analytics.topServices.map((BookingAnalyticsSegment item) {
+            return '''
+<div class="meta-card">
+  <strong>${_escapeHtml(item.label)}</strong>
+  <div class="muted">${_escapeHtml(_text(lang, 'analyticsBookingsCount', <String, Object>{
+                  'count': item.bookingCount
+                }))}</div>
+  <div class="muted">${_escapeHtml(formatMoneyUzs(item.revenue))}</div>
+</div>
+''';
+          }).join();
+    final String topVehicles = analytics.topVehicles.isEmpty
+        ? '<div class="muted">${_escapeHtml(_text(lang, 'analyticsNoData'))}</div>'
+        : analytics.topVehicles.map((BookingAnalyticsSegment item) {
+            return '''
+<div class="meta-card">
+  <strong>${_escapeHtml(item.label)}</strong>
+  <div class="muted">${_escapeHtml(_text(lang, 'analyticsBookingsCount', <String, Object>{
+                  'count': item.bookingCount
+                }))}</div>
+  <div class="muted">${_escapeHtml(formatMoneyUzs(item.revenue))}</div>
+</div>
+''';
+          }).join();
+
+    return '''
+<section class="filter-card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsEyebrow'))}</div>
+  <h3>${_escapeHtml(_text(lang, 'analyticsTitle'))}</h3>
+  <p class="muted">${_escapeHtml(_text(lang, 'analyticsDescription'))}</p>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsCompletedRevenue'))}</div>
+      <strong>${_escapeHtml(formatMoneyUzs(analytics.completedRevenue))}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'statCompletedSub'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsPrepaymentCollected'))}</div>
+      <strong>${_escapeHtml(formatMoneyUzs(analytics.prepaymentCollected))}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'paymentStatusPaid'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsScheduledToday'))}</div>
+      <strong>${analytics.scheduledTodayCount}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'statusUpcoming'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsCreatedToday'))}</div>
+      <strong>${analytics.createdTodayCount}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'statAllSub'))}</div>
+    </div>
+  </div>
+  <div class="meta-grid">
+    <div class="meta-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsTopServices'))}</div>
+      $topServices
+    </div>
+    <div class="meta-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsTopVehicles'))}</div>
+      $topVehicles
+    </div>
+  </div>
 </section>
 ''';
   }
@@ -1361,8 +1460,8 @@ class AdminBookingsController {
   }
 
   String _vehicleSummary(BookingModel booking, String lang) {
-    final String vehicleType = vehicleTypePricingById(booking.vehicleTypeId)
-        .label(lang);
+    final String vehicleType =
+        vehicleTypePricingById(booking.vehicleTypeId).label(lang);
     final String vehicleModel = booking.vehicleModel.trim();
     if (vehicleModel.isEmpty) {
       return vehicleType;
@@ -1420,6 +1519,19 @@ class AdminBookingsController {
         return 'status-completed';
       case BookingStatus.cancelled:
         return 'status-cancelled';
+    }
+  }
+
+  String _paymentStatusLabel(BookingPaymentStatus status, String lang) {
+    switch (status) {
+      case BookingPaymentStatus.pending:
+        return _text(lang, 'paymentStatusPending');
+      case BookingPaymentStatus.paid:
+        return _text(lang, 'paymentStatusPaid');
+      case BookingPaymentStatus.refunded:
+        return _text(lang, 'paymentStatusRefunded');
+      case BookingPaymentStatus.notRequired:
+        return _text(lang, 'paymentStatusNotRequired');
     }
   }
 
@@ -1519,6 +1631,14 @@ class AdminBookingsController {
       'vehicleLabel': 'Mashina',
       'priceLabel': 'Narx',
       'basePriceLabel': 'Bazaviy narx',
+      'prepaymentLabel': 'Avans',
+      'remainingPaymentLabel': 'Qolgani',
+      'paymentStatusLabel': 'To‘lov holati',
+      'paymentMethodLabel': 'To‘lov usuli',
+      'paymentStatusPending': 'Kutilmoqda',
+      'paymentStatusPaid': 'To‘langan',
+      'paymentStatusRefunded': 'Qaytarilgan',
+      'paymentStatusNotRequired': 'Talab qilinmaydi',
       'appointmentLabel': 'Bron vaqti',
       'createdLabel': 'Tushgan vaqt',
       'ownerInboxLink': 'Shu ustaxona zakazlari',
@@ -1528,13 +1648,29 @@ class AdminBookingsController {
       'rescheduleDateLabel': 'Yangi bron vaqti',
       'rescheduleDateRequired': 'Ko‘chirish uchun yangi vaqtni tanlang',
       'rescheduledFromLabel': 'Oldingi vaqt',
+      'rescheduledByLabel': 'Ko‘chirdi',
+      'rescheduledAtLabel': 'Ko‘chirilgan vaqt',
+      'completedAtLabel': 'Yakunlangan vaqt',
       'cancelButton': 'Bekor qilish',
       'cancelReasonLabel': 'Bekor qilish sababi',
       'cancelledByLabel': 'Bekor qildi',
+      'cancelledAtLabel': 'Bekor qilingan vaqt',
       'cancelGuardHint':
           'Bekor qilish faqat bron vaqtigacha kamida {minutes} daqiqa qolganda mumkin.',
       'noFurtherActions': 'Bu zakaz uchun qo‘shimcha amal yo‘q.',
       'unknownReason': 'Ko‘rsatilmagan',
+      'analyticsEyebrow': 'Zakaz analitikasi',
+      'analyticsTitle': 'Tushum va yuklama ko‘rinishi',
+      'analyticsDescription':
+          'Filtrlangan zakazlar bo‘yicha tushum, avans va eng ko‘p kelayotgan yo‘nalishlar shu yerda jamlanadi.',
+      'analyticsCompletedRevenue': 'Yakunlangan tushum',
+      'analyticsPrepaymentCollected': 'Yig‘ilgan avans',
+      'analyticsScheduledToday': 'Bugungi bronlar',
+      'analyticsCreatedToday': 'Bugun tushgan',
+      'analyticsTopServices': 'Top xizmatlar',
+      'analyticsTopVehicles': 'Top mashinalar',
+      'analyticsNoData': 'Hozircha yetarli ma’lumot yo‘q.',
+      'analyticsBookingsCount': '{count} ta zakaz',
     },
     'ru': <String, String>{
       'pageTitle': 'Панель заказов Usta Top',
@@ -1613,6 +1749,14 @@ class AdminBookingsController {
       'vehicleLabel': 'Машина',
       'priceLabel': 'Цена',
       'basePriceLabel': 'Базовая цена',
+      'prepaymentLabel': 'Аванс',
+      'remainingPaymentLabel': 'Остаток',
+      'paymentStatusLabel': 'Статус оплаты',
+      'paymentMethodLabel': 'Способ оплаты',
+      'paymentStatusPending': 'Ожидает',
+      'paymentStatusPaid': 'Оплачено',
+      'paymentStatusRefunded': 'Возвращено',
+      'paymentStatusNotRequired': 'Не требуется',
       'appointmentLabel': 'Время записи',
       'createdLabel': 'Время поступления',
       'ownerInboxLink': 'Заказы этого автосервиса',
@@ -1622,13 +1766,29 @@ class AdminBookingsController {
       'rescheduleDateLabel': 'Новое время записи',
       'rescheduleDateRequired': 'Выберите новое время для переноса',
       'rescheduledFromLabel': 'Старое время',
+      'rescheduledByLabel': 'Перенес',
+      'rescheduledAtLabel': 'Перенесено в',
+      'completedAtLabel': 'Завершено в',
       'cancelButton': 'Отменить заказ',
       'cancelReasonLabel': 'Причина отмены',
       'cancelledByLabel': 'Кто отменил',
+      'cancelledAtLabel': 'Отменено в',
       'cancelGuardHint':
           'Отмена доступна только если до записи осталось не меньше {minutes} минут.',
       'noFurtherActions': 'Для этого заказа больше нет доступных действий.',
       'unknownReason': 'Не указано',
+      'analyticsEyebrow': 'Аналитика заказов',
+      'analyticsTitle': 'Срез по выручке и нагрузке',
+      'analyticsDescription':
+          'Здесь собраны выручка, авансы и самые частые направления по отфильтрованным заказам.',
+      'analyticsCompletedRevenue': 'Выручка по завершенным',
+      'analyticsPrepaymentCollected': 'Собранный аванс',
+      'analyticsScheduledToday': 'Брони на сегодня',
+      'analyticsCreatedToday': 'Создано сегодня',
+      'analyticsTopServices': 'Топ услуг',
+      'analyticsTopVehicles': 'Топ машин',
+      'analyticsNoData': 'Пока недостаточно данных.',
+      'analyticsBookingsCount': '{count} заказов',
     },
     'en': <String, String>{
       'pageTitle': 'Usta Top Orders Panel',
@@ -1682,7 +1842,8 @@ class AdminBookingsController {
       'statCancelledSub': 'Orders that were cancelled.',
       'filterEyebrow': 'Search and Filters',
       'searchLabel': 'Search by customer, phone, service, or ID',
-      'searchPlaceholder': 'For example: Tokhirjon, Cobalt, sedan, diagnostics...',
+      'searchPlaceholder':
+          'For example: Tokhirjon, Cobalt, sedan, diagnostics...',
       'workshopFilter': 'Workshop filter',
       'allWorkshops': 'All workshops',
       'statusFilter': 'Status filter',
@@ -1708,6 +1869,14 @@ class AdminBookingsController {
       'vehicleLabel': 'Vehicle',
       'priceLabel': 'Price',
       'basePriceLabel': 'Base price',
+      'prepaymentLabel': 'Prepayment',
+      'remainingPaymentLabel': 'Remaining',
+      'paymentStatusLabel': 'Payment status',
+      'paymentMethodLabel': 'Payment method',
+      'paymentStatusPending': 'Pending',
+      'paymentStatusPaid': 'Paid',
+      'paymentStatusRefunded': 'Refunded',
+      'paymentStatusNotRequired': 'Not required',
       'appointmentLabel': 'Appointment time',
       'createdLabel': 'Received at',
       'ownerInboxLink': 'This workshop inbox',
@@ -1717,13 +1886,29 @@ class AdminBookingsController {
       'rescheduleDateLabel': 'New appointment time',
       'rescheduleDateRequired': 'Choose a new appointment time',
       'rescheduledFromLabel': 'Previous time',
+      'rescheduledByLabel': 'Moved by',
+      'rescheduledAtLabel': 'Moved at',
+      'completedAtLabel': 'Completed at',
       'cancelButton': 'Cancel order',
       'cancelReasonLabel': 'Cancellation reason',
       'cancelledByLabel': 'Cancelled by',
+      'cancelledAtLabel': 'Cancelled at',
       'cancelGuardHint':
           'Cancellation is allowed only when at least {minutes} minutes remain before the appointment.',
       'noFurtherActions': 'No further actions are available for this order.',
       'unknownReason': 'Not specified',
+      'analyticsEyebrow': 'Order analytics',
+      'analyticsTitle': 'Revenue and workload snapshot',
+      'analyticsDescription':
+          'Revenue, prepayments, and the busiest service and vehicle segments are summarized here for the filtered orders.',
+      'analyticsCompletedRevenue': 'Completed revenue',
+      'analyticsPrepaymentCollected': 'Collected prepayments',
+      'analyticsScheduledToday': 'Scheduled today',
+      'analyticsCreatedToday': 'Created today',
+      'analyticsTopServices': 'Top services',
+      'analyticsTopVehicles': 'Top vehicles',
+      'analyticsNoData': 'Not enough data yet.',
+      'analyticsBookingsCount': '{count} orders',
     },
   };
 }

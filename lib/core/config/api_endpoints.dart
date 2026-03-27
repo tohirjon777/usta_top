@@ -22,6 +22,7 @@ abstract final class ApiEndpoints {
   static const String authForgotPassword = '/auth/forgot-password';
   static const String authPushToken = '/auth/push-token';
   static const String authPushTokenRemove = '/auth/push-token/remove';
+  static const String authPushTokenTest = '/auth/push-token/test';
 
   // TODO(API): GET /auth/me
   // Header: Authorization: Bearer <accessToken>
@@ -180,4 +181,7 @@ abstract final class ApiEndpoints {
   // }
   static String cancelBooking(String bookingId) =>
       '/bookings/$bookingId/cancel';
+
+  static String rescheduleBooking(String bookingId) =>
+      '/bookings/$bookingId/reschedule';
 }

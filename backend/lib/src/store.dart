@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'booking_cancellation.dart';
+import 'booking_payment_methods.dart';
 import 'models.dart';
 import 'vehicle_catalog.dart';
 import 'vehicle_types.dart';
@@ -195,6 +196,10 @@ class InMemoryStore {
         dateTime: now.add(const Duration(days: 1, hours: 2)),
         basePrice: 120,
         price: 120,
+        prepaymentPercent: 0,
+        prepaymentAmount: 0,
+        remainingAmount: 120,
+        paymentStatus: BookingPaymentStatus.notRequired,
         status: BookingStatus.upcoming,
         createdAt: now,
       ),
@@ -1623,6 +1628,7 @@ class InMemoryStore {
     bool isCustomVehicle = false,
     required String vehicleTypeId,
     required DateTime dateTime,
+    String paymentMethod = '',
   }) {
     final UserModel? user = _usersById[userId];
     if (user == null) {
@@ -1677,6 +1683,12 @@ class InMemoryStore {
       vehicleModelName: normalizedVehicleModelName,
       vehicleTypeId: vehicleType.id,
     );
+    final String normalizedPaymentMethod =
+        normalizeBookingPaymentMethod(paymentMethod);
+    if (quote.requiresPrepayment && normalizedPaymentMethod.isEmpty) {
+      throw StateError('Oldindan to‘lov usuli tanlanishi kerak');
+    }
+    final bool isTestCardPayment = normalizedPaymentMethod == 'test_card';
 
     final BookingModel booking = BookingModel(
       id: _newId('b'),
@@ -1693,8 +1705,18 @@ class InMemoryStore {
       dateTime: normalizedBookingDateTime,
       basePrice: quote.basePrice,
       price: quote.price,
+      prepaymentPercent: quote.prepaymentPercent,
+      prepaymentAmount: quote.prepaymentAmount,
+      remainingAmount: quote.remainingAmount,
+      paymentStatus: quote.requiresPrepayment
+          ? (isTestCardPayment
+              ? BookingPaymentStatus.paid
+              : BookingPaymentStatus.pending)
+          : BookingPaymentStatus.notRequired,
       status: BookingStatus.upcoming,
       createdAt: now,
+      paymentMethod: normalizedPaymentMethod,
+      paidAt: quote.requiresPrepayment && isTestCardPayment ? now : null,
     );
     _bookings.insert(0, booking);
     if (normalizedVehicleBrand.isNotEmpty &&
@@ -1714,6 +1736,10 @@ class InMemoryStore {
   ({
     int basePrice,
     int price,
+    int prepaymentPercent,
+    int prepaymentAmount,
+    int remainingAmount,
+    bool requiresPrepayment,
     VehiclePriceRuleModel? matchedRule,
   }) quoteWorkshopServicePrice({
     required String workshopId,
@@ -1767,17 +1793,28 @@ class InMemoryStore {
     }
 
     if (matchedRule != null) {
+      final int totalPrice = matchedRule.price;
+      final int prepaymentAmount = service.calculatePrepaymentAmount(totalPrice);
       return (
-        basePrice: matchedRule.price,
-        price: matchedRule.price,
+        basePrice: totalPrice,
+        price: totalPrice,
+        prepaymentPercent: service.prepaymentPercent,
+        prepaymentAmount: prepaymentAmount,
+        remainingAmount: totalPrice - prepaymentAmount,
+        requiresPrepayment: prepaymentAmount > 0,
         matchedRule: matchedRule,
       );
     }
 
     final int basePrice = service.price;
+    final int prepaymentAmount = service.calculatePrepaymentAmount(basePrice);
     return (
       basePrice: basePrice,
       price: basePrice,
+      prepaymentPercent: service.prepaymentPercent,
+      prepaymentAmount: prepaymentAmount,
+      remainingAmount: basePrice - prepaymentAmount,
+      requiresPrepayment: prepaymentAmount > 0,
       matchedRule: null,
     );
   }
@@ -1803,6 +1840,28 @@ class InMemoryStore {
     );
     _bookings[index] = updated;
     return updated;
+  }
+
+  BookingModel rescheduleBookingForUser({
+    required String userId,
+    required String bookingId,
+    required DateTime dateTime,
+  }) {
+    final int index = _bookings.indexWhere(
+      (BookingModel item) => item.id == bookingId && item.userId == userId,
+    );
+    if (index < 0) {
+      throw StateError('Buyurtma topilmadi');
+    }
+
+    final BookingModel current = _bookings[index];
+    _ensureCustomerRescheduleAllowed(current);
+    return _rescheduleBookingAtIndex(
+      index: index,
+      current: current,
+      dateTime: dateTime,
+      actorRole: 'customer',
+    );
   }
 
   BookingModel cancelBookingByAdmin({
@@ -2083,6 +2142,19 @@ class InMemoryStore {
         throw StateError('Yakunlangan buyurtmani ko‘chirib bo‘lmaydi');
       case BookingStatus.cancelled:
         throw StateError('Bekor qilingan buyurtmani ko‘chirib bo‘lmaydi');
+    }
+  }
+
+  void _ensureCustomerRescheduleAllowed(BookingModel booking) {
+    _ensureBookingRescheduleAllowed(booking);
+    final DateTime now = DateTime.now();
+    if (!booking.dateTime.isAfter(now)) {
+      throw StateError('Vaqti o‘tgan buyurtmani ko‘chirib bo‘lmaydi');
+    }
+    if (!booking.dateTime.isAfter(now.add(workshopCancellationLeadTime))) {
+      throw StateError(
+        'Buyurtmani faqat bron vaqtigacha kamida ${workshopCancellationLeadTime.inMinutes} daqiqa qolganda ko‘chirish mumkin',
+      );
     }
   }
 

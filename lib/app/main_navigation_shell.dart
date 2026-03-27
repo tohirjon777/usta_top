@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/localization/app_localizations.dart';
+import '../core/utils/formatters.dart';
 import '../models/app_navigation_intent.dart';
 import '../models/booking_cancellation_reason.dart';
 import '../models/booking_item.dart';
@@ -60,7 +61,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
   void dispose() {
     _bookingRefreshTimer?.cancel();
-    _appNavigationProvider.removeListener(_handlePendingNavigationIntentChanged);
+    _appNavigationProvider
+        .removeListener(_handlePendingNavigationIntentChanged);
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
@@ -96,7 +98,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           final WorkshopProvider workshopProvider =
               context.read<WorkshopProvider>();
           Salon? salon = workshopProvider.workshopById(intent.workshopId);
-          salon ??= await workshopProvider.refreshWorkshopById(intent.workshopId);
+          salon ??=
+              await workshopProvider.refreshWorkshopById(intent.workshopId);
           if (!mounted || salon == null) {
             return;
           }
@@ -226,6 +229,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     if (notifyOnTelegramCancellation &&
         previousSnapshots.isNotEmpty &&
         notificationSettingsProvider.isEnabled) {
+      String? message;
+
       final List<BookingItem> telegramCancelled =
           bookings.where((BookingItem item) {
         final BookingItem? previous = previousSnapshots[item.id];
@@ -237,10 +242,63 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
       if (telegramCancelled.isNotEmpty) {
         final BookingItem latest = telegramCancelled.first;
-        final String message = l10n.telegramCancellationNotice(
+        message = l10n.telegramCancellationNotice(
           latest.salonName,
           bookingCancellationReasonLabel(latest.cancelReasonId, l10n),
         );
+      } else {
+        final List<BookingItem> cancelledBookings =
+            bookings.where((BookingItem item) {
+          final BookingItem? previous = previousSnapshots[item.id];
+          return previous != null &&
+              previous.status != item.status &&
+              item.status == BookingStatus.cancelled;
+        }).toList(growable: false);
+        final List<BookingItem> rescheduledBookings =
+            bookings.where((BookingItem item) {
+          final BookingItem? previous = previousSnapshots[item.id];
+          return previous != null &&
+              item.status == BookingStatus.rescheduled &&
+              (previous.status != item.status ||
+                  previous.dateTime != item.dateTime);
+        }).toList(growable: false);
+        final List<BookingItem> acceptedBookings =
+            bookings.where((BookingItem item) {
+          final BookingItem? previous = previousSnapshots[item.id];
+          return previous != null &&
+              previous.status != item.status &&
+              item.status == BookingStatus.accepted;
+        }).toList(growable: false);
+        final List<BookingItem> completedBookings =
+            bookings.where((BookingItem item) {
+          final BookingItem? previous = previousSnapshots[item.id];
+          return previous != null &&
+              previous.status != item.status &&
+              item.status == BookingStatus.completed;
+        }).toList(growable: false);
+
+        if (cancelledBookings.isNotEmpty) {
+          final BookingItem latest = cancelledBookings.first;
+          message = l10n.bookingCancelledNotice(
+            latest.salonName,
+            bookingCancellationReasonLabel(latest.cancelReasonId, l10n),
+          );
+        } else if (rescheduledBookings.isNotEmpty) {
+          final BookingItem latest = rescheduledBookings.first;
+          message = l10n.bookingRescheduledNotice(
+            latest.salonName,
+            AppFormatters.dateTime(latest.dateTime),
+          );
+        } else if (acceptedBookings.isNotEmpty) {
+          message =
+              l10n.bookingAcceptedNotice(acceptedBookings.first.salonName);
+        } else if (completedBookings.isNotEmpty) {
+          message =
+              l10n.bookingCompletedNotice(completedBookings.first.salonName);
+        }
+      }
+
+      if (message != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -310,7 +368,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
     _isReviewPromptOpen = true;
     try {
-      final WorkshopProvider workshopProvider = context.read<WorkshopProvider>();
+      final WorkshopProvider workshopProvider =
+          context.read<WorkshopProvider>();
       final AppLocalizations l10n = AppLocalizations.of(context);
       Salon? salon = workshopProvider.workshopById(booking.workshopId);
       salon ??= await workshopProvider.refreshWorkshopById(booking.workshopId);

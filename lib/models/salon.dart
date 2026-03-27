@@ -6,12 +6,14 @@ class SalonService {
     required this.name,
     required this.price,
     required this.durationMinutes,
+    this.prepaymentPercent = 0,
   });
 
   final String id;
   final String name;
   final int price;
   final int durationMinutes;
+  final int prepaymentPercent;
 
   factory SalonService.fromJson(Map<String, dynamic> json) {
     // TODO(API): service object quyidagi kalitlarni yuborishi kerak:
@@ -21,7 +23,27 @@ class SalonService {
       name: (json['name'] ?? '').toString(),
       price: _toInt(json['price']),
       durationMinutes: _toInt(json['durationMinutes']),
+      prepaymentPercent: _normalizePrepaymentPercent(
+        _toInt(json['prepaymentPercent']),
+      ),
     );
+  }
+
+  int calculatePrepaymentAmount(int totalPrice) {
+    if (prepaymentPercent <= 0 || totalPrice <= 0) {
+      return 0;
+    }
+    return ((totalPrice * prepaymentPercent) / 100).ceil();
+  }
+
+  static int _normalizePrepaymentPercent(int value) {
+    if (value <= 0) {
+      return 0;
+    }
+    if (value >= 100) {
+      return 100;
+    }
+    return value;
   }
 
   static int _toInt(Object? value) {

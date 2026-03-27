@@ -4,6 +4,8 @@ import 'vehicle_types.dart';
 
 enum BookingStatus { upcoming, accepted, rescheduled, completed, cancelled }
 
+enum BookingPaymentStatus { notRequired, pending, paid, refunded }
+
 enum BookingChatSenderRole { customer, workshopOwner }
 
 class WorkshopScheduleModel {
@@ -279,24 +281,28 @@ class ServiceModel {
     required this.name,
     required this.price,
     required this.durationMinutes,
+    this.prepaymentPercent = 0,
   });
 
   final String id;
   final String name;
   final int price;
   final int durationMinutes;
+  final int prepaymentPercent;
 
   ServiceModel copyWith({
     String? id,
     String? name,
     int? price,
     int? durationMinutes,
+    int? prepaymentPercent,
   }) {
     return ServiceModel(
       id: id ?? this.id,
       name: name ?? this.name,
       price: price ?? this.price,
       durationMinutes: durationMinutes ?? this.durationMinutes,
+      prepaymentPercent: prepaymentPercent ?? this.prepaymentPercent,
     );
   }
 
@@ -306,6 +312,9 @@ class ServiceModel {
       name: (json['name'] ?? '').toString(),
       price: _toInt(json['price']),
       durationMinutes: _toInt(json['durationMinutes']),
+      prepaymentPercent: _normalizePrepaymentPercent(
+        _toInt(json['prepaymentPercent']),
+      ),
     );
   }
 
@@ -315,6 +324,7 @@ class ServiceModel {
       'name': name,
       'price': price,
       'durationMinutes': durationMinutes,
+      'prepaymentPercent': prepaymentPercent,
     };
   }
 
@@ -327,7 +337,25 @@ class ServiceModel {
       'price': displayPrice,
       'basePrice': price,
       'durationMinutes': durationMinutes,
+      'prepaymentPercent': prepaymentPercent,
     };
+  }
+
+  int calculatePrepaymentAmount(int totalPrice) {
+    if (prepaymentPercent <= 0 || totalPrice <= 0) {
+      return 0;
+    }
+    return ((totalPrice * prepaymentPercent) / 100).ceil();
+  }
+
+  static int _normalizePrepaymentPercent(int value) {
+    if (value <= 0) {
+      return 0;
+    }
+    if (value >= 100) {
+      return 100;
+    }
+    return value;
   }
 
   static int _toInt(Object? value) {
@@ -718,6 +746,10 @@ class BookingModel {
     required this.dateTime,
     required this.basePrice,
     required this.price,
+    required this.prepaymentPercent,
+    required this.prepaymentAmount,
+    required this.remainingAmount,
+    required this.paymentStatus,
     required this.status,
     required this.createdAt,
     this.completedAt,
@@ -727,6 +759,8 @@ class BookingModel {
     this.reviewReminderSentAt,
     this.customerReminderSentAt,
     this.workshopReminderSentAt,
+    this.paymentMethod = '',
+    this.paidAt,
     this.cancelReasonId = '',
     this.cancelledByRole = '',
     this.cancelledAt,
@@ -746,6 +780,10 @@ class BookingModel {
   final DateTime dateTime;
   final int basePrice;
   final int price;
+  final int prepaymentPercent;
+  final int prepaymentAmount;
+  final int remainingAmount;
+  final BookingPaymentStatus paymentStatus;
   final BookingStatus status;
   final DateTime createdAt;
   final DateTime? completedAt;
@@ -755,6 +793,8 @@ class BookingModel {
   final DateTime? reviewReminderSentAt;
   final DateTime? customerReminderSentAt;
   final DateTime? workshopReminderSentAt;
+  final String paymentMethod;
+  final DateTime? paidAt;
   final String cancelReasonId;
   final String cancelledByRole;
   final DateTime? cancelledAt;
@@ -762,6 +802,10 @@ class BookingModel {
   BookingModel copyWith({
     DateTime? dateTime,
     BookingStatus? status,
+    int? prepaymentPercent,
+    int? prepaymentAmount,
+    int? remainingAmount,
+    BookingPaymentStatus? paymentStatus,
     Object? completedAt = _bookingModelUnset,
     Object? previousDateTime = _bookingModelUnset,
     Object? rescheduledAt = _bookingModelUnset,
@@ -769,6 +813,8 @@ class BookingModel {
     Object? reviewReminderSentAt = _bookingModelUnset,
     Object? customerReminderSentAt = _bookingModelUnset,
     Object? workshopReminderSentAt = _bookingModelUnset,
+    String? paymentMethod,
+    Object? paidAt = _bookingModelUnset,
     String? cancelReasonId,
     String? cancelledByRole,
     Object? cancelledAt = _bookingModelUnset,
@@ -788,6 +834,10 @@ class BookingModel {
       dateTime: dateTime ?? this.dateTime,
       basePrice: basePrice,
       price: price,
+      prepaymentPercent: prepaymentPercent ?? this.prepaymentPercent,
+      prepaymentAmount: prepaymentAmount ?? this.prepaymentAmount,
+      remainingAmount: remainingAmount ?? this.remainingAmount,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
       status: status ?? this.status,
       createdAt: createdAt,
       completedAt: identical(completedAt, _bookingModelUnset)
@@ -811,6 +861,10 @@ class BookingModel {
           identical(workshopReminderSentAt, _bookingModelUnset)
               ? this.workshopReminderSentAt
               : workshopReminderSentAt as DateTime?,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paidAt: identical(paidAt, _bookingModelUnset)
+          ? this.paidAt
+          : paidAt as DateTime?,
       cancelReasonId: cancelReasonId ?? this.cancelReasonId,
       cancelledByRole: cancelledByRole ?? this.cancelledByRole,
       cancelledAt: identical(cancelledAt, _bookingModelUnset)
@@ -840,6 +894,14 @@ class BookingModel {
           ? _toInt(json['price'])
           : _toInt(json['basePrice']),
       price: _toInt(json['price']),
+      prepaymentPercent: ServiceModel._normalizePrepaymentPercent(
+        _toInt(json['prepaymentPercent']),
+      ),
+      prepaymentAmount: _toInt(json['prepaymentAmount']),
+      remainingAmount: _toInt(json['remainingAmount']),
+      paymentStatus: _bookingPaymentStatusFromString(
+        (json['paymentStatus'] ?? '').toString(),
+      ),
       status: _bookingStatusFromString((json['status'] ?? '').toString()),
       createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
@@ -857,6 +919,8 @@ class BookingModel {
       workshopReminderSentAt: DateTime.tryParse(
         (json['workshopReminderSentAt'] ?? '').toString(),
       ),
+      paymentMethod: (json['paymentMethod'] ?? '').toString().trim(),
+      paidAt: DateTime.tryParse((json['paidAt'] ?? '').toString()),
       cancelReasonId: normalizeBookingCancellationReasonId(
         (json['cancelReasonId'] ?? '').toString(),
       ),
@@ -883,6 +947,10 @@ class BookingModel {
       'dateTime': dateTime.toUtc().toIso8601String(),
       'basePrice': basePrice,
       'price': price,
+      'prepaymentPercent': prepaymentPercent,
+      'prepaymentAmount': prepaymentAmount,
+      'remainingAmount': remainingAmount,
+      'paymentStatus': paymentStatus.name,
       'status': status.name,
       'createdAt': createdAt.toUtc().toIso8601String(),
       if (completedAt != null)
@@ -901,6 +969,8 @@ class BookingModel {
       if (workshopReminderSentAt != null)
         'workshopReminderSentAt':
             workshopReminderSentAt!.toUtc().toIso8601String(),
+      if (paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
+      if (paidAt != null) 'paidAt': paidAt!.toUtc().toIso8601String(),
       if (cancelReasonId.isNotEmpty) 'cancelReasonId': cancelReasonId,
       if (cancelledByRole.isNotEmpty) 'cancelledByRole': cancelledByRole,
       if (cancelledAt != null)
@@ -933,6 +1003,21 @@ class BookingModel {
       case 'upcoming':
       default:
         return BookingStatus.upcoming;
+    }
+  }
+
+  static BookingPaymentStatus _bookingPaymentStatusFromString(String raw) {
+    switch (raw.toLowerCase()) {
+      case 'pending':
+        return BookingPaymentStatus.pending;
+      case 'paid':
+        return BookingPaymentStatus.paid;
+      case 'refunded':
+        return BookingPaymentStatus.refunded;
+      case 'notrequired':
+      case 'not_required':
+      default:
+        return BookingPaymentStatus.notRequired;
     }
   }
 }

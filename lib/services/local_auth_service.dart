@@ -140,6 +140,11 @@ class LocalAuthService implements AuthService {
     required String token,
   }) async {}
 
+  @override
+  Future<void> sendTestPush({
+    required String accessToken,
+  }) async {}
+
   void _createSeedUser(
     AuthUser user, {
     required String password,

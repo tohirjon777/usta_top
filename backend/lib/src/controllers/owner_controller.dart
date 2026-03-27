@@ -5,7 +5,9 @@ import 'dart:typed_data';
 
 import 'package:shelf/shelf.dart';
 
+import '../booking_analytics.dart';
 import '../booking_cancellation.dart';
+import '../booking_payment_methods.dart';
 import '../money.dart';
 import '../models.dart';
 import '../owner_auth.dart';
@@ -587,6 +589,9 @@ class OwnerController {
         _normalizeStatus(request.url.queryParameters['status']);
     final DateTime calendarDate =
         _parseCalendarDate(request.url.queryParameters['date']);
+    final List<BookingModel> workshopBookings = _store.bookings(
+      workshopId: workshop.id,
+    );
     final List<BookingModel> bookings = _store.bookings(
       workshopId: workshop.id,
       status: status == 'all' ? null : _statusFromRaw(status),
@@ -606,6 +611,10 @@ class OwnerController {
     final int cancelledCount = _store
         .bookings(workshopId: workshop.id, status: BookingStatus.cancelled)
         .length;
+    final List<BookingModel> analyticsBookings =
+        status == 'all' ? workshopBookings : bookings;
+    final BookingAnalyticsSummary bookingAnalytics =
+        buildBookingAnalytics(analyticsBookings);
     final List<WorkshopReviewModel> reviews = _store
         .reviewsForWorkshop(workshopId: workshop.id)
         .toList(growable: false)
@@ -615,9 +624,8 @@ class OwnerController {
         }
         return a.hasOwnerReply ? 1 : -1;
       });
-    final int pendingReviewCount = reviews
-        .where((WorkshopReviewModel item) => !item.hasOwnerReply)
-        .length;
+    final int pendingReviewCount =
+        reviews.where((WorkshopReviewModel item) => !item.hasOwnerReply).length;
     final int repliedReviewCount = reviews.length - pendingReviewCount;
     final ReviewAnalyticsSummary reviewAnalytics = buildReviewAnalytics(
       reviews,
@@ -669,6 +677,10 @@ class OwnerController {
       lang: lang,
       status: status,
       selectedDate: calendarDate,
+    );
+    final String bookingAnalyticsSection = _bookingAnalyticsSectionHtml(
+      analytics: bookingAnalytics,
+      lang: lang,
     );
 
     final String bookingCards = bookings.isEmpty
@@ -731,8 +743,10 @@ class OwnerController {
 	      ${_statusActionsHtml(item, lang, status)}
 	    </div>
 	  </div>
-	  ${item.status == BookingStatus.rescheduled && item.previousDateTime != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'rescheduledFromLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.previousDateTime!))}</strong></div>' : ''}
-	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong> · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
+	  ${item.status == BookingStatus.rescheduled && item.previousDateTime != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'rescheduledFromLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.previousDateTime!))}</strong>${item.rescheduledByRole.isNotEmpty ? ' · ${_escapeHtml(_text(lang, 'rescheduledByLabel'))}: <strong>${_escapeHtml(bookingRescheduleActorLabel(item.rescheduledByRole, lang))}</strong>' : ''}${item.rescheduledAt != null ? ' · ${_escapeHtml(_text(lang, 'rescheduledAtLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.rescheduledAt!))}</strong>' : ''}</div>' : ''}
+	  ${item.status == BookingStatus.completed && item.completedAt != null ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'completedAtLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.completedAt!))}</strong></div>' : ''}
+	  <div class="cancel-meta">${_escapeHtml(_text(lang, 'paymentStatusLabel'))}: <strong>${_escapeHtml(_paymentStatusLabel(item.paymentStatus, lang))}</strong>${item.prepaymentAmount > 0 ? ' · ${_escapeHtml(_text(lang, 'prepaymentLabel'))}: <strong>${_escapeHtml(formatMoneyUzs(item.prepaymentAmount))}</strong> · ${_escapeHtml(_text(lang, 'remainingPaymentLabel'))}: <strong>${_escapeHtml(formatMoneyUzs(item.remainingAmount))}</strong>' : ''}${item.paymentMethod.trim().isNotEmpty ? ' · ${_escapeHtml(_text(lang, 'paymentMethodLabel'))}: <strong>${_escapeHtml(bookingPaymentMethodLabel(item.paymentMethod, lang: lang))}</strong>' : ''}</div>
+	  ${item.status == BookingStatus.cancelled ? '<div class="cancel-meta">${_escapeHtml(_text(lang, 'cancelledByLabel'))}: <strong>${_escapeHtml(bookingCancellationActorLabel(item.cancelledByRole, lang))}</strong>${item.cancelledAt != null ? ' · ${_escapeHtml(_text(lang, 'cancelledAtLabel'))}: <strong>${_escapeHtml(_formatDateTime(item.cancelledAt!))}</strong>' : ''} · ${_escapeHtml(_text(lang, 'cancelReasonLabel'))}: <strong>${_escapeHtml(_cancellationReasonLabel(item, lang))}</strong></div>' : ''}
 	</article>
 	''';
           }).join();
@@ -1609,6 +1623,7 @@ class OwnerController {
     ${_flashHtml(message: message, error: error)}
 
     $calendarSection
+    $bookingAnalyticsSection
     $servicePricingCard
     $vehiclePricingCard
     $scheduleCard
@@ -1716,12 +1731,23 @@ class OwnerController {
         lang: lang,
         min: 1,
       );
+      final int nextPrepaymentPercent = _parseIntField(
+        form['prepaymentPercent'],
+        fieldLabel: _text(
+          lang,
+          'servicePrepaymentFieldLabel',
+          <String, Object>{'service': currentService.name},
+        ),
+        lang: lang,
+        min: 0,
+      ).clamp(0, 100);
 
       final List<ServiceModel> updatedServices = workshop.services
           .map((ServiceModel item) => item.id == currentService.id
               ? item.copyWith(
                   price: nextPrice,
                   durationMinutes: nextDurationMinutes,
+                  prepaymentPercent: nextPrepaymentPercent,
                 )
               : item)
           .toList(growable: false);
@@ -1741,6 +1767,7 @@ class OwnerController {
               'service': currentService.name,
               'price': formatMoneyUzs(nextPrice),
               'duration': '$nextDurationMinutes',
+              'prepayment': '$nextPrepaymentPercent',
             },
           ),
         ),
@@ -1963,11 +1990,11 @@ class OwnerController {
                       (throw StateError(_text(lang, 'rescheduleDateRequired'))),
                   actorRole: 'owner_panel',
                 )
-          : _store.updateWorkshopBookingStatus(
-              workshopId: workshopId,
-              bookingId: bookingId,
-              status: nextStatus,
-            );
+              : _store.updateWorkshopBookingStatus(
+                  workshopId: workshopId,
+                  bookingId: bookingId,
+                  status: nextStatus,
+                );
       await _store.saveBookings(bookingsFilePath);
       await _notifyWorkshopAboutStatusChange(updated);
       await _notifyUserAboutStatusChange(
@@ -2068,12 +2095,17 @@ class OwnerController {
               'serviceCurrentPriceLabel',
               <String, Object>{'price': formatMoneyUzs(service.price)},
             );
+            final String currentPrepaymentText = _text(
+              lang,
+              'serviceCurrentPrepaymentLabel',
+              <String, Object>{'percent': service.prepaymentPercent},
+            );
             return '''
 <form class="service-pricing-row" method="post" action="/owner/services/${Uri.encodeComponent(service.id)}/price?lang=${Uri.encodeQueryComponent(lang)}">
   $hiddenFields
   <div class="service-pricing-copy">
     <strong>${_escapeHtml(service.name)}</strong>
-    <div class="service-pricing-meta">${_escapeHtml(durationText)} • ${_escapeHtml(currentPriceText)}</div>
+    <div class="service-pricing-meta">${_escapeHtml(durationText)} • ${_escapeHtml(currentPriceText)} • ${_escapeHtml(currentPrepaymentText)}</div>
   </div>
   <div class="service-pricing-actions">
     <label class="service-pricing-field">
@@ -2083,6 +2115,10 @@ class OwnerController {
     <label class="service-pricing-field">
       <span>${_escapeHtml(_text(lang, 'serviceNewDurationLabel'))}</span>
       <input type="number" name="durationMinutes" min="1" step="1" value="${_escapeHtml(service.durationMinutes.toString())}" placeholder="${_escapeHtml(_text(lang, 'serviceDurationPlaceholder'))}">
+    </label>
+    <label class="service-pricing-field">
+      <span>${_escapeHtml(_text(lang, 'serviceNewPrepaymentLabel'))}</span>
+      <input type="number" name="prepaymentPercent" min="0" max="100" step="1" value="${_escapeHtml(service.prepaymentPercent.toString())}" placeholder="${_escapeHtml(_text(lang, 'servicePrepaymentPlaceholder'))}">
     </label>
     <button class="status-btn" type="submit">${_escapeHtml(_text(lang, 'servicePriceSave'))}</button>
   </div>
@@ -2326,7 +2362,8 @@ class OwnerController {
     final List<String> dayCards = <String>[];
     for (int offset = 0; offset < 14; offset++) {
       final DateTime date = startDate.add(Duration(days: offset));
-      final List<BookingModel> dayBookings = bookings.where((BookingModel item) {
+      final List<BookingModel> dayBookings = bookings
+          .where((BookingModel item) {
         return _sameDate(item.dateTime.toLocal(), date);
       }).toList(growable: false)
         ..sort(
@@ -2353,7 +2390,9 @@ class OwnerController {
           : _text(
               lang,
               'calendarFirstAppointment',
-              <String, Object>{'time': _formatClock(dayBookings.first.dateTime)},
+              <String, Object>{
+                'time': _formatClock(dayBookings.first.dateTime)
+              },
             );
       final Uri dayUri = _ownerBookingsUri(
         lang: lang,
@@ -2408,7 +2447,9 @@ class OwnerController {
   <p>${_escapeHtml(_text(lang, 'calendarDescription'))}</p>
   <div class="calendar-strip">${dayCards.join()}</div>
   <div class="eyebrow">${_escapeHtml(_text(lang, 'calendarSelectedEyebrow'))}</div>
-  <h3>${_escapeHtml(_text(lang, 'calendarSelectedTitle', <String, Object>{'date': _formatShortDate(selectedDate)}))}</h3>
+  <h3>${_escapeHtml(_text(lang, 'calendarSelectedTitle', <String, Object>{
+          'date': _formatShortDate(selectedDate)
+        }))}</h3>
   <div class="agenda-list">$agendaHtml</div>
 </section>
 ''';
@@ -2477,10 +2518,12 @@ class OwnerController {
         ? '<section class="empty-card"><p>${_escapeHtml(_text(lang, 'reviewEmptyBody'))}</p></section>'
         : reviews.map((WorkshopReviewModel review) {
             final bool hasReply = review.hasOwnerReply;
-            final String customerLabel =
-                review.customerName.trim().isEmpty ? _text(lang, 'unknownCustomer') : review.customerName;
-            final String phoneLabel =
-                review.customerPhone.trim().isEmpty ? _text(lang, 'noPhone') : review.customerPhone;
+            final String customerLabel = review.customerName.trim().isEmpty
+                ? _text(lang, 'unknownCustomer')
+                : review.customerName;
+            final String phoneLabel = review.customerPhone.trim().isEmpty
+                ? _text(lang, 'noPhone')
+                : review.customerPhone;
             final String sourceLabel = hasReply
                 ? _reviewReplySourceLabel(review.ownerReplySource, lang)
                 : '';
@@ -2558,15 +2601,90 @@ class OwnerController {
 ''';
   }
 
+  String _bookingAnalyticsSectionHtml({
+    required BookingAnalyticsSummary analytics,
+    required String lang,
+  }) {
+    final String topServices = analytics.topServices.isEmpty
+        ? '<div class="muted">${_escapeHtml(_text(lang, 'analyticsNoData'))}</div>'
+        : analytics.topServices.map((BookingAnalyticsSegment item) {
+            return '''
+<div class="meta-card">
+  <strong>${_escapeHtml(item.label)}</strong>
+  <div class="muted">${_escapeHtml(_text(lang, 'analyticsBookingsCount', <String, Object>{
+                  'count': item.bookingCount
+                }))}</div>
+  <div class="muted">${_escapeHtml(formatMoneyUzs(item.revenue))}</div>
+</div>
+''';
+          }).join();
+    final String topVehicles = analytics.topVehicles.isEmpty
+        ? '<div class="muted">${_escapeHtml(_text(lang, 'analyticsNoData'))}</div>'
+        : analytics.topVehicles.map((BookingAnalyticsSegment item) {
+            return '''
+<div class="meta-card">
+  <strong>${_escapeHtml(item.label)}</strong>
+  <div class="muted">${_escapeHtml(_text(lang, 'analyticsBookingsCount', <String, Object>{
+                  'count': item.bookingCount
+                }))}</div>
+  <div class="muted">${_escapeHtml(formatMoneyUzs(item.revenue))}</div>
+</div>
+''';
+          }).join();
+
+    return '''
+<section class="card">
+  <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsEyebrow'))}</div>
+  <h2>${_escapeHtml(_text(lang, 'analyticsTitle'))}</h2>
+  <p>${_escapeHtml(_text(lang, 'analyticsDescription'))}</p>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsCompletedRevenue'))}</div>
+      <strong>${_escapeHtml(formatMoneyUzs(analytics.completedRevenue))}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'completedHint'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsPrepaymentCollected'))}</div>
+      <strong>${_escapeHtml(formatMoneyUzs(analytics.prepaymentCollected))}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'paymentStatusPaid'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsScheduledToday'))}</div>
+      <strong>${analytics.scheduledTodayCount}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'statusUpcoming'))}</div>
+    </div>
+    <div class="stat-card">
+      <div class="eyebrow">${_escapeHtml(_text(lang, 'analyticsCreatedToday'))}</div>
+      <strong>${analytics.createdTodayCount}</strong>
+      <div class="muted">${_escapeHtml(_text(lang, 'panelTitle'))}</div>
+    </div>
+  </div>
+  <div class="meta-grid">
+    <div class="meta-card">
+      <span>${_escapeHtml(_text(lang, 'analyticsTopServices'))}</span>
+      $topServices
+    </div>
+    <div class="meta-card">
+      <span>${_escapeHtml(_text(lang, 'analyticsTopVehicles'))}</span>
+      $topVehicles
+    </div>
+  </div>
+</section>
+''';
+  }
+
   String _reviewAnalyticsSectionHtml({
     required ReviewAnalyticsSummary analytics,
     required String lang,
   }) {
-    final String ratingRows = analytics.starBuckets.map((ReviewStarBucket bucket) {
+    final String ratingRows =
+        analytics.starBuckets.map((ReviewStarBucket bucket) {
       final double widthPercent = bucket.share <= 0 ? 0 : bucket.share * 100;
       return '''
 <div class="review-analytics-row">
-  <span>${_escapeHtml(_text(lang, 'reviewAnalyticsStars', <String, Object>{'stars': bucket.stars}))}</span>
+  <span>${_escapeHtml(_text(lang, 'reviewAnalyticsStars', <String, Object>{
+            'stars': bucket.stars
+          }))}</span>
   <div class="review-analytics-bar"><div class="review-analytics-fill" style="width: ${widthPercent.toStringAsFixed(1)}%;"></div></div>
   <strong>${bucket.count}</strong>
 </div>
@@ -2580,7 +2698,9 @@ class OwnerController {
 <div class="review-analytics-item">
   <strong>${_escapeHtml(segment.label)}</strong>
   <div class="review-analytics-meta">
-    <span>${_escapeHtml(_text(lang, 'reviewAnalyticsCount', <String, Object>{'count': segment.reviewCount}))}</span>
+    <span>${_escapeHtml(_text(lang, 'reviewAnalyticsCount', <String, Object>{
+                  'count': segment.reviewCount
+                }))}</span>
     <span>${segment.averageRating.toStringAsFixed(1)} / 5</span>
   </div>
 </div>
@@ -2592,7 +2712,9 @@ class OwnerController {
   <div class="review-analytics-card">
     <div class="eyebrow">${_escapeHtml(_text(lang, 'reviewAnalyticsEyebrow'))}</div>
     <strong>${analytics.totalReviews == 0 ? '0.0' : analytics.averageRating.toStringAsFixed(1)} / 5</strong>
-    <div class="muted">${_escapeHtml(_text(lang, 'reviewAnalyticsSummary', <String, Object>{'count': analytics.totalReviews}))}</div>
+    <div class="muted">${_escapeHtml(_text(lang, 'reviewAnalyticsSummary', <String, Object>{
+          'count': analytics.totalReviews
+        }))}</div>
     $ratingRows
   </div>
   <div class="review-analytics-card">
@@ -3042,7 +3164,8 @@ class OwnerController {
               error.message,
             );
           } on Exception catch (error) {
-            stderr.writeln('Telegram reschedule variantlari yangilanmadi: $error');
+            stderr.writeln(
+                'Telegram reschedule variantlari yangilanmadi: $error');
             await _safeAnswerTelegramCallback(
               action.callbackQueryId,
               'Variantlarni ochib bo‘lmadi',
@@ -3074,17 +3197,17 @@ class OwnerController {
                           (throw StateError('Yangi vaqt topilmadi')),
                       actorRole: 'owner_telegram',
                     )
-              : parsed.kind == 'accept'
-                  ? _store.updateWorkshopBookingStatus(
-                      workshopId: workshop.id,
-                      bookingId: booking.id,
-                      status: BookingStatus.accepted,
-                    )
-              : _store.updateWorkshopBookingStatus(
-                  workshopId: workshop.id,
-                  bookingId: booking.id,
-                  status: BookingStatus.completed,
-                );
+                  : parsed.kind == 'accept'
+                      ? _store.updateWorkshopBookingStatus(
+                          workshopId: workshop.id,
+                          bookingId: booking.id,
+                          status: BookingStatus.accepted,
+                        )
+                      : _store.updateWorkshopBookingStatus(
+                          workshopId: workshop.id,
+                          bookingId: booking.id,
+                          status: BookingStatus.completed,
+                        );
           await _safeRefreshTelegramBookingMessage(
             action,
             workshop: workshop,
@@ -3096,9 +3219,9 @@ class OwnerController {
                 ? 'Zakaz bekor qilindi'
                 : parsed.kind == 'pick_reschedule'
                     ? 'Zakaz yangi vaqtga ko‘chirildi'
-                : parsed.kind == 'accept'
-                    ? 'Zakaz qabul qilindi'
-                    : 'Zakaz bajarildi deb belgilandi',
+                    : parsed.kind == 'accept'
+                        ? 'Zakaz qabul qilindi'
+                        : 'Zakaz bajarildi deb belgilandi',
           );
           try {
             await notificationsService.sendBookingStatusNotification(
@@ -3785,10 +3908,9 @@ class OwnerController {
     if (breakStartTime.isNotEmpty && breakEndTime.isNotEmpty) {
       final int breakStartMinutes = _minutesFromTime(breakStartTime);
       final int breakEndMinutes = _minutesFromTime(breakEndTime);
-      final bool breakOutsideRange =
-          breakStartMinutes < openingMinutes ||
-              breakEndMinutes > closingMinutes ||
-              breakEndMinutes <= breakStartMinutes;
+      final bool breakOutsideRange = breakStartMinutes < openingMinutes ||
+          breakEndMinutes > closingMinutes ||
+          breakEndMinutes <= breakStartMinutes;
       if (breakOutsideRange) {
         throw FormatException(_text(lang, 'scheduleBreakRangeError'));
       }
@@ -3856,7 +3978,10 @@ class OwnerController {
     final List<int> result = <int>[];
     for (final String part in value.split(',')) {
       final int? weekday = int.tryParse(part.trim());
-      if (weekday == null || weekday < 1 || weekday > 7 || result.contains(weekday)) {
+      if (weekday == null ||
+          weekday < 1 ||
+          weekday > 7 ||
+          result.contains(weekday)) {
         continue;
       }
       result.add(weekday);
@@ -3977,6 +4102,19 @@ class OwnerController {
     }
   }
 
+  String _paymentStatusLabel(BookingPaymentStatus status, String lang) {
+    switch (status) {
+      case BookingPaymentStatus.pending:
+        return _text(lang, 'paymentStatusPending');
+      case BookingPaymentStatus.paid:
+        return _text(lang, 'paymentStatusPaid');
+      case BookingPaymentStatus.refunded:
+        return _text(lang, 'paymentStatusRefunded');
+      case BookingPaymentStatus.notRequired:
+        return _text(lang, 'paymentStatusNotRequired');
+    }
+  }
+
   String _reviewStars(int rating) {
     final int normalized = rating.clamp(1, 5);
     return List<String>.filled(normalized, '★').join();
@@ -4069,6 +4207,14 @@ class OwnerController {
       'appointmentLabel': 'Bron vaqti',
       'priceLabel': 'Narx',
       'basePriceLabel': 'Bazaviy narx',
+      'prepaymentLabel': 'Avans',
+      'remainingPaymentLabel': 'Qolgani',
+      'paymentStatusLabel': 'To‘lov holati',
+      'paymentMethodLabel': 'To‘lov usuli',
+      'paymentStatusPending': 'Kutilmoqda',
+      'paymentStatusPaid': 'To‘langan',
+      'paymentStatusRefunded': 'Qaytarilgan',
+      'paymentStatusNotRequired': 'Talab qilinmaydi',
       'createdLabel': 'Tushgan vaqt',
       'callCustomer': 'Mijozga qo‘ng‘iroq',
       'chatButton': 'Chat',
@@ -4108,15 +4254,19 @@ class OwnerController {
       'servicePricingEmpty': 'Bu ustaxonaga hali xizmatlar qo‘shilmagan.',
       'serviceDurationMinutes': '{minutes} daqiqa',
       'serviceCurrentPriceLabel': 'Joriy narx: {price}',
+      'serviceCurrentPrepaymentLabel': 'Avans: {percent}%',
       'serviceNewPriceLabel': 'Yangi narx',
       'serviceNewDurationLabel': 'Yangi davomiylik',
+      'serviceNewPrepaymentLabel': 'Yangi avans foizi',
       'servicePricePlaceholder': 'Masalan: 150000',
       'serviceDurationPlaceholder': 'Masalan: 45',
+      'servicePrepaymentPlaceholder': 'Masalan: 30',
       'servicePriceSave': 'Narxni saqlash',
       'serviceSettingsUpdated':
-          '{service} uchun narx {price}, davomiylik esa {duration} daqiqaga yangilandi',
+          '{service} uchun narx {price}, davomiylik {duration} daqiqa, avans esa {prepayment}% qilib yangilandi',
       'servicePriceFieldLabel': '{service} narxi',
       'serviceDurationFieldLabel': '{service} davomiyligi',
+      'servicePrepaymentFieldLabel': '{service} uchun avans foizi',
       'ownerServiceNotFound': 'Xizmat topilmadi',
       'pricingMatrixTitle': 'Mashina bo‘yicha narxlar',
       'pricingMatrixDescription':
@@ -4171,6 +4321,18 @@ class OwnerController {
       'calendarEmptyTitle': 'Bu kunda zakaz yo‘q',
       'calendarEmptyBody':
           'Tanlangan sanada hali hech qanday yozuv yo‘q yoki shu status bo‘yicha topilmadi.',
+      'analyticsEyebrow': 'Zakaz analitikasi',
+      'analyticsTitle': 'Tushum va yuklama kesimi',
+      'analyticsDescription':
+          'Ustaxonangiz bo‘yicha tushum, avans va eng ko‘p kelayotgan xizmat yoki mashina yo‘nalishlari shu yerda ko‘rinadi.',
+      'analyticsCompletedRevenue': 'Yakunlangan tushum',
+      'analyticsPrepaymentCollected': 'Yig‘ilgan avans',
+      'analyticsScheduledToday': 'Bugungi bronlar',
+      'analyticsCreatedToday': 'Bugun tushgan',
+      'analyticsTopServices': 'Top xizmatlar',
+      'analyticsTopVehicles': 'Top mashinalar',
+      'analyticsNoData': 'Hozircha yetarli ma’lumot yo‘q.',
+      'analyticsBookingsCount': '{count} ta zakaz',
       'weekdayShortMon': 'Du',
       'weekdayShortTue': 'Se',
       'weekdayShortWed': 'Cho',
@@ -4186,9 +4348,13 @@ class OwnerController {
       'rescheduleDateLabel': 'Yangi bron vaqti',
       'rescheduleDateRequired': 'Ko‘chirish uchun yangi vaqtni tanlang',
       'rescheduledFromLabel': 'Oldingi vaqt',
+      'rescheduledByLabel': 'Ko‘chirdi',
+      'rescheduledAtLabel': 'Ko‘chirilgan vaqt',
+      'completedAtLabel': 'Yakunlangan vaqt',
       'cancelButton': 'Bekor qilish',
       'cancelReasonLabel': 'Bekor qilish sababi',
       'cancelledByLabel': 'Bekor qildi',
+      'cancelledAtLabel': 'Bekor qilingan vaqt',
       'cancelGuardHint':
           'Bekor qilish faqat bron vaqtigacha kamida {minutes} daqiqa qolganda mumkin.',
       'noFurtherActions': 'Bu zakaz uchun qo‘shimcha amal yo‘q.',
@@ -4281,6 +4447,14 @@ class OwnerController {
       'appointmentLabel': 'Время записи',
       'priceLabel': 'Цена',
       'basePriceLabel': 'Базовая цена',
+      'prepaymentLabel': 'Аванс',
+      'remainingPaymentLabel': 'Остаток',
+      'paymentStatusLabel': 'Статус оплаты',
+      'paymentMethodLabel': 'Способ оплаты',
+      'paymentStatusPending': 'Ожидает',
+      'paymentStatusPaid': 'Оплачено',
+      'paymentStatusRefunded': 'Возвращено',
+      'paymentStatusNotRequired': 'Не требуется',
       'createdLabel': 'Время поступления',
       'callCustomer': 'Позвонить клиенту',
       'chatButton': 'Чат',
@@ -4290,7 +4464,8 @@ class OwnerController {
       'reviewInboxDescription':
           'Отзывы без ответа показываются сверху. Ответ отсюда сразу появляется и в приложении.',
       'reviewPendingTitle': 'Без ответа',
-      'reviewPendingHint': 'Отзывы, на которые стоит ответить в первую очередь.',
+      'reviewPendingHint':
+          'Отзывы, на которые стоит ответить в первую очередь.',
       'reviewAnsweredTitle': 'С ответом',
       'reviewAnsweredHint': 'Отзывы, где мастер уже оставил ответ.',
       'reviewEmptyBody': 'Для этого автосервиса отзывов пока нет.',
@@ -4320,15 +4495,19 @@ class OwnerController {
       'servicePricingEmpty': 'Для этого автосервиса пока не добавлены услуги.',
       'serviceDurationMinutes': '{minutes} мин',
       'serviceCurrentPriceLabel': 'Текущая цена: {price}',
+      'serviceCurrentPrepaymentLabel': 'Аванс: {percent}%',
       'serviceNewPriceLabel': 'Новая цена',
       'serviceNewDurationLabel': 'Новая длительность',
+      'serviceNewPrepaymentLabel': 'Новый процент аванса',
       'servicePricePlaceholder': 'Например: 150000',
       'serviceDurationPlaceholder': 'Например: 45',
+      'servicePrepaymentPlaceholder': 'Например: 30',
       'servicePriceSave': 'Сохранить цену',
       'serviceSettingsUpdated':
-          'Для услуги {service} цена обновлена до {price}, а длительность до {duration} мин',
+          'Для услуги {service} цена обновлена до {price}, длительность до {duration} мин, а аванс до {prepayment}%',
       'servicePriceFieldLabel': 'Цена для {service}',
       'serviceDurationFieldLabel': 'Длительность для {service}',
+      'servicePrepaymentFieldLabel': 'Аванс для {service}',
       'ownerServiceNotFound': 'Услуга не найдена',
       'pricingMatrixTitle': 'Цены по моделям авто',
       'pricingMatrixDescription':
@@ -4383,6 +4562,18 @@ class OwnerController {
       'calendarEmptyTitle': 'На этот день заказов нет',
       'calendarEmptyBody':
           'На выбранную дату еще нет записей или ничего не найдено по этому статусу.',
+      'analyticsEyebrow': 'Аналитика заказов',
+      'analyticsTitle': 'Срез по выручке и нагрузке',
+      'analyticsDescription':
+          'Здесь показаны выручка, авансы и самые частые услуги и машины именно по вашему автосервису.',
+      'analyticsCompletedRevenue': 'Выручка по завершенным',
+      'analyticsPrepaymentCollected': 'Собранный аванс',
+      'analyticsScheduledToday': 'Брони на сегодня',
+      'analyticsCreatedToday': 'Создано сегодня',
+      'analyticsTopServices': 'Топ услуг',
+      'analyticsTopVehicles': 'Топ машин',
+      'analyticsNoData': 'Пока недостаточно данных.',
+      'analyticsBookingsCount': '{count} заказов',
       'weekdayShortMon': 'Пн',
       'weekdayShortTue': 'Вт',
       'weekdayShortWed': 'Ср',
@@ -4398,9 +4589,13 @@ class OwnerController {
       'rescheduleDateLabel': 'Новое время записи',
       'rescheduleDateRequired': 'Выберите новое время для переноса',
       'rescheduledFromLabel': 'Старое время',
+      'rescheduledByLabel': 'Перенес',
+      'rescheduledAtLabel': 'Перенесено в',
+      'completedAtLabel': 'Завершено в',
       'cancelButton': 'Отменить заказ',
       'cancelReasonLabel': 'Причина отмены',
       'cancelledByLabel': 'Кто отменил',
+      'cancelledAtLabel': 'Отменено в',
       'cancelGuardHint':
           'Отмена доступна только если до записи осталось не меньше {minutes} минут.',
       'noFurtherActions': 'Для этого заказа больше нет доступных действий.',
@@ -4493,6 +4688,14 @@ class OwnerController {
       'appointmentLabel': 'Appointment time',
       'priceLabel': 'Price',
       'basePriceLabel': 'Base price',
+      'prepaymentLabel': 'Prepayment',
+      'remainingPaymentLabel': 'Remaining',
+      'paymentStatusLabel': 'Payment status',
+      'paymentMethodLabel': 'Payment method',
+      'paymentStatusPending': 'Pending',
+      'paymentStatusPaid': 'Paid',
+      'paymentStatusRefunded': 'Refunded',
+      'paymentStatusNotRequired': 'Not required',
       'createdLabel': 'Received at',
       'callCustomer': 'Call customer',
       'chatButton': 'Chat',
@@ -4533,15 +4736,19 @@ class OwnerController {
           'No services have been added to this workshop yet.',
       'serviceDurationMinutes': '{minutes} min',
       'serviceCurrentPriceLabel': 'Current price: {price}',
+      'serviceCurrentPrepaymentLabel': 'Prepayment: {percent}%',
       'serviceNewPriceLabel': 'New price',
       'serviceNewDurationLabel': 'New duration',
+      'serviceNewPrepaymentLabel': 'New prepayment percent',
       'servicePricePlaceholder': 'For example: 150000',
       'serviceDurationPlaceholder': 'For example: 45',
+      'servicePrepaymentPlaceholder': 'For example: 30',
       'servicePriceSave': 'Save price',
       'serviceSettingsUpdated':
-          '{service} was updated to {price} and {duration} minutes',
+          '{service} was updated to {price}, {duration} minutes, and {prepayment}% prepayment',
       'servicePriceFieldLabel': 'Price for {service}',
       'serviceDurationFieldLabel': 'Duration for {service}',
+      'servicePrepaymentFieldLabel': 'Prepayment for {service}',
       'ownerServiceNotFound': 'Service not found',
       'pricingMatrixTitle': 'Vehicle pricing matrix',
       'pricingMatrixDescription':
@@ -4576,8 +4783,7 @@ class OwnerController {
       'noBreakLabel': 'No break',
       'noClosedWeekdaysLabel': 'Open every day',
       'invalidTimeField': '{field} has an invalid time',
-      'scheduleTimeRangeError':
-          'Closing time must be later than opening time.',
+      'scheduleTimeRangeError': 'Closing time must be later than opening time.',
       'scheduleBreakPairError':
           'Enter both break start and break end, or leave both empty.',
       'scheduleBreakRangeError':
@@ -4596,6 +4802,18 @@ class OwnerController {
       'calendarEmptyTitle': 'No bookings on this day',
       'calendarEmptyBody':
           'There are no bookings for the selected date yet, or none match this status.',
+      'analyticsEyebrow': 'Order analytics',
+      'analyticsTitle': 'Revenue and workload snapshot',
+      'analyticsDescription':
+          'See revenue, prepayments, and the busiest service and vehicle segments for your workshop here.',
+      'analyticsCompletedRevenue': 'Completed revenue',
+      'analyticsPrepaymentCollected': 'Collected prepayments',
+      'analyticsScheduledToday': 'Scheduled today',
+      'analyticsCreatedToday': 'Created today',
+      'analyticsTopServices': 'Top services',
+      'analyticsTopVehicles': 'Top vehicles',
+      'analyticsNoData': 'Not enough data yet.',
+      'analyticsBookingsCount': '{count} orders',
       'weekdayShortMon': 'Mon',
       'weekdayShortTue': 'Tue',
       'weekdayShortWed': 'Wed',
@@ -4611,9 +4829,13 @@ class OwnerController {
       'rescheduleDateLabel': 'New appointment time',
       'rescheduleDateRequired': 'Choose a new appointment time',
       'rescheduledFromLabel': 'Previous time',
+      'rescheduledByLabel': 'Moved by',
+      'rescheduledAtLabel': 'Moved at',
+      'completedAtLabel': 'Completed at',
       'cancelButton': 'Cancel order',
       'cancelReasonLabel': 'Cancellation reason',
       'cancelledByLabel': 'Cancelled by',
+      'cancelledAtLabel': 'Cancelled at',
       'cancelGuardHint':
           'Cancellation is allowed only when at least {minutes} minutes remain before the appointment.',
       'noFurtherActions': 'No further actions are available for this order.',

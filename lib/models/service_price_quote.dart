@@ -2,12 +2,20 @@ class ServicePriceQuote {
   const ServicePriceQuote({
     required this.basePrice,
     required this.price,
+    required this.prepaymentPercent,
+    required this.prepaymentAmount,
+    required this.remainingAmount,
+    required this.requiresPrepayment,
     this.matchedRule = false,
     this.matchedVehicleLabel = '',
   });
 
   final int basePrice;
   final int price;
+  final int prepaymentPercent;
+  final int prepaymentAmount;
+  final int remainingAmount;
+  final bool requiresPrepayment;
   final bool matchedRule;
   final String matchedVehicleLabel;
 
@@ -15,6 +23,10 @@ class ServicePriceQuote {
     return ServicePriceQuote(
       basePrice: _toInt(json['basePrice']),
       price: _toInt(json['price']),
+      prepaymentPercent: _toInt(json['prepaymentPercent']),
+      prepaymentAmount: _toInt(json['prepaymentAmount']),
+      remainingAmount: _toInt(json['remainingAmount']),
+      requiresPrepayment: json['requiresPrepayment'] == true,
       matchedRule: json['matchedRule'] == true,
       matchedVehicleLabel: (json['matchedVehicleLabel'] ?? '').toString(),
     );

@@ -4,17 +4,20 @@ import '../auth_middleware.dart';
 import '../http_helpers.dart';
 import '../models.dart';
 import '../store.dart';
+import '../user_notifications.dart';
 
 class AuthController {
   const AuthController(
     this._store, {
     required this.usersFilePath,
     required this.sessionsFilePath,
+    required this.userNotificationsService,
   });
 
   final InMemoryStore _store;
   final String usersFilePath;
   final String sessionsFilePath;
+  final UserNotificationsService userNotificationsService;
 
   Future<Response> login(Request request) async {
     try {
@@ -272,6 +275,22 @@ class AuthController {
       return errorResponse(error.message, statusCode: 400);
     } on FormatException catch (error) {
       return errorResponse(error.message, statusCode: 400);
+    }
+  }
+
+  Future<Response> sendTestPush(Request request) async {
+    final UserModel? user = userFromRequest(request);
+    if (user == null) {
+      return errorResponse('Unauthorized', statusCode: 401);
+    }
+
+    try {
+      await userNotificationsService.sendTestNotification(user: user);
+      return jsonResponse(<String, Object>{
+        'data': <String, Object>{'success': true},
+      });
+    } on Exception catch (error) {
+      return errorResponse(error.toString(), statusCode: 400);
     }
   }
 

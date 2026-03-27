@@ -11,6 +11,7 @@ import '../models/vehicle_type.dart';
 import '../providers/booking_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../ui/app_loading_view.dart';
+import '../ui/booking_reschedule_sheet.dart';
 import '../ui/review_composer_sheet.dart';
 
 class MyBookingsScreen extends StatelessWidget {
@@ -29,7 +30,8 @@ class MyBookingsScreen extends StatelessWidget {
     }
 
     Future<void> openReviewForBooking(BookingItem booking) async {
-      final WorkshopProvider workshopProvider = context.read<WorkshopProvider>();
+      final WorkshopProvider workshopProvider =
+          context.read<WorkshopProvider>();
       Salon? salon = workshopProvider.workshopById(booking.workshopId);
       salon ??= await workshopProvider.refreshWorkshopById(booking.workshopId);
       if (!context.mounted) {
@@ -56,6 +58,19 @@ class MyBookingsScreen extends StatelessWidget {
           booking.serviceName,
           booking.salonName,
         ),
+      );
+    }
+
+    Future<void> openRescheduleForBooking(BookingItem booking) async {
+      final bool? changed = await showBookingRescheduleSheet(
+        context: context,
+        booking: booking,
+      );
+      if (!context.mounted || changed != true) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.bookingRescheduled)),
       );
     }
 
@@ -125,6 +140,9 @@ class MyBookingsScreen extends StatelessWidget {
                         SnackBar(content: Text(l10n.bookingCancelled)),
                       );
                     },
+                    onReschedule: () {
+                      openRescheduleForBooking(booking);
+                    },
                     onWriteReview: booking.status == BookingStatus.completed &&
                             !booking.hasReview
                         ? () {
@@ -146,12 +164,14 @@ class _BookingCard extends StatelessWidget {
     required this.l10n,
     required this.booking,
     required this.onCancel,
+    required this.onReschedule,
     this.onWriteReview,
   });
 
   final AppLocalizations l10n;
   final BookingItem booking;
   final VoidCallback onCancel;
+  final VoidCallback onReschedule;
   final VoidCallback? onWriteReview;
 
   @override
@@ -185,10 +205,30 @@ class _BookingCard extends StatelessWidget {
             Text(l10n.dateLabel(AppFormatters.dateTime(booking.dateTime))),
             if (booking.status == BookingStatus.rescheduled &&
                 booking.previousDateTime != null)
-              Text(
-                l10n.rescheduledFromLabel(
-                  AppFormatters.dateTime(booking.previousDateTime!),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    l10n.rescheduledFromLabel(
+                      AppFormatters.dateTime(booking.previousDateTime!),
+                    ),
+                  ),
+                  if (booking.rescheduledByRole.isNotEmpty)
+                    Text(
+                      l10n.rescheduledByLabel(
+                        bookingRescheduleActorLabel(
+                          booking.rescheduledByRole,
+                          l10n,
+                        ),
+                      ),
+                    ),
+                  if (booking.rescheduledAt != null)
+                    Text(
+                      l10n.rescheduledAtLabel(
+                        AppFormatters.dateTime(booking.rescheduledAt!),
+                      ),
+                    ),
+                ],
               ),
             const SizedBox(height: 6),
             Text(l10n.basePriceLabel(AppFormatters.moneyK(booking.basePrice))),
@@ -199,6 +239,33 @@ class _BookingCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (booking.prepaymentAmount > 0)
+              Text(
+                booking.paymentStatus == BookingPaymentStatus.paid
+                    ? l10n.prepaymentPaidLabel(
+                        AppFormatters.moneyK(booking.prepaymentAmount),
+                      )
+                    : l10n.prepaymentAmountLabel(
+                        AppFormatters.moneyK(booking.prepaymentAmount),
+                      ),
+              ),
+            if (booking.prepaymentAmount > 0)
+              Text(
+                l10n.remainingPaymentLabel(
+                  AppFormatters.moneyK(booking.remainingAmount),
+                ),
+              ),
+            Text(
+              l10n.paymentStatusLabel(
+                _paymentStatusText(booking.paymentStatus),
+              ),
+            ),
+            if (booking.paymentMethod.isNotEmpty)
+              Text(
+                l10n.paymentMethodValueLabel(
+                  _paymentMethodText(booking.paymentMethod),
+                ),
+              ),
             if (booking.status == BookingStatus.cancelled) ...<Widget>[
               const SizedBox(height: 6),
               Text(
@@ -206,9 +273,24 @@ class _BookingCard extends StatelessWidget {
                   bookingCancellationActorLabel(booking.cancelledByRole, l10n),
                 ),
               ),
+              if (booking.cancelledAt != null)
+                Text(
+                  l10n.cancelledAtLabel(
+                    AppFormatters.dateTime(booking.cancelledAt!),
+                  ),
+                ),
               Text(
                 l10n.cancellationReasonLabel(
                   bookingCancellationReasonLabel(booking.cancelReasonId, l10n),
+                ),
+              ),
+            ],
+            if (booking.status == BookingStatus.completed &&
+                booking.completedAt != null) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                l10n.completedAtLabel(
+                  AppFormatters.dateTime(booking.completedAt!),
                 ),
               ),
             ],
@@ -220,6 +302,11 @@ class _BookingCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
+                  TextButton.icon(
+                    onPressed: onReschedule,
+                    icon: const Icon(Icons.schedule_outlined, size: 18),
+                    label: Text(l10n.rescheduleBooking),
+                  ),
                   TextButton.icon(
                     onPressed: onCancel,
                     icon: const Icon(Icons.close, size: 18),
@@ -265,6 +352,35 @@ class _BookingCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _paymentStatusText(BookingPaymentStatus status) {
+    switch (status) {
+      case BookingPaymentStatus.pending:
+        return l10n.paymentStatusPending;
+      case BookingPaymentStatus.paid:
+        return l10n.paymentStatusPaid;
+      case BookingPaymentStatus.refunded:
+        return l10n.paymentStatusRefunded;
+      case BookingPaymentStatus.notRequired:
+        return l10n.paymentStatusNotRequired;
+    }
+  }
+
+  String _paymentMethodText(String method) {
+    switch (method.trim()) {
+      case 'cash':
+        return l10n.paymentMethodCash;
+      case 'test_card':
+        return l10n.paymentMethodTestCard;
+      case 'click':
+      case 'payme':
+      case 'uzum':
+      case 'bank_card':
+        return l10n.paymentMethodTestCard;
+      default:
+        return l10n.paymentMethodBankCard;
+    }
   }
 }
 

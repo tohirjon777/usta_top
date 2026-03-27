@@ -123,3 +123,53 @@ String bookingCancellationActorLabel(String raw, String lang) {
       };
   }
 }
+
+String normalizeBookingRescheduleActor(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'customer':
+      return 'customer';
+    case 'admin':
+      return 'admin';
+    case 'owner_panel':
+      return 'owner_panel';
+    case 'owner_telegram':
+      return 'owner_telegram';
+    default:
+      return '';
+  }
+}
+
+String bookingRescheduleActorLabel(String raw, String lang) {
+  switch (normalizeBookingRescheduleActor(raw)) {
+    case 'customer':
+      return switch (lang) {
+        'ru' => 'Клиент',
+        'en' => 'Customer',
+        _ => 'Mijoz',
+      };
+    case 'admin':
+      return switch (lang) {
+        'ru' => 'Админ',
+        'en' => 'Admin',
+        _ => 'Admin',
+      };
+    case 'owner_panel':
+      return switch (lang) {
+        'ru' => 'Владелец сервиса',
+        'en' => 'Workshop owner',
+        _ => 'Ustaxona egasi',
+      };
+    case 'owner_telegram':
+      return switch (lang) {
+        'ru' => 'Владелец через Telegram',
+        'en' => 'Owner via Telegram',
+        _ => 'Telegram orqali usta',
+      };
+    default:
+      return switch (lang) {
+        'ru' => 'Не указано',
+        'en' => 'Unknown',
+        _ => 'Ko‘rsatilmagan',
+      };
+  }
+}

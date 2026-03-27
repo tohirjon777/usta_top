@@ -10,10 +10,12 @@ import 'package:usta_top/core/storage/auth_token_storage.dart';
 import 'package:usta_top/core/storage/notification_settings_storage.dart';
 import 'package:usta_top/core/storage/theme_mode_storage.dart';
 import 'package:usta_top/models/booking_item.dart';
+import 'package:usta_top/providers/app_navigation_provider.dart';
 import 'package:usta_top/providers/auth_provider.dart';
 import 'package:usta_top/providers/booking_provider.dart';
 import 'package:usta_top/providers/language_provider.dart';
 import 'package:usta_top/providers/notification_settings_provider.dart';
+import 'package:usta_top/providers/push_notifications_provider.dart';
 import 'package:usta_top/providers/theme_provider.dart';
 import 'package:usta_top/screens/profile_screen.dart';
 import 'package:usta_top/services/auth_service.dart';
@@ -35,7 +37,14 @@ void main() {
     return provider;
   }
 
-  Widget buildTestApp(AuthProvider authProvider) {
+  Widget buildTestApp(AuthProvider authProvider, AuthService authService) {
+    final NotificationSettingsProvider notificationSettingsProvider =
+        NotificationSettingsProvider(
+          storage: const NotificationSettingsStorage(),
+        )..restorePreference();
+    final AppNavigationProvider appNavigationProvider =
+        AppNavigationProvider();
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
@@ -45,10 +54,19 @@ void main() {
         ChangeNotifierProvider<LanguageProvider>(
           create: (_) => LanguageProvider(initialLanguage: AppLanguage.uzbek),
         ),
-        ChangeNotifierProvider<NotificationSettingsProvider>(
-          create: (_) => NotificationSettingsProvider(
-            storage: const NotificationSettingsStorage(),
-          )..restorePreference(),
+        ChangeNotifierProvider<NotificationSettingsProvider>.value(
+          value: notificationSettingsProvider,
+        ),
+        ChangeNotifierProvider<AppNavigationProvider>.value(
+          value: appNavigationProvider,
+        ),
+        ChangeNotifierProvider<PushNotificationsProvider>(
+          create: (_) => PushNotificationsProvider(
+            authProvider: authProvider,
+            appNavigationProvider: appNavigationProvider,
+            notificationSettingsProvider: notificationSettingsProvider,
+            authService: authService,
+          ),
         ),
         ChangeNotifierProvider<ThemeProvider>(
           create: (_) => ThemeProvider(storage: const ThemeModeStorage()),
@@ -79,7 +97,7 @@ void main() {
     final FakeAuthService authService = FakeAuthService();
     final AuthProvider authProvider = await buildAuthProvider(authService);
 
-    await tester.pumpWidget(buildTestApp(authProvider));
+    await tester.pumpWidget(buildTestApp(authProvider, authService));
     await tester.pumpAndSettle();
 
     expect(find.text('Test User'), findsOneWidget);
@@ -106,7 +124,7 @@ void main() {
     );
     final AuthProvider authProvider = await buildAuthProvider(authService);
 
-    await tester.pumpWidget(buildTestApp(authProvider));
+    await tester.pumpWidget(buildTestApp(authProvider, authService));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Profilni tahrirlash'));
@@ -158,6 +176,11 @@ class FakeAuthService implements AuthService {
   Future<void> unregisterPushToken({
     required String accessToken,
     required String token,
+  }) async {}
+
+  @override
+  Future<void> sendTestPush({
+    required String accessToken,
   }) async {}
 
   @override

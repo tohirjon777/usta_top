@@ -53,6 +53,7 @@ class BookingController {
           (body['catalogVehicleId'] ?? '').toString();
       final bool isCustomVehicle = body['isCustomVehicle'] == true;
       final String vehicleTypeId = (body['vehicleTypeId'] ?? '').toString();
+      final String paymentMethod = (body['paymentMethod'] ?? '').toString();
       final String dateTimeRaw = (body['dateTime'] ?? '').toString();
       final DateTime? dateTime = DateTime.tryParse(dateTimeRaw);
 
@@ -78,6 +79,7 @@ class BookingController {
         isCustomVehicle: isCustomVehicle,
         vehicleTypeId: vehicleTypeId,
         dateTime: dateTime,
+        paymentMethod: paymentMethod,
       );
       await _store.saveBookings(bookingsFilePath);
       await _store.saveUsers(usersFilePath);
@@ -185,6 +187,39 @@ class BookingController {
       return jsonResponse(<String, Object>{'data': _bookingJson(booking)});
     } on StateError catch (error) {
       return errorResponse(error.message, statusCode: 404);
+    }
+  }
+
+  Future<Response> reschedule(Request request, String id) async {
+    final UserModel? user = userFromRequest(request);
+    if (user == null) {
+      return errorResponse('Unauthorized', statusCode: 401);
+    }
+
+    try {
+      final Map<String, dynamic> body = await readJsonMap(request);
+      final DateTime? dateTime = DateTime.tryParse(
+        (body['dateTime'] ?? '').toString(),
+      );
+      if (dateTime == null) {
+        return errorResponse('dateTime (ISO) kerak', statusCode: 400);
+      }
+
+      final BookingModel booking = _store.rescheduleBookingForUser(
+        userId: user.id,
+        bookingId: id,
+        dateTime: dateTime,
+      );
+      await _store.saveBookings(bookingsFilePath);
+      await _notifyWorkshopAboutStatusChange(
+        booking,
+        actor: 'Mijoz',
+      );
+      return jsonResponse(<String, Object>{'data': _bookingJson(booking)});
+    } on FormatException catch (error) {
+      return errorResponse(error.message, statusCode: 400);
+    } on StateError catch (error) {
+      return errorResponse(error.message, statusCode: 400);
     }
   }
 

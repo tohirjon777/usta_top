@@ -51,11 +51,6 @@ AppRuntime buildAppRuntime(
     required String firebaseServiceAccountFilePath,
   }) {
   final HealthController healthController = HealthController();
-  final AuthController authController = AuthController(
-    store,
-    usersFilePath: usersFilePath,
-    sessionsFilePath: authSessionsFilePath,
-  );
   final TelegramBotService telegramBotService = TelegramBotService(
     botToken: telegramBotToken,
   );
@@ -66,6 +61,12 @@ AppRuntime buildAppRuntime(
       WorkshopNotificationsService(telegramBotService);
   final UserNotificationsService userNotificationsService =
       UserNotificationsService(firebasePushService);
+  final AuthController authController = AuthController(
+    store,
+    usersFilePath: usersFilePath,
+    sessionsFilePath: authSessionsFilePath,
+    userNotificationsService: userNotificationsService,
+  );
   final BookingReminderService bookingReminderService = BookingReminderService(
     store,
     bookingsFilePath: bookingsFilePath,
@@ -182,6 +183,7 @@ AppRuntime buildAppRuntime(
     ..post('/auth/forgot-password', authController.forgotPassword)
     ..post('/auth/push-token', authController.registerPushToken)
     ..post('/auth/push-token/remove', authController.unregisterPushToken)
+    ..post('/auth/push-token/test', authController.sendTestPush)
     ..get('/auth/me', authController.me)
     ..patch('/auth/me', authController.updateMe)
     ..patch('/auth/me/password', authController.updatePassword)
@@ -195,6 +197,7 @@ AppRuntime buildAppRuntime(
     ..post('/workshops/<id>/reviews', workshopController.createReview)
     ..get('/bookings', bookingController.list)
     ..post('/bookings', bookingController.create)
+    ..patch('/bookings/<id>/reschedule', bookingController.reschedule)
     ..patch('/bookings/<id>/cancel', bookingController.cancel);
 
   final Handler handler = Pipeline()

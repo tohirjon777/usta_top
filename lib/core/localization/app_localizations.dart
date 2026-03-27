@@ -36,6 +36,13 @@ class AppLocalizations {
       'navProfile': 'Profile',
       'bookingAdded': 'Request created for {salon}',
       'bookingCancelled': 'Request cancelled',
+      'bookingAcceptedNotice': 'Your booking at {workshop} was accepted',
+      'bookingCompletedNotice':
+          'Your booking at {workshop} was marked completed',
+      'bookingCancelledNotice':
+          'Your booking at {workshop} was cancelled: {reason}',
+      'bookingRescheduledNotice':
+          'Your booking at {workshop} was moved to {time}',
       'telegramCancellationNotice':
           'Your request at {workshop} was cancelled in Telegram: {reason}',
       'savedSalonsConnectedHome':
@@ -100,7 +107,8 @@ class AppLocalizations {
       'availableTimesLoadFailed': 'Available times could not be loaded.',
       'availableCalendarLoadFailed':
           'Calendar availability could not be loaded.',
-      'availableTimesRetryHint': 'Please try another date or refresh the screen.',
+      'availableTimesRetryHint':
+          'Please try another date or refresh the screen.',
       'availableTimesClosedDay': 'Workshop is closed on this day',
       'availableTimesClosedDayHint':
           'Choose another day to see free appointment times.',
@@ -108,8 +116,7 @@ class AppLocalizations {
       'availableTimesEmptyHint':
           'Try another date or choose a different service.',
       'nearestAvailableTitle': 'Closest free time',
-      'nearestAvailableSubtitle':
-          '{date} at {time} is the nearest open slot.',
+      'nearestAvailableSubtitle': '{date} at {time} is the nearest open slot.',
       'selectNearestAvailable': 'Use this slot',
       'noAvailableDates': 'No available dates were found in the next 45 days.',
       'summary': 'Request summary',
@@ -138,11 +145,32 @@ class AppLocalizations {
       'timeLabel': 'Time: {time}',
       'bookingTimePending': 'Choose a free time',
       'basePriceLabel': 'Base price: {price}',
+      'prepaymentSummaryLabel': 'Prepayment ({percent}%): {price}',
+      'remainingPaymentLabel': 'Remaining at workshop: {price}',
+      'paymentMethodLabel': 'Payment method',
+      'paymentMethodHint':
+          'This payment step is currently in demo mode. Choose cash or a test card.',
+      'paymentMethodCash': 'Cash',
+      'paymentMethodTestCard': 'Test card',
+      'paymentMethodClick': 'Click',
+      'paymentMethodPayme': 'Payme',
+      'paymentMethodUzum': 'Uzum Bank',
+      'paymentMethodBankCard': 'Bank card',
       'vehiclePriceRuleLabel': 'Configured vehicle price: {vehicle}',
       'vehiclePriceLoadFailed': 'Vehicle-specific price could not be loaded.',
       'vehiclePriceAdjustmentLabel': 'Vehicle adjustment: {adjustment}',
       'totalLabel': 'Total: {total}',
       'confirmBooking': 'Confirm request',
+      'payDepositAndBook': 'Pay deposit and book',
+      'bookWithCash': 'Book with cash',
+      'payWithTestCardAndBook': 'Open test payment',
+      'testPaymentTitle': 'Test payment window',
+      'testPaymentSubtitle':
+          'A real payment contract is not connected yet. This screen only simulates a successful card payment.',
+      'testPaymentAmountLabel': 'Amount for confirmation: {price}',
+      'testPaymentHint':
+          'No real money is charged. Press the button below to continue in test mode.',
+      'testPaymentConfirm': 'Confirm test payment',
       'bookingTimeRequired': 'Choose one of the available times',
       'chatWithWorkshop': 'Chat with workshop',
       'chatOpen': 'Chat',
@@ -191,8 +219,27 @@ class AppLocalizations {
       'reviewSubmittedLabel': 'Review sent',
       'workshopReplyLabel': 'Workshop reply',
       'priceLabel': 'Price: {price}',
+      'prepaymentAmountLabel': 'Prepayment amount: {price}',
+      'prepaymentPaidLabel': 'Prepayment paid: {price}',
+      'paymentStatusLabel': 'Payment status: {status}',
+      'paymentMethodValueLabel': 'Payment method: {method}',
+      'paymentStatusPending': 'Pending',
+      'paymentStatusPaid': 'Paid',
+      'paymentStatusRefunded': 'Refunded',
+      'paymentStatusNotRequired': 'Not required',
       'cancelBooking': 'Cancel request',
+      'rescheduleBooking': 'Reschedule request',
+      'rescheduleBookingTitle': 'Move appointment',
+      'rescheduleBookingSubtitle':
+          'Choose a new date and time for {service} at {workshop}.',
+      'rescheduleCurrentTimeLabel': 'Current time: {time}',
+      'rescheduleConfirm': 'Save new time',
+      'bookingRescheduled': 'Request moved to a new time',
+      'rescheduledByLabel': 'Moved by: {actor}',
+      'rescheduledAtLabel': 'Moved at: {time}',
+      'completedAtLabel': 'Completed at: {time}',
       'cancelledByLabel': 'Cancelled by: {actor}',
+      'cancelledAtLabel': 'Cancelled at: {time}',
       'rescheduledFromLabel': 'Previous time: {time}',
       'cancellationReasonLabel': 'Reason: {reason}',
       'cancellationUnknown': 'Not specified',
@@ -220,6 +267,11 @@ class AppLocalizations {
       'savedSalons': 'Saved workshops',
       'savedSalonsSubtitle': 'Quick access to your trusted workshops',
       'notifications': 'Notifications',
+      'testPushNotification': 'Send test push',
+      'pushReady': 'Push is ready',
+      'pushNotReady': 'Push is not ready yet',
+      'testPushSent': 'Test push was sent',
+      'testPushFailed': 'Test push could not be sent',
       'enabled': 'Enabled',
       'disabled': 'Disabled',
       'language': 'Language',
@@ -295,6 +347,13 @@ class AppLocalizations {
       'navProfile': 'Kabinet',
       'bookingAdded': '{salon} uchun buyurtma qo\'shildi',
       'bookingCancelled': 'Buyurtma bekor qilindi',
+      'bookingAcceptedNotice': '{workshop} buyurtmangiz qabul qilindi',
+      'bookingCompletedNotice':
+          '{workshop} buyurtmangiz yakunlangan deb belgilandi',
+      'bookingCancelledNotice':
+          '{workshop} buyurtmangiz bekor qilindi: {reason}',
+      'bookingRescheduledNotice':
+          '{workshop}dagi broningiz {time} ga ko‘chirildi',
       'telegramCancellationNotice':
           '{workshop} buyurtmangiz Telegram orqali bekor qilindi: {reason}',
       'savedSalonsConnectedHome':
@@ -398,6 +457,17 @@ class AppLocalizations {
       'timeLabel': 'Vaqt: {time}',
       'bookingTimePending': 'Bo‘sh vaqtni tanlang',
       'basePriceLabel': 'Bazaviy narx: {price}',
+      'prepaymentSummaryLabel': 'Avans ({percent}%): {price}',
+      'remainingPaymentLabel': 'Qolgani ustaxonada: {price}',
+      'paymentMethodLabel': 'To‘lov usuli',
+      'paymentMethodHint':
+          'Hozircha bu test rejimdagi to‘lov bosqichi. Naqd yoki test kartani tanlang.',
+      'paymentMethodCash': 'Naqd',
+      'paymentMethodTestCard': 'Test karta',
+      'paymentMethodClick': 'Click',
+      'paymentMethodPayme': 'Payme',
+      'paymentMethodUzum': 'Uzum Bank',
+      'paymentMethodBankCard': 'Bank karta',
       'vehiclePriceRuleLabel': 'Belgilangan model narxi: {vehicle}',
       'vehiclePriceLoadFailed':
           'Mashina modeli bo‘yicha narxni yuklab bo‘lmadi.',
@@ -405,6 +475,16 @@ class AppLocalizations {
           'Mashina turi bo\'yicha o\'zgarish: {adjustment}',
       'totalLabel': 'Jami: {total}',
       'confirmBooking': 'Buyurtmani tasdiqlash',
+      'payDepositAndBook': 'Avans to‘lab bron qilish',
+      'bookWithCash': 'Naqd bilan bron qilish',
+      'payWithTestCardAndBook': 'Test to‘lov oynasini ochish',
+      'testPaymentTitle': 'Test to‘lov oynasi',
+      'testPaymentSubtitle':
+          'Haqiqiy to‘lov shartnomasi hali ulanmagan. Bu ekran karta to‘lovini faqat test tarzida tasdiqlaydi.',
+      'testPaymentAmountLabel': 'Tasdiqlanadigan summa: {price}',
+      'testPaymentHint':
+          'Bu yerda haqiqiy pul yechilmaydi. Pastdagi tugma orqali test rejimda davom eting.',
+      'testPaymentConfirm': 'Test to‘lovni tasdiqlash',
       'bookingTimeRequired': 'Mavjud vaqtlarning birini tanlang',
       'chatWithWorkshop': 'Usta bilan chat',
       'chatOpen': 'Chat',
@@ -442,8 +522,7 @@ class AppLocalizations {
       'ratingLabel': 'Baho: {rating}/5',
       'commentLabel': 'Sharh',
       'reviewHint': 'Nima yoqqani yoki nimani yaxshilash kerakligini yozing',
-      'reviewCommentValidation':
-          'Sharh kamida 3 ta belgidan iborat bo\'lsin',
+      'reviewCommentValidation': 'Sharh kamida 3 ta belgidan iborat bo\'lsin',
       'reviewSubmitFailed': 'Sharh yuborilmadi',
       'reviewSubmitSuccess': 'Sharhingiz joylandi',
       'completedReviewTitle': 'Servis yakunlandi',
@@ -455,8 +534,27 @@ class AppLocalizations {
       'reviewSubmittedLabel': 'Sharhingiz yuborilgan',
       'workshopReplyLabel': 'Servis javobi',
       'priceLabel': 'Narx: {price}',
+      'prepaymentAmountLabel': 'Avans summasi: {price}',
+      'prepaymentPaidLabel': 'To‘langan avans: {price}',
+      'paymentStatusLabel': 'To‘lov holati: {status}',
+      'paymentMethodValueLabel': 'To‘lov usuli: {method}',
+      'paymentStatusPending': 'Kutilmoqda',
+      'paymentStatusPaid': 'To‘langan',
+      'paymentStatusRefunded': 'Qaytarilgan',
+      'paymentStatusNotRequired': 'Talab qilinmaydi',
       'cancelBooking': 'Buyurtmani bekor qilish',
+      'rescheduleBooking': 'Buyurtmani ko‘chirish',
+      'rescheduleBookingTitle': 'Bron vaqtini o‘zgartirish',
+      'rescheduleBookingSubtitle':
+          '{workshop} dagi {service} uchun yangi sana va vaqtni tanlang.',
+      'rescheduleCurrentTimeLabel': 'Joriy vaqt: {time}',
+      'rescheduleConfirm': 'Yangi vaqtni saqlash',
+      'bookingRescheduled': 'Buyurtma yangi vaqtga ko‘chirildi',
+      'rescheduledByLabel': 'Ko‘chirdi: {actor}',
+      'rescheduledAtLabel': 'Ko‘chirilgan vaqt: {time}',
+      'completedAtLabel': 'Yakunlangan vaqt: {time}',
       'cancelledByLabel': 'Bekor qildi: {actor}',
+      'cancelledAtLabel': 'Bekor qilingan vaqt: {time}',
       'rescheduledFromLabel': 'Oldingi vaqt: {time}',
       'cancellationReasonLabel': 'Sabab: {reason}',
       'cancellationUnknown': 'Ko\'rsatilmagan',
@@ -485,6 +583,11 @@ class AppLocalizations {
       'savedSalons': 'Saqlangan servislar',
       'savedSalonsSubtitle': 'Ishonchli ustaxonalarga tez kirish',
       'notifications': 'Bildirishnomalar',
+      'testPushNotification': 'Test push yuborish',
+      'pushReady': 'Push tayyor',
+      'pushNotReady': 'Push hali tayyor emas',
+      'testPushSent': 'Test push yuborildi',
+      'testPushFailed': 'Test push yuborilmadi',
       'enabled': 'Yoqilgan',
       'disabled': 'O\'chirilgan',
       'language': 'Til',
@@ -560,6 +663,12 @@ class AppLocalizations {
       'navProfile': 'Профиль',
       'bookingAdded': 'Заявка создана для {salon}',
       'bookingCancelled': 'Заявка отменена',
+      'bookingAcceptedNotice': 'Ваша бронь в {workshop} принята',
+      'bookingCompletedNotice':
+          'Ваша бронь в {workshop} отмечена как завершенная',
+      'bookingCancelledNotice': 'Ваша бронь в {workshop} отменена: {reason}',
+      'bookingRescheduledNotice':
+          'Ваша бронь в {workshop} перенесена на {time}',
       'telegramCancellationNotice':
           'Заявка в {workshop} была отменена через Telegram: {reason}',
       'savedSalonsConnectedHome':
@@ -636,8 +745,7 @@ class AppLocalizations {
       'nearestAvailableSubtitle':
           '{date} в {time} доступен ближайший свободный слот.',
       'selectNearestAvailable': 'Выбрать этот слот',
-      'noAvailableDates':
-          'В ближайшие 45 дней не найдено доступных дат.',
+      'noAvailableDates': 'В ближайшие 45 дней не найдено доступных дат.',
       'summary': 'Сводка заявки',
       'serviceLabel': 'Тип услуги: {service}',
       'vehicleSelectionTitle': 'Выбор автомобиля',
@@ -664,12 +772,33 @@ class AppLocalizations {
       'timeLabel': 'Время: {time}',
       'bookingTimePending': 'Выберите свободное время',
       'basePriceLabel': 'Базовая цена: {price}',
+      'prepaymentSummaryLabel': 'Аванс ({percent}%): {price}',
+      'remainingPaymentLabel': 'Остаток в автосервисе: {price}',
+      'paymentMethodLabel': 'Способ оплаты',
+      'paymentMethodHint':
+          'Сейчас это демо-этап оплаты. Выберите наличные или тестовую карту.',
+      'paymentMethodCash': 'Наличные',
+      'paymentMethodTestCard': 'Тестовая карта',
+      'paymentMethodClick': 'Click',
+      'paymentMethodPayme': 'Payme',
+      'paymentMethodUzum': 'Uzum Bank',
+      'paymentMethodBankCard': 'Банковская карта',
       'vehiclePriceRuleLabel': 'Настроенная цена для авто: {vehicle}',
       'vehiclePriceLoadFailed':
           'Не удалось загрузить цену для выбранной модели авто.',
       'vehiclePriceAdjustmentLabel': 'Корректировка по типу авто: {adjustment}',
       'totalLabel': 'Итого: {total}',
       'confirmBooking': 'Подтвердить заявку',
+      'payDepositAndBook': 'Оплатить аванс и забронировать',
+      'bookWithCash': 'Забронировать с наличной оплатой',
+      'payWithTestCardAndBook': 'Открыть тестовую оплату',
+      'testPaymentTitle': 'Тестовое окно оплаты',
+      'testPaymentSubtitle':
+          'Реальный платежный договор пока не подключен. Этот экран только имитирует успешную оплату картой.',
+      'testPaymentAmountLabel': 'Сумма для подтверждения: {price}',
+      'testPaymentHint':
+          'Реальные деньги не списываются. Нажмите кнопку ниже, чтобы продолжить в тестовом режиме.',
+      'testPaymentConfirm': 'Подтвердить тестовую оплату',
       'bookingTimeRequired': 'Выберите один из доступных слотов',
       'chatWithWorkshop': 'Чат с мастером',
       'chatOpen': 'Чат',
@@ -707,8 +836,7 @@ class AppLocalizations {
       'ratingLabel': 'Оценка: {rating}/5',
       'commentLabel': 'Отзыв',
       'reviewHint': 'Напишите, что понравилось и что можно улучшить',
-      'reviewCommentValidation':
-          'Отзыв должен быть не короче 3 символов',
+      'reviewCommentValidation': 'Отзыв должен быть не короче 3 символов',
       'reviewSubmitFailed': 'Не удалось отправить отзыв',
       'reviewSubmitSuccess': 'Ваш отзыв опубликован',
       'completedReviewTitle': 'Услуга завершена',
@@ -720,8 +848,27 @@ class AppLocalizations {
       'reviewSubmittedLabel': 'Отзыв отправлен',
       'workshopReplyLabel': 'Ответ сервиса',
       'priceLabel': 'Цена: {price}',
+      'prepaymentAmountLabel': 'Сумма аванса: {price}',
+      'prepaymentPaidLabel': 'Оплаченный аванс: {price}',
+      'paymentStatusLabel': 'Статус оплаты: {status}',
+      'paymentMethodValueLabel': 'Способ оплаты: {method}',
+      'paymentStatusPending': 'Ожидает',
+      'paymentStatusPaid': 'Оплачено',
+      'paymentStatusRefunded': 'Возвращено',
+      'paymentStatusNotRequired': 'Не требуется',
       'cancelBooking': 'Отменить заявку',
+      'rescheduleBooking': 'Перенести заявку',
+      'rescheduleBookingTitle': 'Изменить время записи',
+      'rescheduleBookingSubtitle':
+          'Выберите новую дату и время для {service} в {workshop}.',
+      'rescheduleCurrentTimeLabel': 'Текущее время: {time}',
+      'rescheduleConfirm': 'Сохранить новое время',
+      'bookingRescheduled': 'Заявка перенесена на новое время',
+      'rescheduledByLabel': 'Перенес: {actor}',
+      'rescheduledAtLabel': 'Перенесено в: {time}',
+      'completedAtLabel': 'Завершено в: {time}',
       'cancelledByLabel': 'Отменил: {actor}',
+      'cancelledAtLabel': 'Отменено в: {time}',
       'rescheduledFromLabel': 'Старое время: {time}',
       'cancellationReasonLabel': 'Причина: {reason}',
       'cancellationUnknown': 'Не указано',
@@ -749,6 +896,11 @@ class AppLocalizations {
       'savedSalons': 'Сохраненные сервисы',
       'savedSalonsSubtitle': 'Быстрый доступ к вашим сервисам',
       'notifications': 'Уведомления',
+      'testPushNotification': 'Отправить test push',
+      'pushReady': 'Push готов',
+      'pushNotReady': 'Push пока не готов',
+      'testPushSent': 'Test push отправлен',
+      'testPushFailed': 'Не удалось отправить test push',
       'enabled': 'Включено',
       'disabled': 'Выключено',
       'language': 'Язык',
@@ -840,6 +992,25 @@ class AppLocalizations {
       _fmt('bookingAdded', <String, Object>{'salon': salon});
 
   String get bookingCancelled => _text('bookingCancelled');
+  String bookingAcceptedNotice(String workshop) => _fmt(
+        'bookingAcceptedNotice',
+        <String, Object>{'workshop': workshop},
+      );
+  String bookingCompletedNotice(String workshop) => _fmt(
+        'bookingCompletedNotice',
+        <String, Object>{'workshop': workshop},
+      );
+  String bookingCancelledNotice(String workshop, String reason) => _fmt(
+        'bookingCancelledNotice',
+        <String, Object>{'workshop': workshop, 'reason': reason},
+      );
+  String bookingRescheduledNotice(String workshop, String time) => _fmt(
+        'bookingRescheduledNotice',
+        <String, Object>{
+          'workshop': workshop,
+          'time': time,
+        },
+      );
   String telegramCancellationNotice(String workshop, String reason) => _fmt(
         'telegramCancellationNotice',
         <String, Object>{'workshop': workshop, 'reason': reason},
@@ -914,7 +1085,8 @@ class AppLocalizations {
   String get date => _text('date');
   String get availableTimes => _text('availableTimes');
   String get availableTimesLoadFailed => _text('availableTimesLoadFailed');
-  String get availableCalendarLoadFailed => _text('availableCalendarLoadFailed');
+  String get availableCalendarLoadFailed =>
+      _text('availableCalendarLoadFailed');
   String get availableTimesRetryHint => _text('availableTimesRetryHint');
   String get availableTimesClosedDay => _text('availableTimesClosedDay');
   String get availableTimesClosedDayHint =>
@@ -961,6 +1133,20 @@ class AppLocalizations {
   String get bookingTimePending => _text('bookingTimePending');
   String basePriceLabel(String price) =>
       _fmt('basePriceLabel', <String, Object>{'price': price});
+  String prepaymentSummaryLabel(int percent, String price) => _fmt(
+        'prepaymentSummaryLabel',
+        <String, Object>{'percent': percent, 'price': price},
+      );
+  String remainingPaymentLabel(String price) =>
+      _fmt('remainingPaymentLabel', <String, Object>{'price': price});
+  String get paymentMethodLabel => _text('paymentMethodLabel');
+  String get paymentMethodHint => _text('paymentMethodHint');
+  String get paymentMethodCash => _text('paymentMethodCash');
+  String get paymentMethodTestCard => _text('paymentMethodTestCard');
+  String get paymentMethodClick => _text('paymentMethodClick');
+  String get paymentMethodPayme => _text('paymentMethodPayme');
+  String get paymentMethodUzum => _text('paymentMethodUzum');
+  String get paymentMethodBankCard => _text('paymentMethodBankCard');
   String vehiclePriceRuleLabel(String vehicle) =>
       _fmt('vehiclePriceRuleLabel', <String, Object>{'vehicle': vehicle});
   String get vehiclePriceLoadFailed => _text('vehiclePriceLoadFailed');
@@ -971,6 +1157,15 @@ class AppLocalizations {
   String totalLabel(String total) =>
       _fmt('totalLabel', <String, Object>{'total': total});
   String get confirmBooking => _text('confirmBooking');
+  String get payDepositAndBook => _text('payDepositAndBook');
+  String get bookWithCash => _text('bookWithCash');
+  String get payWithTestCardAndBook => _text('payWithTestCardAndBook');
+  String get testPaymentTitle => _text('testPaymentTitle');
+  String get testPaymentSubtitle => _text('testPaymentSubtitle');
+  String testPaymentAmountLabel(String price) =>
+      _fmt('testPaymentAmountLabel', <String, Object>{'price': price});
+  String get testPaymentHint => _text('testPaymentHint');
+  String get testPaymentConfirm => _text('testPaymentConfirm');
   String get bookingTimeRequired => _text('bookingTimeRequired');
   String get chatWithWorkshop => _text('chatWithWorkshop');
   String get chatOpen => _text('chatOpen');
@@ -1030,10 +1225,45 @@ class AppLocalizations {
   String get workshopReplyLabel => _text('workshopReplyLabel');
   String priceLabel(String price) =>
       _fmt('priceLabel', <String, Object>{'price': price});
+  String prepaymentAmountLabel(String price) =>
+      _fmt('prepaymentAmountLabel', <String, Object>{'price': price});
+  String prepaymentPaidLabel(String price) =>
+      _fmt('prepaymentPaidLabel', <String, Object>{'price': price});
+  String paymentStatusLabel(String status) =>
+      _fmt('paymentStatusLabel', <String, Object>{'status': status});
+  String paymentMethodValueLabel(String method) =>
+      _fmt('paymentMethodValueLabel', <String, Object>{'method': method});
+  String get paymentStatusPending => _text('paymentStatusPending');
+  String get paymentStatusPaid => _text('paymentStatusPaid');
+  String get paymentStatusRefunded => _text('paymentStatusRefunded');
+  String get paymentStatusNotRequired => _text('paymentStatusNotRequired');
 
   String get cancelBooking => _text('cancelBooking');
+  String get rescheduleBooking => _text('rescheduleBooking');
+  String get rescheduleBookingTitle => _text('rescheduleBookingTitle');
+  String rescheduleBookingSubtitle(String service, String workshop) => _fmt(
+        'rescheduleBookingSubtitle',
+        <String, Object>{
+          'service': service,
+          'workshop': workshop,
+        },
+      );
+  String rescheduleCurrentTimeLabel(String time) => _fmt(
+        'rescheduleCurrentTimeLabel',
+        <String, Object>{'time': time},
+      );
+  String get rescheduleConfirm => _text('rescheduleConfirm');
+  String get bookingRescheduled => _text('bookingRescheduled');
+  String rescheduledByLabel(String actor) =>
+      _fmt('rescheduledByLabel', <String, Object>{'actor': actor});
+  String rescheduledAtLabel(String time) =>
+      _fmt('rescheduledAtLabel', <String, Object>{'time': time});
+  String completedAtLabel(String time) =>
+      _fmt('completedAtLabel', <String, Object>{'time': time});
   String cancelledByLabel(String actor) =>
       _fmt('cancelledByLabel', <String, Object>{'actor': actor});
+  String cancelledAtLabel(String time) =>
+      _fmt('cancelledAtLabel', <String, Object>{'time': time});
   String rescheduledFromLabel(String time) =>
       _fmt('rescheduledFromLabel', <String, Object>{'time': time});
   String cancellationReasonLabel(String reason) =>
@@ -1070,6 +1300,11 @@ class AppLocalizations {
   String get savedSalons => _text('savedSalons');
   String get savedSalonsSubtitle => _text('savedSalonsSubtitle');
   String get notifications => _text('notifications');
+  String get testPushNotification => _text('testPushNotification');
+  String get pushReady => _text('pushReady');
+  String get pushNotReady => _text('pushNotReady');
+  String get testPushSent => _text('testPushSent');
+  String get testPushFailed => _text('testPushFailed');
   String get enabled => _text('enabled');
   String get disabled => _text('disabled');
   String get language => _text('language');

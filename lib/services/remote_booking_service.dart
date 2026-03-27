@@ -58,6 +58,7 @@ class RemoteBookingService implements BookingService {
     required bool isCustomVehicle,
     required String vehicleTypeId,
     required DateTime dateTime,
+    String paymentMethod = '',
   }) async {
     // TODO(API): dateTime UTC ISO8601 formatda yuboriladi.
     // JSON namunalari: core/config/api_endpoints.dart ichida.
@@ -79,6 +80,7 @@ class RemoteBookingService implements BookingService {
         'isCustomVehicle': isCustomVehicle,
         'vehicleTypeId': vehicleTypeId,
         'dateTime': dateTime.toUtc().toIso8601String(),
+        if (paymentMethod.trim().isNotEmpty) 'paymentMethod': paymentMethod.trim(),
       },
     );
 
@@ -179,6 +181,27 @@ class RemoteBookingService implements BookingService {
     final dynamic data = body['data'];
     if (data is! Map<String, dynamic>) {
       throw const ApiException('Server bekor qilingan buyurtmani qaytarmadi');
+    }
+
+    return BookingItem.fromJson(data);
+  }
+
+  @override
+  Future<BookingItem> rescheduleBooking({
+    required String bookingId,
+    required DateTime dateTime,
+  }) async {
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.patch,
+      path: ApiEndpoints.rescheduleBooking(bookingId),
+      payload: <String, Object>{
+        'dateTime': dateTime.toUtc().toIso8601String(),
+      },
+    );
+
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Server ko‘chirilgan buyurtmani qaytarmadi');
     }
 
     return BookingItem.fromJson(data);

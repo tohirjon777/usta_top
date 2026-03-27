@@ -1569,7 +1569,8 @@ class AdminController {
           id: '',
           name: '',
           price: '',
-          durationMinutes: ''
+          durationMinutes: '',
+          prepaymentPercent: ''
         };
       }
 
@@ -1581,7 +1582,8 @@ class AdminController {
               id: String(item.id || '').trim(),
               name: String(item.name || '').trim(),
               price: String(item.price || '').trim(),
-              durationMinutes: String(item.durationMinutes || '').trim()
+              durationMinutes: String(item.durationMinutes || '').trim(),
+              prepaymentPercent: String(item.prepaymentPercent || '').trim()
             };
           })
         );
@@ -1612,6 +1614,10 @@ class AdminController {
                 '<label>' + labels.duration + '</label>' +
                 '<input type="number" min="1" data-service-duration value="' + escapeHtml(service.durationMinutes || '') + '" placeholder="' + labels.durationPlaceholder + '">' +
               '</div>' +
+              '<div class="field">' +
+                '<label>' + labels.prepayment + '</label>' +
+                '<input type="number" min="0" max="100" step="1" data-service-prepayment value="' + escapeHtml(service.prepaymentPercent || '') + '" placeholder="' + labels.prepaymentPlaceholder + '">' +
+              '</div>' +
             '</div>' +
             '<input type="hidden" data-service-id value="' + escapeHtml(service.id || '') + '">' +
             '<div class="muted">' + labels.serviceNote + '</div>';
@@ -1639,6 +1645,10 @@ class AdminController {
             services[index].durationMinutes = event.target.value;
             syncServices(root, services);
           });
+          row.querySelector('[data-service-prepayment]').addEventListener('input', function (event) {
+            services[index].prepaymentPercent = event.target.value;
+            syncServices(root, services);
+          });
         });
       }
 
@@ -1659,6 +1669,9 @@ class AdminController {
               price: item && item.price != null ? String(item.price) : '',
               durationMinutes: item && item.durationMinutes != null
                 ? String(item.durationMinutes)
+                : '',
+              prepaymentPercent: item && item.prepaymentPercent != null
+                ? String(item.prepaymentPercent)
                 : ''
             };
           });
@@ -2369,8 +2382,13 @@ class AdminController {
       final String priceRaw = (item['price'] ?? '').toString().trim();
       final String durationRaw =
           (item['durationMinutes'] ?? '').toString().trim();
+      final String prepaymentRaw =
+          (item['prepaymentPercent'] ?? '').toString().trim();
 
-      if (name.isEmpty && priceRaw.isEmpty && durationRaw.isEmpty) {
+      if (name.isEmpty &&
+          priceRaw.isEmpty &&
+          durationRaw.isEmpty &&
+          prepaymentRaw.isEmpty) {
         continue;
       }
       if (name.isEmpty) {
@@ -2400,6 +2418,13 @@ class AdminController {
             fieldLabel: _text(lang, 'fieldServiceDuration'),
             lang: lang,
             min: 1,
+          ),
+          prepaymentPercent: _parseIntField(
+            prepaymentRaw.isEmpty ? '0' : prepaymentRaw,
+            fieldLabel: _text(lang, 'fieldServicePrepayment'),
+            lang: lang,
+            min: 0,
+            max: 100,
           ),
         ),
       );
@@ -2514,6 +2539,7 @@ class AdminController {
     required String fieldLabel,
     required String lang,
     required int min,
+    int? max,
   }) {
     final String value = (raw ?? '').trim();
     final int? parsed = int.tryParse(value);
@@ -2526,7 +2552,7 @@ class AdminController {
         ),
       );
     }
-    if (parsed < min) {
+    if (parsed < min || (max != null && parsed > max)) {
       throw FormatException(
         _text(
           lang,
@@ -3108,6 +3134,7 @@ class AdminController {
                   'name': item.name,
                   'price': moneyInputValue(item.price),
                   'durationMinutes': item.durationMinutes,
+                  'prepaymentPercent': item.prepaymentPercent,
                 })
             .toList(growable: false),
       )),
@@ -3495,9 +3522,11 @@ class AdminController {
       'name': _text(lang, 'jsName'),
       'price': _text(lang, 'jsPrice'),
       'duration': _text(lang, 'jsDuration'),
+      'prepayment': _text(lang, 'jsPrepayment'),
       'serviceNamePlaceholder': _text(lang, 'serviceNamePlaceholder'),
       'pricePlaceholder': _text(lang, 'servicePricePlaceholder'),
       'durationPlaceholder': _text(lang, 'serviceDurationPlaceholder'),
+      'prepaymentPlaceholder': _text(lang, 'servicePrepaymentPlaceholder'),
       'serviceNote': _text(lang, 'serviceNote'),
       'copied': _text(lang, 'copied'),
     };
@@ -3608,11 +3637,13 @@ class AdminController {
       'jsName': 'Nomi',
       'jsPrice': 'Narxi',
       'jsDuration': 'Davomiyligi',
+      'jsPrepayment': 'Avans %',
       'serviceNamePlaceholder': 'Masalan: Kompyuter diagnostika',
       'servicePricePlaceholder': '120000',
       'serviceDurationPlaceholder': '35',
+      'servicePrepaymentPlaceholder': 'Masalan: 30',
       'serviceNote':
-          'Kartadagi boshlang‘ich narx va xizmat yorliqlari shu ro‘yxatdan shakllanadi.',
+          'Kartadagi boshlang‘ich narx, xizmat yorliqlari va oldindan to‘lov foizi shu ro‘yxatdan shakllanadi.',
       'copied': 'Nusxalandi',
       'createSuccess': 'Yangi avtoservis qo‘shildi',
       'garageNotFound': 'Avtoservis topilmadi',
@@ -3643,6 +3674,7 @@ class AdminController {
       'fieldServiceName': 'Xizmat turi nomi',
       'fieldServicePrice': 'Xizmat narxi',
       'fieldServiceDuration': 'Xizmat davomiyligi',
+      'fieldServicePrepayment': 'Oldindan to‘lov foizi',
       'minimumOneService': 'Kamida bitta xizmat turi kiriting',
       'invalidServicesFormat': 'Xizmat turlari formati noto‘g‘ri',
       'requiredField': '{field} majburiy',
@@ -3704,7 +3736,7 @@ class AdminController {
       'helperSchedule':
           'Ish boshlanishi, tugashi, tanaffus va dam olish kunlarini shu yerda belgilang. Keyingi bosqichda bo‘sh slotlar aynan shu jadvalga tayanadi.',
       'helperServices':
-          'Xizmat turlarini shu yerda boshqaring. Ilovadagi boshlang‘ich narx va xizmat yorliqlari shu ro‘yxatdan olinadi.',
+          'Xizmat turlarini shu yerda boshqaring. Ilovadagi boshlang‘ich narx, oldindan to‘lov va xizmat yorliqlari shu ro‘yxatdan olinadi.',
       'pricingMatrixTitle': 'Mashina bo‘yicha narxlar',
       'pricingMatrixDescription':
           'Har bir xizmat uchun mashina modeli kesimidagi narxlarni Excel orqali boshqaring.',
@@ -3845,11 +3877,13 @@ class AdminController {
       'jsName': 'Название',
       'jsPrice': 'Цена',
       'jsDuration': 'Длительность',
+      'jsPrepayment': 'Аванс %',
       'serviceNamePlaceholder': 'Например: Компьютерная диагностика',
       'servicePricePlaceholder': '120000',
       'serviceDurationPlaceholder': '35',
+      'servicePrepaymentPlaceholder': 'Например: 30',
       'serviceNote':
-          'Стартовая цена и ярлыки услуг в карточке формируются из этого списка.',
+          'Стартовая цена, ярлыки услуг и процент предоплаты берутся из этого списка.',
       'copied': 'Скопировано',
       'createSuccess': 'Новый автосервис добавлен',
       'garageNotFound': 'Автосервис не найден',
@@ -3880,6 +3914,7 @@ class AdminController {
       'fieldServiceName': 'Название работы',
       'fieldServicePrice': 'Цена работы',
       'fieldServiceDuration': 'Длительность работы',
+      'fieldServicePrepayment': 'Процент предоплаты',
       'minimumOneService': 'Добавьте хотя бы один вид работ',
       'invalidServicesFormat': 'Неверный формат списка работ',
       'requiredField': 'Поле «{field}» обязательно',
@@ -3938,7 +3973,7 @@ class AdminController {
       'helperSchedule':
           'Укажите рабочие часы, перерыв и выходные дни. На следующем этапе свободные слоты будут строиться по этому графику.',
       'helperServices':
-          'Управляйте видами работ здесь. Стартовая цена и ярлыки услуг в приложении формируются из этого списка.',
+          'Управляйте видами работ здесь. Стартовая цена, предоплата и ярлыки услуг в приложении формируются из этого списка.',
       'pricingMatrixTitle': 'Цены по моделям авто',
       'pricingMatrixDescription':
           'Управляйте ценами по моделям для каждой услуги через Excel.',
@@ -4079,11 +4114,13 @@ class AdminController {
       'jsName': 'Name',
       'jsPrice': 'Price',
       'jsDuration': 'Duration',
+      'jsPrepayment': 'Prepayment %',
       'serviceNamePlaceholder': 'For example: Computer diagnostics',
       'servicePricePlaceholder': '120000',
       'serviceDurationPlaceholder': '35',
+      'servicePrepaymentPlaceholder': 'For example: 30',
       'serviceNote':
-          'Starting price and service labels on the card are generated from this list.',
+          'Starting price, service labels, and prepayment percent on the card come from this list.',
       'copied': 'Copied',
       'createSuccess': 'New auto service added',
       'garageNotFound': 'Auto service not found',
@@ -4114,6 +4151,7 @@ class AdminController {
       'fieldServiceName': 'Job name',
       'fieldServicePrice': 'Job price',
       'fieldServiceDuration': 'Job duration',
+      'fieldServicePrepayment': 'Prepayment percent',
       'minimumOneService': 'Add at least one job type',
       'invalidServicesFormat': 'Invalid job list format',
       'requiredField': '{field} is required',
@@ -4175,7 +4213,7 @@ class AdminController {
       'helperSchedule':
           'Set working hours, break time, and days off here. The next step will use this schedule to build available slots.',
       'helperServices':
-          'Manage the job list here. The app uses this list to build the starting price and service labels.',
+          'Manage the job list here. The app uses this list to build the starting price, prepayment, and service labels.',
       'pricingMatrixTitle': 'Vehicle pricing matrix',
       'pricingMatrixDescription':
           'Manage vehicle-specific prices for each service through Excel.',

@@ -185,6 +185,21 @@ class FirebasePushService {
       if (decoded is Map<String, dynamic>) {
         final dynamic error = decoded['error'];
         if (error is Map<String, dynamic>) {
+          final dynamic details = error['details'];
+          if (details is List) {
+            for (final dynamic item in details) {
+              if (item is Map<String, dynamic>) {
+                final String errorCode =
+                    (item['errorCode'] ?? '').toString().trim();
+                if (errorCode == 'THIRD_PARTY_AUTH_ERROR') {
+                  return 'iOS push uchun APNs auth kaliti Firebase Console’da sozlanmagan yoki noto‘g‘ri';
+                }
+                if (errorCode == 'UNREGISTERED') {
+                  return 'Qurilma push tokeni eskirgan yoki ilova qayta o‘rnatilgan';
+                }
+              }
+            }
+          }
           final String message = (error['message'] ?? '').toString().trim();
           if (message.isNotEmpty) {
             return message;

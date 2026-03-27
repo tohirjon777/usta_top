@@ -2,6 +2,7 @@ import 'booking_cancellation.dart';
 import 'money.dart';
 import 'models.dart';
 import 'telegram_bot.dart';
+import 'booking_payment_methods.dart';
 import 'vehicle_types.dart';
 
 class WorkshopNotificationsService {
@@ -46,6 +47,7 @@ Mashina: ${_vehicleSummary(booking)}
 Vaqt: ${_formatDateTime(booking.dateTime)}
 Asosiy narx: ${formatMoneyUzs(booking.basePrice)}
 Yakuniy narx: ${formatMoneyUzs(booking.price)}
+${_paymentSummaryText(booking)}
 ${_rescheduleMetaText(booking)}
 ${includeStatus ? 'Holat: ${_statusLabel(booking.status)}\n' : ''}''';
   }
@@ -70,6 +72,7 @@ Xizmat: ${booking.serviceName}
 Mashina: ${_vehicleSummary(booking)}
 Vaqt: ${_formatDateTime(booking.dateTime)}
 ${_rescheduleMetaText(booking)}
+${_paymentSummaryText(booking)}
 ${booking.status == BookingStatus.cancelled ? 'Bekor qildi: ${_cancellationActor(booking)}\nBekor qilish sababi: ${_cancellationReason(booking)}\n' : ''}Yakuniy narx: ${formatMoneyUzs(booking.price)}
 ''',
     );
@@ -466,6 +469,35 @@ $suggestionsText
       return '';
     }
     return 'Oldingi vaqt: ${_formatDateTime(booking.previousDateTime!)}\n';
+  }
+
+  String _paymentSummaryText(BookingModel booking) {
+    final List<String> lines = <String>[
+      'To‘lov holati: ${_paymentStatusLabel(booking.paymentStatus)}',
+    ];
+    if (booking.prepaymentAmount > 0) {
+      lines.add('Avans: ${formatMoneyUzs(booking.prepaymentAmount)}');
+      lines.add('Qolgani: ${formatMoneyUzs(booking.remainingAmount)}');
+    }
+    if (booking.paymentMethod.trim().isNotEmpty) {
+      lines.add(
+        'To‘lov usuli: ${bookingPaymentMethodLabel(booking.paymentMethod)}',
+      );
+    }
+    return '${lines.join('\n')}\n';
+  }
+
+  String _paymentStatusLabel(BookingPaymentStatus status) {
+    switch (status) {
+      case BookingPaymentStatus.pending:
+        return 'Kutilmoqda';
+      case BookingPaymentStatus.paid:
+        return 'To‘langan';
+      case BookingPaymentStatus.refunded:
+        return 'Qaytarilgan';
+      case BookingPaymentStatus.notRequired:
+        return 'Talab qilinmaydi';
+    }
   }
 
   String _leadTimeLabel(Duration value) {

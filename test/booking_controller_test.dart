@@ -29,4 +29,37 @@ void main() {
     expect(controller.upcomingBookings, 0);
     expect(controller.bookings.first.status, BookingStatus.cancelled);
   });
+
+  test('reschedules booking and keeps it in active counters', () {
+    final BookingController controller = BookingController();
+
+    final BookingItem booking = BookingItem(
+      id: 'b-2',
+      workshopId: 'w-1',
+      salonName: 'Turbo Usta Servis',
+      masterName: 'Aziz Usta',
+      serviceId: 'srv-1',
+      serviceName: 'Kompyuter diagnostika',
+      vehicleModel: 'Chevrolet Cobalt',
+      vehicleTypeId: 'sedan',
+      dateTime: DateTime(2026, 3, 20, 11, 0),
+      basePrice: 120,
+      price: 120,
+    );
+
+    controller.addBooking(booking);
+    final bool rescheduled = controller.rescheduleBooking(
+      'b-2',
+      dateTime: DateTime(2026, 3, 20, 12, 30),
+    );
+
+    expect(rescheduled, isTrue);
+    expect(controller.upcomingBookings, 1);
+    expect(controller.bookings.first.status, BookingStatus.rescheduled);
+    expect(
+      controller.bookings.first.previousDateTime,
+      DateTime(2026, 3, 20, 11, 0),
+    );
+    expect(controller.bookings.first.dateTime, DateTime(2026, 3, 20, 12, 30));
+  });
 }

@@ -37,3 +37,21 @@ String bookingCancellationActorLabel(
       return l10n.cancellationUnknown;
   }
 }
+
+String bookingRescheduleActorLabel(
+  String raw,
+  AppLocalizations l10n,
+) {
+  switch (raw.trim().toLowerCase()) {
+    case 'customer':
+      return l10n.cancellationActorCustomer;
+    case 'admin':
+      return l10n.cancellationActorAdmin;
+    case 'owner_panel':
+      return l10n.cancellationActorOwnerPanel;
+    case 'owner_telegram':
+      return l10n.cancellationActorOwnerTelegram;
+    default:
+      return l10n.cancellationUnknown;
+  }
+}

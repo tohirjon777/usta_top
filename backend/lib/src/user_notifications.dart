@@ -159,6 +159,26 @@ class UserNotificationsService {
     );
   }
 
+  Future<void> sendTestNotification({
+    required UserModel user,
+  }) async {
+    final List<String> tokens = _tokensForUser(user);
+    if (tokens.isEmpty) {
+      throw const FirebasePushException(
+        'Foydalanuvchi uchun push token topilmadi',
+      );
+    }
+
+    await _firebasePushService.sendToTokens(
+      tokens: tokens,
+      title: 'Usta Top: test push',
+      body: 'Push notification ishlayapti. Ilova yopiq bo‘lsa ham shu xabar chiqishi kerak.',
+      data: <String, String>{
+        'type': 'push_test',
+      },
+    );
+  }
+
   String _titleForBookingStatus(BookingModel booking) {
     switch (booking.status) {
       case BookingStatus.accepted:

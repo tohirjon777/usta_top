@@ -190,6 +190,9 @@ class BookingProvider extends BookingController {
     required String vehicleTypeId,
     required DateTime dateTime,
     required int basePrice,
+    required int totalPrice,
+    required int prepaymentPercent,
+    String paymentMethod = '',
   }) async {
     _errorMessage = null;
 
@@ -200,6 +203,7 @@ class BookingProvider extends BookingController {
 
     try {
       if (_service == null) {
+        final bool isTestCardPayment = paymentMethod.trim() == 'test_card';
         final BookingItem localBooking = BookingItem(
           id: 'b-${DateTime.now().microsecondsSinceEpoch}',
           workshopId: workshopId,
@@ -211,7 +215,19 @@ class BookingProvider extends BookingController {
           vehicleTypeId: vehicleTypeId,
           dateTime: dateTime,
           basePrice: basePrice,
-          price: basePrice,
+          price: totalPrice,
+          prepaymentPercent: prepaymentPercent,
+          prepaymentAmount: ((totalPrice * prepaymentPercent) / 100).ceil(),
+          remainingAmount:
+              totalPrice - (((totalPrice * prepaymentPercent) / 100).ceil()),
+          paymentStatus: prepaymentPercent > 0
+              ? (isTestCardPayment
+                  ? BookingPaymentStatus.paid
+                  : BookingPaymentStatus.pending)
+              : BookingPaymentStatus.notRequired,
+          paymentMethod: paymentMethod,
+          paidAt:
+              prepaymentPercent > 0 && isTestCardPayment ? DateTime.now() : null,
         );
         upsertBooking(localBooking);
         return localBooking;
@@ -228,6 +244,7 @@ class BookingProvider extends BookingController {
         isCustomVehicle: isCustomVehicle,
         vehicleTypeId: vehicleTypeId,
         dateTime: dateTime,
+        paymentMethod: paymentMethod,
       );
       _invalidateAvailability(
         workshopId: workshopId,
@@ -344,11 +361,18 @@ class BookingProvider extends BookingController {
     required String vehicleModelName,
     required String vehicleTypeId,
     required int fallbackBasePrice,
+    int fallbackPrepaymentPercent = 0,
   }) async {
     if (_service == null) {
+      final int prepaymentAmount =
+          ((fallbackBasePrice * fallbackPrepaymentPercent) / 100).ceil();
       return ServicePriceQuote(
         basePrice: fallbackBasePrice,
         price: fallbackBasePrice,
+        prepaymentPercent: fallbackPrepaymentPercent,
+        prepaymentAmount: prepaymentAmount,
+        remainingAmount: fallbackBasePrice - prepaymentAmount,
+        requiresPrepayment: prepaymentAmount > 0,
       );
     }
 
@@ -483,6 +507,77 @@ class BookingProvider extends BookingController {
       return false;
     } catch (_) {
       _errorMessage = 'Buyurtmani bekor qilishda xatolik yuz berdi';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> rescheduleBookingRequest({
+    required String bookingId,
+    required DateTime dateTime,
+  }) async {
+    _errorMessage = null;
+    final BookingItem? current = bookings.cast<BookingItem?>().firstWhere(
+          (BookingItem? item) => item?.id == bookingId,
+          orElse: () => null,
+        );
+    if (current == null) {
+      _errorMessage = 'Buyurtma topilmadi';
+      notifyListeners();
+      return false;
+    }
+
+    if (_service == null) {
+      final bool changed = rescheduleBooking(
+        bookingId,
+        dateTime: dateTime,
+      );
+      if (changed) {
+        _invalidateAvailability(
+          workshopId: current.workshopId,
+          serviceId: current.serviceId,
+          date: current.dateTime,
+        );
+        _invalidateAvailability(
+          workshopId: current.workshopId,
+          serviceId: current.serviceId,
+          date: dateTime,
+        );
+        _invalidateAvailabilityCalendars(
+          workshopId: current.workshopId,
+          serviceId: current.serviceId,
+        );
+      }
+      return changed;
+    }
+
+    try {
+      final BookingItem updated = await _service.rescheduleBooking(
+        bookingId: bookingId,
+        dateTime: dateTime,
+      );
+      _invalidateAvailability(
+        workshopId: current.workshopId,
+        serviceId: current.serviceId,
+        date: current.dateTime,
+      );
+      _invalidateAvailability(
+        workshopId: current.workshopId,
+        serviceId: current.serviceId,
+        date: dateTime,
+      );
+      _invalidateAvailabilityCalendars(
+        workshopId: current.workshopId,
+        serviceId: current.serviceId,
+      );
+      upsertBooking(updated);
+      return true;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Buyurtmani ko‘chirishda xatolik yuz berdi';
       notifyListeners();
       return false;
     }

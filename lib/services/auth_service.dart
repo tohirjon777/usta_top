@@ -109,4 +109,8 @@ abstract interface class AuthService {
     required String accessToken,
     required String token,
   });
+
+  Future<void> sendTestPush({
+    required String accessToken,
+  });
 }

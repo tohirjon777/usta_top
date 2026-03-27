@@ -17,6 +17,7 @@ abstract interface class BookingService {
     required bool isCustomVehicle,
     required String vehicleTypeId,
     required DateTime dateTime,
+    String paymentMethod = '',
   });
 
   Future<BookingAvailability> fetchAvailability({
@@ -43,6 +44,11 @@ abstract interface class BookingService {
 
   Future<BookingItem> cancelBooking({
     required String bookingId,
+  });
+
+  Future<BookingItem> rescheduleBooking({
+    required String bookingId,
+    required DateTime dateTime,
   });
 
   Future<List<BookingChatMessage>> fetchBookingMessages({

@@ -2,6 +2,8 @@ import 'vehicle_type.dart';
 
 enum BookingStatus { upcoming, accepted, rescheduled, completed, cancelled }
 
+enum BookingPaymentStatus { notRequired, pending, paid, refunded }
+
 extension BookingStatusX on BookingStatus {
   String get label {
     switch (this) {
@@ -32,6 +34,12 @@ class BookingItem {
     required this.dateTime,
     required this.basePrice,
     required this.price,
+    this.prepaymentPercent = 0,
+    this.prepaymentAmount = 0,
+    this.remainingAmount = 0,
+    this.paymentStatus = BookingPaymentStatus.notRequired,
+    this.paymentMethod = '',
+    this.paidAt,
     this.status = BookingStatus.upcoming,
     this.completedAt,
     this.previousDateTime,
@@ -60,6 +68,12 @@ class BookingItem {
   final DateTime dateTime;
   final int basePrice;
   final int price;
+  final int prepaymentPercent;
+  final int prepaymentAmount;
+  final int remainingAmount;
+  final BookingPaymentStatus paymentStatus;
+  final String paymentMethod;
+  final DateTime? paidAt;
   final BookingStatus status;
   final DateTime? completedAt;
   final DateTime? previousDateTime;
@@ -99,6 +113,14 @@ class BookingItem {
           ? _toInt(json['price'])
           : _toInt(json['basePrice']),
       price: _toInt(json['price']),
+      prepaymentPercent: _toInt(json['prepaymentPercent']),
+      prepaymentAmount: _toInt(json['prepaymentAmount']),
+      remainingAmount: _toInt(json['remainingAmount']),
+      paymentStatus: _paymentStatusFromString(
+        (json['paymentStatus'] ?? '').toString(),
+      ),
+      paymentMethod: (json['paymentMethod'] ?? '').toString().trim(),
+      paidAt: DateTime.tryParse((json['paidAt'] ?? '').toString()),
       status: _statusFromString((json['status'] ?? '').toString()),
       completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
       previousDateTime:
@@ -134,6 +156,12 @@ class BookingItem {
     DateTime? dateTime,
     int? basePrice,
     int? price,
+    int? prepaymentPercent,
+    int? prepaymentAmount,
+    int? remainingAmount,
+    BookingPaymentStatus? paymentStatus,
+    String? paymentMethod,
+    DateTime? paidAt,
     BookingStatus? status,
     DateTime? completedAt,
     DateTime? previousDateTime,
@@ -162,6 +190,12 @@ class BookingItem {
       dateTime: dateTime ?? this.dateTime,
       basePrice: basePrice ?? this.basePrice,
       price: price ?? this.price,
+      prepaymentPercent: prepaymentPercent ?? this.prepaymentPercent,
+      prepaymentAmount: prepaymentAmount ?? this.prepaymentAmount,
+      remainingAmount: remainingAmount ?? this.remainingAmount,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paidAt: paidAt ?? this.paidAt,
       status: status ?? this.status,
       completedAt: completedAt ?? this.completedAt,
       previousDateTime: previousDateTime ?? this.previousDateTime,
@@ -205,6 +239,21 @@ class BookingItem {
       case 'upcoming':
       default:
         return BookingStatus.upcoming;
+    }
+  }
+
+  static BookingPaymentStatus _paymentStatusFromString(String value) {
+    switch (value.toLowerCase()) {
+      case 'pending':
+        return BookingPaymentStatus.pending;
+      case 'paid':
+        return BookingPaymentStatus.paid;
+      case 'refunded':
+        return BookingPaymentStatus.refunded;
+      case 'not_required':
+      case 'notrequired':
+      default:
+        return BookingPaymentStatus.notRequired;
     }
   }
 }

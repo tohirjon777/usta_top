@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/notification_settings_provider.dart';
+import '../providers/push_notifications_provider.dart';
 import '../providers/theme_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -50,6 +51,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final LanguageProvider languageProvider = context.watch<LanguageProvider>();
     final NotificationSettingsProvider notificationSettingsProvider =
         context.watch<NotificationSettingsProvider>();
+    final PushNotificationsProvider pushNotificationsProvider =
+        context.watch<PushNotificationsProvider>();
     final ThemeProvider themeProvider = context.watch<ThemeProvider>();
     final AuthProvider authProvider = context.watch<AuthProvider>();
     final AppLanguage language = languageProvider.language;
@@ -210,6 +213,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 8),
           _MenuTile(
+            icon: Icons.notification_add_outlined,
+            title: l10n.testPushNotification,
+            subtitle: pushNotificationsProvider.lastError ??
+                (pushNotificationsProvider.isFirebaseReady
+                    ? l10n.pushReady
+                    : l10n.pushNotReady),
+            onTap: authProvider.isLoggedIn ? () => _sendTestPush() : null,
+          ),
+          const SizedBox(height: 8),
+          _MenuTile(
             icon: Icons.language,
             title: l10n.language,
             subtitle: l10n.languageName(language),
@@ -249,6 +262,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               : l10n.notificationsDisabled,
         ),
       ),
+    );
+  }
+
+  Future<void> _sendTestPush() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final bool success = await context.read<AuthProvider>().sendTestPush();
+    if (!mounted) {
+      return;
+    }
+    final String message = success
+        ? l10n.testPushSent
+        : (context.read<AuthProvider>().errorMessage ?? l10n.testPushFailed);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -781,13 +808,13 @@ class _MenuTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.onTap,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

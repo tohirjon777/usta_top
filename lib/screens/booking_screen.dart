@@ -35,6 +35,10 @@ class BookingScreen extends StatefulWidget {
 class _BookingScreenState extends State<BookingScreen> {
   static const String _otherBrandValue = '__other_brand__';
   static const String _otherModelValue = '__other_model__';
+  static const List<String> _paymentMethods = <String>[
+    'cash',
+    'test_card',
+  ];
 
   late String _selectedServiceId;
   late String _selectedVehicleTypeId;
@@ -43,6 +47,7 @@ class _BookingScreenState extends State<BookingScreen> {
   late DateTime _selectedDate;
   late final TextEditingController _customBrandController;
   late final TextEditingController _customModelController;
+  late String _selectedPaymentMethod;
   String? _selectedTime;
   bool _isOtherBrandSelected = false;
   bool _isOtherModelSelected = false;
@@ -87,6 +92,7 @@ class _BookingScreenState extends State<BookingScreen> {
     _selectedCatalogVehicleId = defaultVehicle.id;
     _customBrandController = TextEditingController();
     _customModelController = TextEditingController();
+    _selectedPaymentMethod = _paymentMethods.first;
     _selectedDate = DateTime.now().add(const Duration(days: 1));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshAvailabilityCalendar(forceAdjustSelection: true);
@@ -171,6 +177,21 @@ class _BookingScreenState extends State<BookingScreen> {
   int get _quotedBasePrice => _priceQuote?.basePrice ?? _selectedService.price;
 
   int get _quotedPrice => _priceQuote?.price ?? _selectedService.price;
+
+  int get _quotedPrepaymentPercent =>
+      _priceQuote?.prepaymentPercent ?? _selectedService.prepaymentPercent;
+
+  int get _quotedPrepaymentAmount =>
+      _priceQuote?.prepaymentAmount ??
+      _selectedService.calculatePrepaymentAmount(_quotedPrice);
+
+  int get _quotedRemainingAmount =>
+      _priceQuote?.remainingAmount ?? (_quotedPrice - _quotedPrepaymentAmount);
+
+  bool get _requiresPrepayment =>
+      _priceQuote?.requiresPrepayment ?? _quotedPrepaymentAmount > 0;
+
+  bool get _isTestCardPayment => _selectedPaymentMethod == 'test_card';
 
   @override
   Widget build(BuildContext context) {
@@ -584,6 +605,19 @@ class _BookingScreenState extends State<BookingScreen> {
                       AppFormatters.moneyK(_quotedBasePrice),
                     ),
                   ),
+                  if (_requiresPrepayment)
+                    Text(
+                      l10n.prepaymentSummaryLabel(
+                        _quotedPrepaymentPercent,
+                        AppFormatters.moneyK(_quotedPrepaymentAmount),
+                      ),
+                    ),
+                  if (_requiresPrepayment)
+                    Text(
+                      l10n.remainingPaymentLabel(
+                        AppFormatters.moneyK(_quotedRemainingAmount),
+                      ),
+                    ),
                   if (_priceQuote?.matchedRule == true &&
                       _priceQuote!.matchedVehicleLabel.isNotEmpty)
                     Text(
@@ -608,6 +642,36 @@ class _BookingScreenState extends State<BookingScreen> {
                       color: AppColors.primaryToneOf(context),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.paymentMethodLabel,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.paymentMethodHint,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.secondaryTextOf(context),
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _paymentMethods
+                        .map(
+                          (String method) => ChoiceChip(
+                            label: Text(_paymentMethodLabel(l10n, method)),
+                            selected: method == _selectedPaymentMethod,
+                            onSelected: (_) {
+                              setState(() {
+                                _selectedPaymentMethod = method;
+                              });
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ],
               ),
             ),
@@ -623,7 +687,13 @@ class _BookingScreenState extends State<BookingScreen> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(l10n.confirmBooking),
+                : Text(
+                    _selectedPaymentMethod == 'cash'
+                        ? l10n.bookWithCash
+                        : (_isTestCardPayment
+                            ? l10n.payWithTestCardAndBook
+                            : l10n.confirmBooking),
+                  ),
           ),
         ],
       ),
@@ -686,6 +756,24 @@ class _BookingScreenState extends State<BookingScreen> {
     _schedulePriceQuoteRefresh(immediate: true);
   }
 
+  String _paymentMethodLabel(AppLocalizations l10n, String method) {
+    switch (method) {
+      case 'cash':
+        return l10n.paymentMethodCash;
+      case 'test_card':
+        return l10n.paymentMethodTestCard;
+      case 'click':
+        return l10n.paymentMethodClick;
+      case 'payme':
+        return l10n.paymentMethodPayme;
+      case 'uzum':
+        return l10n.paymentMethodUzum;
+      case 'bank_card':
+      default:
+        return l10n.paymentMethodBankCard;
+    }
+  }
+
   bool get _canResolvePriceQuote {
     if (_isCustomVehicle) {
       return _selectedVehicleBrand.length >= 2 &&
@@ -739,6 +827,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 vehicleModelName: _selectedVehicleModelName,
                 vehicleTypeId: _selectedVehicleTypeId,
                 fallbackBasePrice: _selectedService.price,
+                fallbackPrepaymentPercent: _selectedService.prepaymentPercent,
               );
       if (!mounted || requestId != _priceQuoteRequestId) {
         return;
@@ -1012,6 +1101,13 @@ class _BookingScreenState extends State<BookingScreen> {
       int.parse(parts.last),
     );
 
+    if (_isTestCardPayment) {
+      final bool shouldContinue = await _showTestPaymentSheet();
+      if (!shouldContinue || !mounted) {
+        return;
+      }
+    }
+
     setState(() {
       _isSubmitting = true;
     });
@@ -1033,6 +1129,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 vehicleTypeId: _selectedVehicleTypeId,
                 dateTime: bookingDateTime,
                 basePrice: _quotedBasePrice,
+                totalPrice: _quotedPrice,
+                prepaymentPercent: _quotedPrepaymentPercent,
+                paymentMethod: _selectedPaymentMethod,
               );
 
       if (!mounted) {
@@ -1073,6 +1172,125 @@ class _BookingScreenState extends State<BookingScreen> {
         });
       }
     }
+  }
+
+  Future<bool> _showTestPaymentSheet() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final String payableAmount = AppFormatters.moneyK(
+      _requiresPrepayment ? _quotedPrepaymentAmount : _quotedPrice,
+    );
+    final bool? result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      l10n.testPaymentTitle,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.testPaymentSubtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.secondaryTextOf(context),
+                    ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(
+                    colors: <Color>[
+                      Color(0xFF16324F),
+                      Color(0xFF335C81),
+                    ],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      l10n.paymentMethodTestCard,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '8600 1234 5678 9012',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        letterSpacing: 1.8,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: const <Widget>[
+                        Expanded(
+                          child: Text(
+                            'USTA TOP TEST',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '12/30',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                l10n.testPaymentAmountLabel(payableAmount),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.testPaymentHint,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.secondaryTextOf(context),
+                    ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(l10n.testPaymentConfirm),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    return result == true;
   }
 
 }

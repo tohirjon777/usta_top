@@ -148,6 +148,10 @@ class WorkshopController {
             'serviceId': serviceId,
             'basePrice': quote.basePrice,
             'price': quote.price,
+            'prepaymentPercent': quote.prepaymentPercent,
+            'prepaymentAmount': quote.prepaymentAmount,
+            'remainingAmount': quote.remainingAmount,
+            'requiresPrepayment': quote.requiresPrepayment,
             'matchedRule': quote.matchedRule != null,
             if (quote.matchedRule != null)
               'matchedVehicleLabel': quote.matchedRule!.vehicleLabel,

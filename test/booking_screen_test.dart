@@ -160,6 +160,10 @@ class FakeBookingService implements BookingService {
     return const ServicePriceQuote(
       basePrice: 120,
       price: 120,
+      prepaymentPercent: 0,
+      prepaymentAmount: 0,
+      remainingAmount: 120,
+      requiresPrepayment: false,
     );
   }
 
@@ -177,6 +181,7 @@ class FakeBookingService implements BookingService {
     required bool isCustomVehicle,
     required String vehicleTypeId,
     required DateTime dateTime,
+    String paymentMethod = '',
   }) {
     throw UnimplementedError();
   }
@@ -184,6 +189,14 @@ class FakeBookingService implements BookingService {
   @override
   Future<BookingItem> cancelBooking({
     required String bookingId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<BookingItem> rescheduleBooking({
+    required String bookingId,
+    required DateTime dateTime,
   }) {
     throw UnimplementedError();
   }
@@ -262,6 +275,11 @@ class FakeAuthService implements AuthService {
   Future<void> unregisterPushToken({
     required String accessToken,
     required String token,
+  }) async {}
+
+  @override
+  Future<void> sendTestPush({
+    required String accessToken,
   }) async {}
 
   @override
