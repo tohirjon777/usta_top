@@ -37,4 +37,11 @@ fi
 
 php artisan key:generate --force >/dev/null 2>&1 || true
 
+set -a
+# shellcheck disable=SC1091
+source ".env"
+set +a
+
+export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}"
+
 exec php artisan serve --host="${HOST:-127.0.0.1}" --port="${PORT:-8080}"

@@ -3,11 +3,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$ROOT_DIR/backend"
+BACKEND_DIR="$ROOT_DIR/backend_laravel"
+SOURCE_DATA_DIR="$BACKEND_DIR/data"
 PROJECT_ENV_FILE="$BACKEND_DIR/.env.local"
-ENV_EXAMPLE_FILE="$BACKEND_DIR/.env.example"
 SERVICE_ROOT="$HOME/Library/Application Support/UstaTopBackend"
 RUNTIME_DIR="$SERVICE_ROOT/runtime"
+DATA_DIR="$RUNTIME_DIR/data"
+DATA_SEED_MARKER="$DATA_DIR/.seeded_from_project"
 ENV_FILE="$RUNTIME_DIR/.env.local"
 LOG_DIR="$SERVICE_ROOT/logs"
 PLIST_DIR="$HOME/Library/LaunchAgents"
@@ -30,7 +32,7 @@ Usage:
   ./backend_service.sh uninstall
 
 Commands:
-  install    LaunchAgent yaratadi va backendni avtomatik ishga tushiradi
+  install    LaunchAgent yaratadi va Laravel backendni avtomatik ishga tushiradi
   start      O'rnatilgan service'ni ishga tushiradi
   stop       Service'ni to'xtatadi
   restart    Service'ni qayta ishga tushiradi
@@ -45,24 +47,29 @@ ensure_env_file() {
     return
   fi
 
-  cp "$ENV_EXAMPLE_FILE" "$PROJECT_ENV_FILE"
+  touch "$PROJECT_ENV_FILE"
   printf 'Created %s\n' "$PROJECT_ENV_FILE"
 }
 
 sync_runtime() {
-  mkdir -p "$RUNTIME_DIR" "$LOG_DIR"
+  mkdir -p "$RUNTIME_DIR" "$LOG_DIR" "$RUNTIME_DIR/storage/app/ustatop" "$RUNTIME_DIR/storage/logs" "$DATA_DIR"
 
   rsync -a --delete \
-    --exclude '.dart_tool/' \
-    --exclude 'build/' \
-    --exclude 'logs/' \
+    --exclude 'vendor/' \
+    --exclude 'node_modules/' \
+    --exclude '.env' \
     --exclude '.env.local' \
-    --exclude 'data/' \
+    --exclude 'storage/logs/' \
+    --exclude 'storage/app/ustatop/' \
     "$BACKEND_DIR/" "$RUNTIME_DIR/"
 
-  if [[ ! -d "$RUNTIME_DIR/data" ]]; then
-    mkdir -p "$RUNTIME_DIR/data"
-    rsync -a "$BACKEND_DIR/data/" "$RUNTIME_DIR/data/"
+  if [[ ! -f "$DATA_SEED_MARKER" ]] || find "$SOURCE_DATA_DIR" -type f -newer "$DATA_SEED_MARKER" | grep -q .; then
+    rsync -a "$SOURCE_DATA_DIR/" "$DATA_DIR/"
+    touch "$DATA_SEED_MARKER"
+  fi
+
+  if [[ -f "$BACKEND_DIR/.env" ]]; then
+    cp "$BACKEND_DIR/.env" "$RUNTIME_DIR/.env"
   fi
 
   if [[ -f "$PROJECT_ENV_FILE" ]]; then
@@ -92,6 +99,26 @@ write_plist() {
     <string>$PATH</string>
     <key>HOME</key>
     <string>$HOME</string>
+    <key>HOST</key>
+    <string>127.0.0.1</string>
+    <key>PORT</key>
+    <string>8080</string>
+    <key>PHP_CLI_SERVER_WORKERS</key>
+    <string>4</string>
+    <key>USTATOP_USERS_FILE</key>
+    <string>$DATA_DIR/users.json</string>
+    <key>USTATOP_WORKSHOPS_FILE</key>
+    <string>$DATA_DIR/workshops.json</string>
+    <key>USTATOP_BOOKINGS_FILE</key>
+    <string>$DATA_DIR/bookings.json</string>
+    <key>USTATOP_REVIEWS_FILE</key>
+    <string>$DATA_DIR/reviews.json</string>
+    <key>USTATOP_BOOKING_MESSAGES_FILE</key>
+    <string>$DATA_DIR/booking_messages.json</string>
+    <key>USTATOP_WORKSHOP_LOCATIONS_FILE</key>
+    <string>$DATA_DIR/workshop_locations.json</string>
+    <key>USTATOP_AUTH_SESSIONS_FILE</key>
+    <string>$RUNTIME_DIR/storage/app/ustatop/auth_sessions.json</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -115,7 +142,7 @@ health_ready() {
 }
 
 wait_for_health() {
-  local attempts="${1:-8}"
+  local attempts="${1:-12}"
   local delay_seconds="${2:-1}"
   local try=1
 
@@ -139,9 +166,9 @@ install_service() {
   launchctl bootstrap "$LAUNCH_DOMAIN" "$PLIST_PATH"
   launchctl enable "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "$LAUNCH_DOMAIN/$LABEL"
-  wait_for_health 10 1 || true
+  wait_for_health 20 1 || true
 
-  printf 'Backend service installed: %s\n' "$PLIST_PATH"
+  printf 'Laravel backend service installed: %s\n' "$PLIST_PATH"
 }
 
 start_service() {
@@ -157,7 +184,7 @@ start_service() {
   fi
   launchctl enable "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "$LAUNCH_DOMAIN/$LABEL"
-  wait_for_health 10 1 || true
+  wait_for_health 20 1 || true
 }
 
 stop_service() {
@@ -183,7 +210,7 @@ show_status() {
     printf 'Service not loaded: %s\n' "$LABEL"
   fi
 
-  if wait_for_health 5 1; then
+  if wait_for_health 6 1; then
     printf 'Health: %s OK\n' "$HEALTH_URL"
   else
     printf 'Health: backend javob bermayapti\n'
@@ -202,7 +229,7 @@ show_logs() {
 uninstall_service() {
   stop_service
   rm -f "$PLIST_PATH"
-  printf 'Backend service removed: %s\n' "$PLIST_PATH"
+  printf 'Laravel backend service removed: %s\n' "$PLIST_PATH"
 }
 
 case "${1:-}" in

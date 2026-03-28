@@ -1,6 +1,6 @@
 # Usta Top
 
-Flutter frontend va alohida Dart backend bilan avto-servis ilovasi.
+Flutter frontend va Laravel backend bilan avto-servis ilovasi.
 
 ## Frontend
 
@@ -33,7 +33,6 @@ Foydali variantlar:
 ./run_dev.sh -- --device-id chrome
 ./run_dev.sh --android-emulator -- -d emulator-5554
 ./run_dev.sh --api-base-url http://192.168.100.25:8080 -- -d YOUR_DEVICE_ID
-TELEGRAM_BOT_TOKEN=... ./run_dev.sh
 ```
 
 Bu script backendni ko'taradi, health'ni kutadi, keyin appni backend bilan
@@ -62,51 +61,25 @@ ga sync qilinadi, shuning uchun backend kodini o'zgartirgandan keyin:
 `run_dev.sh` esa endi 8080 da backend allaqachon ishlayotgan bo'lsa, o'shani
 qayta ishlatadi.
 
-## Push Notification
-
-Background push notification ishlashi uchun quyidagi Firebase fayllar kerak:
-
-- `android/app/google-services.json`
-- `ios/Runner/GoogleService-Info.plist`
-- backend uchun service account JSON (`backend/secrets/firebase-service-account.json` yoki `FIREBASE_SERVICE_ACCOUNT_FILE`)
-
-Eng qulay yo'l:
-
-1. `google-services.json` ni `android/app/` ichiga qo'ying
-2. `GoogleService-Info.plist` ni `ios/Runner/` ichiga qo'ying
-3. service account JSON ni `backend/secrets/firebase-service-account.json` nomi bilan joylang
-4. backend service'ni qayta ishga tushiring:
-
-```bash
-./backend_service.sh restart
-```
-
-Backendni push bilan qayta ishga tushirish:
-
-```bash
-FIREBASE_SERVICE_ACCOUNT_FILE=/abs/path/firebase-service-account.json ./backend_service.sh restart
-```
-
-Yoki backendni oddiy local rejimda:
-
-```bash
-cd backend
-FIREBASE_SERVICE_ACCOUNT_FILE=/abs/path/firebase-service-account.json dart run bin/server.dart
-```
-
 ## Backend
 
 Backend alohida papkada:
 
 ```bash
-cd backend
-dart pub get
-dart run bin/server.dart
+cd backend_laravel
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan serve --host=127.0.0.1 --port=8080
 ```
 
-Batafsil API va `curl` misollari:
+Laravel backend endi o'z ma'lumotlarini `backend_laravel/data` ichidan oladi.
+Eski `backend/` papkasi legacy arxiv sifatida qoldirilgan, lekin app va service
+oqimi unga suyanmaydi.
 
-- [`backend/README.md`](backend/README.md)
+Batafsil Laravel backend izohi:
+
+- [`backend_laravel/README_USTATOP.md`](backend_laravel/README_USTATOP.md)
 
 ## API Kalitlar (To'lovsiz)
 

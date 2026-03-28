@@ -10,7 +10,13 @@ Route::get('/health', HealthController::class);
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/push-token', [AuthController::class, 'registerPushToken']);
+Route::post('/auth/push-token/remove', [AuthController::class, 'unregisterPushToken']);
+Route::post('/auth/push-token/test', [AuthController::class, 'sendTestPush']);
 Route::get('/auth/me', [AuthController::class, 'me']);
+Route::patch('/auth/me', [AuthController::class, 'updateMe']);
+Route::patch('/auth/me/password', [AuthController::class, 'updatePassword']);
 
 Route::get('/workshops', [WorkshopController::class, 'index']);
 Route::get('/workshops/{id}', [WorkshopController::class, 'show']);
@@ -23,3 +29,6 @@ Route::get('/bookings', [BookingController::class, 'index']);
 Route::post('/bookings', [BookingController::class, 'store']);
 Route::patch('/bookings/{id}/cancel', [BookingController::class, 'cancel']);
 Route::patch('/bookings/{id}/reschedule', [BookingController::class, 'reschedule']);
+Route::get('/bookings/{id}/messages', [BookingController::class, 'messages']);
+Route::post('/bookings/{id}/messages', [BookingController::class, 'sendMessage']);
+Route::patch('/bookings/{id}/messages/read', [BookingController::class, 'markMessagesRead']);

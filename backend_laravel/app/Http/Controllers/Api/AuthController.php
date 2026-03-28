@@ -68,6 +68,115 @@ class AuthController extends Controller
         return response()->json(['data' => $this->repository->publicUser($user)]);
     }
 
+    public function forgotPassword(Request $request)
+    {
+        try {
+            $this->repository->resetPassword(
+                trim((string) $request->input('phone')),
+                (string) $request->input('newPassword')
+            );
+
+            return response()->json(['data' => ['ok' => true]]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function updateMe(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->updateUserProfile(
+                    (string) $user['id'],
+                    trim((string) $request->input('fullName')),
+                    trim((string) $request->input('phone'))
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $this->repository->changePassword(
+                (string) $user['id'],
+                (string) $request->input('currentPassword'),
+                (string) $request->input('newPassword')
+            );
+
+            return response()->json(['data' => ['ok' => true]]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function registerPushToken(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $this->repository->registerPushToken(
+                (string) $user['id'],
+                trim((string) $request->input('token')),
+                trim((string) $request->input('platform'))
+            );
+
+            return response()->json(['data' => ['ok' => true]]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function unregisterPushToken(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $this->repository->unregisterPushToken(
+                (string) $user['id'],
+                trim((string) $request->input('token'))
+            );
+
+            return response()->json(['data' => ['ok' => true]]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function sendTestPush(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->sendTestPush((string) $user['id']),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
     private function userFromRequest(Request $request): ?array
     {
         $token = trim(str_replace('Bearer', '', (string) $request->header('Authorization')));

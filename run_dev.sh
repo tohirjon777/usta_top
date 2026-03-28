@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$ROOT_DIR/backend"
+BACKEND_DIR="$ROOT_DIR/backend_laravel"
 
 BIND_HOST="0.0.0.0"
 PORT="8080"
@@ -23,13 +23,12 @@ Options:
   --api-base-url URL   App uchun custom API URL beradi
   --bind-host HOST     Backend bind hosti (default: 0.0.0.0)
   --port PORT          Backend porti (default: 8080)
-  --skip-pub-get       `flutter pub get` va `dart pub get` ni o'tkazib yuboradi
+  --skip-pub-get       `flutter pub get` va `composer install` ni o'tkazib yuboradi
   --backend-only       Faqat backendni ishga tushiradi
   --help               Yordamni ko'rsatadi
 
 Examples:
   ./run_dev.sh
-  TELEGRAM_BOT_TOKEN=... ./run_dev.sh
   ./run_dev.sh -- --device-id chrome
   ./run_dev.sh --android-emulator -- -d emulator-5554
   ./run_dev.sh --api-base-url http://192.168.100.25:8080 -- -d RMX1234
@@ -86,7 +85,7 @@ if [[ -z "$API_BASE_URL" ]]; then
   fi
 fi
 
-REQUIRED_COMMANDS=(dart curl)
+REQUIRED_COMMANDS=(php composer curl)
 
 if [[ "$BACKEND_ONLY" -eq 0 ]]; then
   REQUIRED_COMMANDS+=(flutter)
@@ -100,10 +99,14 @@ for required_command in "${REQUIRED_COMMANDS[@]}"; do
 done
 
 if [[ "$SKIP_PUB_GET" -eq 0 ]]; then
-  printf 'Installing backend packages...\n'
+  printf 'Installing Laravel backend packages...\n'
   (
     cd "$BACKEND_DIR"
-    dart pub get
+    if [[ ! -f ".env" ]]; then
+      cp .env.example .env
+    fi
+    composer install --no-interaction --prefer-dist
+    php artisan key:generate --force >/dev/null 2>&1 || true
   )
 
   if [[ "$BACKEND_ONLY" -eq 0 ]]; then
@@ -120,7 +123,7 @@ BACKEND_STARTED_BY_SCRIPT=0
 
 cleanup() {
   if [[ "$BACKEND_STARTED_BY_SCRIPT" -eq 1 ]] && [[ -n "$BACKEND_PID" ]] && kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
-    printf '\nStopping backend...\n'
+    printf '\nStopping Laravel backend...\n'
     kill "$BACKEND_PID" >/dev/null 2>&1 || true
     wait "$BACKEND_PID" 2>/dev/null || true
   fi
@@ -131,10 +134,14 @@ trap cleanup EXIT INT TERM
 if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
   printf 'Existing backend detected on http://127.0.0.1:%s, reusing it.\n' "$PORT"
 else
-  printf 'Starting backend on http://127.0.0.1:%s ...\n' "$PORT"
+  printf 'Starting Laravel backend on http://127.0.0.1:%s ...\n' "$PORT"
   (
     cd "$BACKEND_DIR"
-    HOST="$BIND_HOST" PORT="$PORT" dart run bin/server.dart
+    if [[ ! -f ".env" ]]; then
+      cp .env.example .env
+    fi
+    php artisan key:generate --force >/dev/null 2>&1 || true
+    PHP_CLI_SERVER_WORKERS=4 php artisan serve --host="$BIND_HOST" --port="$PORT"
   ) &
   BACKEND_PID="$!"
   BACKEND_STARTED_BY_SCRIPT=1
@@ -145,7 +152,7 @@ else
     fi
 
     if ! kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
-      printf 'Backend ishga tushmay qoldi.\n' >&2
+      printf 'Laravel backend ishga tushmay qoldi.\n' >&2
       wait "$BACKEND_PID"
       exit 1
     fi

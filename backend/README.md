@@ -1,6 +1,20 @@
 # Usta Top Backend
 
-Ushbu servis Flutter ilova uchun oddiy REST API backend hisoblanadi.
+Diqqat: bu papkadagi Dart backend endi legacy arxiv hisoblanadi.
+Loyiha uchun faol backend Laravel variantidir:
+
+- [backend_laravel](/Users/tokhiriy/Downloads/mobile_apps/usta_top/backend_laravel)
+- [backend_laravel/README_USTATOP.md](/Users/tokhiriy/Downloads/mobile_apps/usta_top/backend_laravel/README_USTATOP.md)
+
+Kundalik ishga tushirish uchun faqat shularni ishlating:
+
+```bash
+cd /Users/tokhiriy/Downloads/mobile_apps/usta_top
+./backend_service.sh install
+./run_dev.sh
+```
+
+Quyidagi qolgan matnlar eski Dart backend uchun tarixiy ma'lumot sifatida qoldirilgan.
 
 ## Ishga tushirish
 

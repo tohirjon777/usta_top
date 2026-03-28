@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Support\UstaTop\UstaTopRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use RuntimeException;
 
@@ -49,10 +50,14 @@ class WorkshopController extends Controller
     public function availabilityCalendar(Request $request, string $id)
     {
         try {
+            $fromRaw = trim((string) $request->query('from'));
             return response()->json([
                 'data' => $this->repository->availabilityCalendar(
                     $id,
                     trim((string) $request->query('serviceId')),
+                    $fromRaw === ''
+                        ? CarbonImmutable::now()->startOfDay()
+                        : CarbonImmutable::parse($fromRaw)->startOfDay(),
                     (int) $request->query('days', 14)
                 ),
             ]);
@@ -67,7 +72,11 @@ class WorkshopController extends Controller
             return response()->json([
                 'data' => $this->repository->priceQuote(
                     $id,
-                    trim((string) $request->query('serviceId'))
+                    trim((string) $request->query('serviceId')),
+                    trim((string) $request->query('catalogVehicleId')),
+                    trim((string) $request->query('vehicleBrand')),
+                    trim((string) $request->query('vehicleModelName')),
+                    trim((string) $request->query('vehicleTypeId'))
                 ),
             ]);
         } catch (RuntimeException $exception) {
@@ -85,7 +94,7 @@ class WorkshopController extends Controller
         try {
             return response()->json([
                 'data' => $this->repository->createReview($user, $id, $request->all()),
-            ], 201);
+            ]);
         } catch (RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 400);
         }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Support\UstaTop\Money;
 use App\Support\UstaTop\UstaTopRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\HtmlString;
@@ -70,14 +71,21 @@ class OwnerController extends Controller
         }
         $workshop = $this->repository->workshopById($workshopId);
         $bookings = $this->repository->bookingsForWorkshop($workshopId);
+        $reviews = array_values(array_filter(
+            $this->repository->listAdminReviews(),
+            fn (array $review): bool => ($review['workshopId'] ?? '') === $workshopId
+        ));
 
         $items = collect($bookings)->map(function (array $booking): string {
             return '
                 <article class="card">
                     <h2>'.e((string) $booking['serviceName']).'</h2>
                     <p><strong>Mijoz:</strong> '.e((string) $booking['customerName']).' ('.e((string) $booking['customerPhone']).')</p>
+                    <p><strong>Mashina:</strong> '.e((string) ($booking['vehicleModel'] ?? '')).'</p>
                     <p><strong>Vaqt:</strong> '.e((string) $booking['dateTime']).'</p>
                     <p><strong>Status:</strong> '.e((string) $booking['status']).'</p>
+                    <p><strong>Narx:</strong> '.e(Money::formatUzs((int) ($booking['price'] ?? 0))).'</p>
+                    <p><strong>Avans:</strong> '.e(Money::formatUzs((int) ($booking['prepaymentAmount'] ?? 0))).'</p>
                     '.(($booking['previousDateTime'] ?? '') !== '' ? '<p><strong>Oldingi vaqt:</strong> '.e((string) $booking['previousDateTime']).'</p>' : '').'
                     '.(($booking['rescheduledByRole'] ?? '') !== '' ? '<p><strong>Ko‘chirdi:</strong> '.e((string) $booking['rescheduledByRole']).'</p>' : '').'
                     '.(($booking['rescheduledAt'] ?? '') !== '' ? '<p><strong>Ko‘chirilgan vaqt:</strong> '.e((string) $booking['rescheduledAt']).'</p>' : '').'
@@ -100,6 +108,47 @@ class OwnerController extends Controller
             ';
         })->implode('');
 
+        $serviceCards = collect($workshop['services'] ?? [])->map(function (array $service): string {
+            return '
+                <article class="card">
+                    <h2>'.e((string) $service['name']).'</h2>
+                    <form method="post" action="/owner/services/'.urlencode((string) $service['id']).'/price">
+                        '.$this->csrf().'
+                        <div class="grid-two">
+                            <div>
+                                <label>Narx</label>
+                                <input type="number" min="0" name="price" value="'.e(Money::inputValue((int) ($service['price'] ?? 0))).'">
+                            </div>
+                            <div>
+                                <label>Davomiyligi (min)</label>
+                                <input type="number" min="15" step="5" name="durationMinutes" value="'.e((string) ($service['durationMinutes'] ?? 30)).'">
+                            </div>
+                        </div>
+                        <label>Avans foizi</label>
+                        <input type="number" min="0" max="100" name="prepaymentPercent" value="'.e((string) ($service['prepaymentPercent'] ?? 0)).'">
+                        <button type="submit">Yangilash</button>
+                    </form>
+                </article>
+            ';
+        })->implode('');
+
+        $reviewCards = collect($reviews)->map(function (array $review): string {
+            return '
+                <article class="card">
+                    <h2>'.e((string) ($review['serviceName'] ?? '')).'</h2>
+                    <p><strong>Mijoz:</strong> '.e((string) ($review['customerName'] ?? '')).'</p>
+                    <p><strong>Baho:</strong> '.e((string) ($review['rating'] ?? '')).'/5</p>
+                    <p>'.nl2br(e((string) ($review['comment'] ?? ''))).'</p>
+                    '.(trim((string) ($review['ownerReply'] ?? '')) !== '' ? '<p><strong>Javob:</strong> '.nl2br(e((string) ($review['ownerReply'] ?? ''))).'</p>' : '').'
+                    <form method="post" action="/owner/reviews/'.urlencode((string) $review['id']).'/reply">
+                        '.$this->csrf().'
+                        <textarea name="reply" placeholder="Mijozga javob yozing"></textarea>
+                        <button type="submit">Javob yuborish</button>
+                    </form>
+                </article>
+            ';
+        })->implode('');
+
         return response($this->page('Owner bookings', '
             <div class="nav">
                 <strong>'.e((string) ($workshop['name'] ?? 'Ustaxona')).'</strong>
@@ -107,6 +156,10 @@ class OwnerController extends Controller
             </div>
             <h1>Zakazlar</h1>
             '.$items.'
+            <h1>Xizmatlar</h1>
+            '.$serviceCards.'
+            <h1>Sharhlar</h1>
+            '.$reviewCards.'
         '));
     }
 
@@ -139,6 +192,76 @@ class OwnerController extends Controller
         return redirect()->back()->with('success', 'Zakaz holati yangilandi');
     }
 
+    public function updateService(Request $request, string $id)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        $services = array_map(function (array $service) use ($id, $request): array {
+            if (($service['id'] ?? '') !== $id) {
+                return $service;
+            }
+
+            $service['price'] = Money::parseStoredAmount((string) $request->input(
+                'price',
+                Money::inputValue((int) ($service['price'] ?? 0))
+            )) ?? (int) ($service['price'] ?? 0);
+            $service['durationMinutes'] = max(15, (int) $request->input('durationMinutes', $service['durationMinutes'] ?? 30));
+            $service['prepaymentPercent'] = max(0, min(100, (int) $request->input('prepaymentPercent', $service['prepaymentPercent'] ?? 0)));
+
+            return $service;
+        }, $workshop['services'] ?? []);
+
+        try {
+            $this->repository->updateWorkshop($workshopId, [
+                'name' => $workshop['name'],
+                'master' => $workshop['master'],
+                'address' => $workshop['address'],
+                'description' => $workshop['description'],
+                'badge' => $workshop['badge'],
+                'latitude' => $workshop['latitude'] ?? '',
+                'longitude' => $workshop['longitude'] ?? '',
+                'startingPrice' => $workshop['startingPrice'] ?? 0,
+                'ownerAccessCode' => $workshop['ownerAccessCode'] ?? '',
+                'isOpen' => $workshop['isOpen'] ?? true,
+                'services' => $services,
+            ]);
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Xizmat yangilandi');
+    }
+
+    public function replyReview(Request $request, string $id)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $review = collect($this->repository->listAdminReviews())
+            ->first(fn (array $item): bool => ($item['id'] ?? '') === $id && ($item['workshopId'] ?? '') === $workshopId);
+        if (! $review) {
+            return redirect()->back()->with('error', 'Sharh topilmadi');
+        }
+
+        try {
+            $this->repository->replyReview($id, (string) $request->input('reply'), 'owner_panel');
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Sharhga javob saqlandi');
+    }
+
     private function ownerWorkshopId(Request $request): string
     {
         return (string) $request->session()->get('ustatop_owner_workshop_id', '');
@@ -162,15 +285,18 @@ class OwnerController extends Controller
             <title>'.e($title).'</title>
             <style>
                 body{font-family:ui-sans-serif,system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:24px;background:#f6f4ef;color:#1c1c1c}
-                .nav{display:flex;gap:12px;align-items:center;margin-bottom:20px}
+                .nav{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
                 .nav form{margin:0}
                 .card{background:#fff;border:1px solid #ddd;border-radius:16px;padding:16px;margin-bottom:16px}
-                form{display:grid;gap:10px;max-width:420px}
-                input,select,button{padding:10px;border-radius:10px;border:1px solid #cfcfcf}
+                form{display:grid;gap:10px}
+                input,select,button,textarea{padding:10px;border-radius:10px;border:1px solid #cfcfcf;font:inherit}
+                textarea{min-height:92px}
                 button{cursor:pointer}
                 .flash{padding:12px;border-radius:12px;margin-bottom:16px}
                 .flash.error{background:#fee2e2}
                 .flash.success{background:#dcfce7}
+                .grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+                @media (max-width:720px){.grid-two{grid-template-columns:1fr}}
             </style>
         </head>
         <body>'.$flash.$body.'</body>

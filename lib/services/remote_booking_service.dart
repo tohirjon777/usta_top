@@ -293,7 +293,11 @@ class RemoteBookingService implements BookingService {
               .timeout(timeout);
         case _HttpMethod.patch:
           response = await httpClient
-              .patch(uri, headers: headers, body: '{}')
+              .patch(
+                uri,
+                headers: headers,
+                body: jsonEncode(payload ?? <String, Object>{}),
+              )
               .timeout(timeout);
       }
 

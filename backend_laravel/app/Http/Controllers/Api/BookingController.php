@@ -78,6 +78,58 @@ class BookingController extends Controller
         }
     }
 
+    public function messages(Request $request, string $id)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->fetchBookingMessagesForCustomer((string) $user['id'], $id),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function sendMessage(Request $request, string $id)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->createBookingMessageForCustomer(
+                    $user,
+                    $id,
+                    trim((string) $request->input('text'))
+                ),
+            ], 201);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function markMessagesRead(Request $request, string $id)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $this->repository->markBookingMessagesReadForCustomer((string) $user['id'], $id);
+
+            return response()->json(['data' => ['ok' => true]]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
     private function userFromRequest(Request $request): ?array
     {
         $token = trim(str_replace('Bearer', '', (string) $request->header('Authorization')));
