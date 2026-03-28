@@ -9,6 +9,7 @@ return [
     'booking_messages_file' => env('USTATOP_BOOKING_MESSAGES_FILE', base_path('data/booking_messages.json')),
     'workshop_locations_file' => env('USTATOP_WORKSHOP_LOCATIONS_FILE', base_path('data/workshop_locations.json')),
     'auth_sessions_file' => env('USTATOP_AUTH_SESSIONS_FILE', storage_path('app/ustatop/auth_sessions.json')),
+    'telegram_sync_state_file' => env('USTATOP_TELEGRAM_SYNC_STATE_FILE', storage_path('app/ustatop/telegram_sync_state.json')),
     'admin_username' => env('ADMIN_USERNAME', 'admin'),
     'admin_password' => env('ADMIN_PASSWORD', 'admin123'),
 ];

@@ -120,12 +120,18 @@ fi
 
 BACKEND_PID=""
 BACKEND_STARTED_BY_SCRIPT=0
+TELEGRAM_POLL_PID=""
 
 cleanup() {
   if [[ "$BACKEND_STARTED_BY_SCRIPT" -eq 1 ]] && [[ -n "$BACKEND_PID" ]] && kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
     printf '\nStopping Laravel backend...\n'
     kill "$BACKEND_PID" >/dev/null 2>&1 || true
     wait "$BACKEND_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$TELEGRAM_POLL_PID" ]] && kill -0 "$TELEGRAM_POLL_PID" >/dev/null 2>&1; then
+    printf '\nStopping Telegram poller...\n'
+    kill "$TELEGRAM_POLL_PID" >/dev/null 2>&1 || true
+    wait "$TELEGRAM_POLL_PID" 2>/dev/null || true
   fi
 }
 
@@ -137,14 +143,29 @@ else
   printf 'Starting Laravel backend on http://127.0.0.1:%s ...\n' "$PORT"
   (
     cd "$BACKEND_DIR"
+    if [[ -f ".env.local" ]]; then
+      set -a
+      # shellcheck disable=SC1091
+      source ".env.local"
+      set +a
+    fi
     if [[ ! -f ".env" ]]; then
       cp .env.example .env
     fi
     php artisan key:generate --force >/dev/null 2>&1 || true
+    if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
+      php artisan ustatop:telegram-poll >/tmp/ustatop-telegram-poll.log 2>&1 &
+      echo $! > /tmp/ustatop-telegram-poll.pid
+    fi
     PHP_CLI_SERVER_WORKERS=4 php artisan serve --host="$BIND_HOST" --port="$PORT"
   ) &
   BACKEND_PID="$!"
   BACKEND_STARTED_BY_SCRIPT=1
+
+  if [[ -f /tmp/ustatop-telegram-poll.pid ]]; then
+    TELEGRAM_POLL_PID="$(cat /tmp/ustatop-telegram-poll.pid)"
+    rm -f /tmp/ustatop-telegram-poll.pid
+  fi
 
   for _ in $(seq 1 60); do
     if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then

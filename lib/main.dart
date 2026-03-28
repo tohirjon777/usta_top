@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 
 import 'app/usta_top_app.dart';
@@ -28,9 +29,20 @@ import 'services/remote_booking_service.dart';
 import 'services/remote_workshop_service.dart';
 import 'services/workshop_service.dart';
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+Future<void> main() async {
+  final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: binding);
+  final Stopwatch splashStopwatch = Stopwatch()..start();
   runApp(const MyApp());
+
+  final int remainingMilliseconds = 2000 - splashStopwatch.elapsedMilliseconds;
+  if (remainingMilliseconds > 0) {
+    await Future<void>.delayed(
+      Duration(milliseconds: remainingMilliseconds),
+    );
+  }
+
+  FlutterNativeSplash.remove();
 }
 
 List<BookingItem> _seedBookings() {

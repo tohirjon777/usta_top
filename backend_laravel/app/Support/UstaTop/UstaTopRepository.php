@@ -607,6 +607,128 @@ class UstaTopRepository
         ];
     }
 
+    public function suggestedRescheduleSlots(
+        string $workshopId,
+        string $serviceId,
+        string $fromDateTimeRaw,
+        string $excludeBookingId,
+        int $days = 14,
+        int $limit = 4
+    ): array {
+        $workshop = $this->workshopById($workshopId);
+        if (! $workshop) {
+            throw new RuntimeException('Servis topilmadi');
+        }
+
+        $service = $this->serviceForWorkshop($workshop, $serviceId);
+        if (! $service) {
+            throw new RuntimeException('Xizmat topilmadi');
+        }
+
+        $threshold = CarbonImmutable::parse($fromDateTimeRaw)->setTimezone(config('app.timezone'));
+        $startDate = $threshold->startOfDay();
+        $suggestions = [];
+        $safeDays = max(1, $days);
+        $safeLimit = max(1, $limit);
+
+        for ($dayIndex = 0; $dayIndex < $safeDays && count($suggestions) < $safeLimit; $dayIndex++) {
+            $date = $startDate->addDays($dayIndex);
+            $slots = $this->slotTimesForDate($workshop, $service, $date, $excludeBookingId);
+
+            foreach ($slots as $slot) {
+                [$hours, $minutes] = array_map('intval', explode(':', $slot));
+                $slotDateTime = $date->setTime($hours, $minutes);
+                if (! $slotDateTime->gt($threshold)) {
+                    continue;
+                }
+
+                $suggestions[] = $slotDateTime->utc()->toIso8601String();
+                if (count($suggestions) >= $safeLimit) {
+                    break;
+                }
+            }
+        }
+
+        return $suggestions;
+    }
+
+    public function rescheduleSlotPage(
+        string $workshopId,
+        string $serviceId,
+        string $fromDateTimeRaw,
+        string $excludeBookingId,
+        int $dayOffset = 0,
+        int $days = 14,
+        int $limit = 6
+    ): array {
+        $workshop = $this->workshopById($workshopId);
+        if (! $workshop) {
+            throw new RuntimeException('Servis topilmadi');
+        }
+
+        $service = $this->serviceForWorkshop($workshop, $serviceId);
+        if (! $service) {
+            throw new RuntimeException('Xizmat topilmadi');
+        }
+
+        $threshold = CarbonImmutable::parse($fromDateTimeRaw)->setTimezone(config('app.timezone'));
+        $startDate = $threshold->startOfDay();
+        $safeMaxOffset = max(0, $days - 1);
+        $requestedOffset = max(0, min($dayOffset, $safeMaxOffset));
+        $resolvedOffset = $this->firstAvailableOffsetAtOrAfter(
+            $workshop,
+            $service,
+            $threshold,
+            $excludeBookingId,
+            $requestedOffset,
+            $safeMaxOffset,
+        );
+
+        $date = $startDate->addDays($resolvedOffset);
+        $availability = $this->availability(
+            (string) ($workshop['id'] ?? ''),
+            (string) ($service['id'] ?? ''),
+            $date->format('Y-m-d'),
+        );
+
+        $slots = [];
+        foreach ($availability['slots'] as $slot) {
+            [$hours, $minutes] = array_map('intval', explode(':', $slot));
+            $slotDateTime = $date->setTime($hours, $minutes);
+            if ($resolvedOffset === 0 && ! $slotDateTime->gt($threshold)) {
+                continue;
+            }
+            $slots[] = $slotDateTime->utc()->toIso8601String();
+            if (count($slots) >= max(1, $limit)) {
+                break;
+            }
+        }
+
+        return [
+            'offset' => $resolvedOffset,
+            'date' => $date->format('Y-m-d'),
+            'slots' => $slots,
+            'slotCount' => count($availability['slots']),
+            'isClosedDay' => (bool) ($availability['isClosedDay'] ?? false),
+            'isFullyBooked' => ! ($availability['isClosedDay'] ?? false) && count($availability['slots']) === 0,
+            'prevOffset' => $this->previousAvailableOffset(
+                $workshop,
+                $service,
+                $threshold,
+                $excludeBookingId,
+                $resolvedOffset,
+            ),
+            'nextOffset' => $this->nextAvailableOffset(
+                $workshop,
+                $service,
+                $threshold,
+                $excludeBookingId,
+                $resolvedOffset,
+                $safeMaxOffset,
+            ),
+        ];
+    }
+
     public function priceQuote(
         string $workshopId,
         string $serviceId,
@@ -1032,9 +1154,9 @@ class UstaTopRepository
                 'closedWeekdays' => [7],
             ],
             'vehiclePricingRules' => array_values($current['vehiclePricingRules'] ?? []),
-            'telegramChatId' => $current['telegramChatId'] ?? '',
-            'telegramChatLabel' => $current['telegramChatLabel'] ?? '',
-            'telegramLinkCode' => $current['telegramLinkCode'] ?? '',
+            'telegramChatId' => trim((string) ($payload['telegramChatId'] ?? $current['telegramChatId'] ?? '')),
+            'telegramChatLabel' => trim((string) ($payload['telegramChatLabel'] ?? $current['telegramChatLabel'] ?? '')),
+            'telegramLinkCode' => trim((string) ($payload['telegramLinkCode'] ?? $current['telegramLinkCode'] ?? '')),
         ];
     }
 
@@ -1307,6 +1429,79 @@ class UstaTopRepository
             return CarbonImmutable::parse((string) ($booking['dateTime'] ?? now()->toIso8601String()))
                 ->format('Y-m-d') === $day->format('Y-m-d');
         }));
+    }
+
+    private function firstAvailableOffsetAtOrAfter(
+        array $workshop,
+        array $service,
+        CarbonImmutable $threshold,
+        string $excludeBookingId,
+        int $requestedOffset,
+        int $maxOffset
+    ): int {
+        for ($offset = $requestedOffset; $offset <= $maxOffset; $offset++) {
+            if ($this->dayHasAvailableRescheduleSlots($workshop, $service, $threshold, $excludeBookingId, $offset)) {
+                return $offset;
+            }
+        }
+
+        return $requestedOffset;
+    }
+
+    private function previousAvailableOffset(
+        array $workshop,
+        array $service,
+        CarbonImmutable $threshold,
+        string $excludeBookingId,
+        int $fromOffset
+    ): ?int {
+        for ($offset = $fromOffset - 1; $offset >= 0; $offset--) {
+            if ($this->dayHasAvailableRescheduleSlots($workshop, $service, $threshold, $excludeBookingId, $offset)) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    private function nextAvailableOffset(
+        array $workshop,
+        array $service,
+        CarbonImmutable $threshold,
+        string $excludeBookingId,
+        int $fromOffset,
+        int $maxOffset
+    ): ?int {
+        for ($offset = $fromOffset + 1; $offset <= $maxOffset; $offset++) {
+            if ($this->dayHasAvailableRescheduleSlots($workshop, $service, $threshold, $excludeBookingId, $offset)) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    private function dayHasAvailableRescheduleSlots(
+        array $workshop,
+        array $service,
+        CarbonImmutable $threshold,
+        string $excludeBookingId,
+        int $offset
+    ): bool {
+        $date = $threshold->startOfDay()->addDays($offset);
+        $slots = $this->slotTimesForDate($workshop, $service, $date, $excludeBookingId);
+
+        foreach ($slots as $slot) {
+            [$hours, $minutes] = array_map('intval', explode(':', $slot));
+            $slotDateTime = $date->setTime($hours, $minutes);
+            if ($offset === 0 && ! $slotDateTime->gt($threshold)) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private function incrementWorkshopReviewStats(string $workshopId, int $rating): void

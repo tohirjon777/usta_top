@@ -44,4 +44,28 @@ set +a
 
 export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}"
 
-exec php artisan serve --host="${HOST:-127.0.0.1}" --port="${PORT:-8080}"
+SERVER_PID=""
+POLL_PID=""
+
+cleanup() {
+  if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    kill "$SERVER_PID" >/dev/null 2>&1 || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$POLL_PID" ]] && kill -0 "$POLL_PID" >/dev/null 2>&1; then
+    kill "$POLL_PID" >/dev/null 2>&1 || true
+    wait "$POLL_PID" 2>/dev/null || true
+  fi
+}
+
+trap cleanup EXIT INT TERM
+
+if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
+  php artisan ustatop:telegram-poll >> "$LOG_DIR/telegram-poll.out.log" 2>> "$LOG_DIR/telegram-poll.err.log" &
+  POLL_PID="$!"
+fi
+
+php artisan serve --host="${HOST:-127.0.0.1}" --port="${PORT:-8080}" &
+SERVER_PID="$!"
+
+wait "$SERVER_PID"

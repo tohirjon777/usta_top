@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Support\UstaTop\Money;
+use App\Support\UstaTop\TelegramBotService;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\WorkshopNotificationsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\HtmlString;
 use RuntimeException;
@@ -13,6 +15,8 @@ class AdminController extends Controller
 {
     public function __construct(
         private readonly UstaTopRepository $repository,
+        private readonly TelegramBotService $telegramBot,
+        private readonly WorkshopNotificationsService $notifications,
     ) {
     }
 
@@ -106,6 +110,8 @@ class AdminController extends Controller
                                     <input type="text" name="ownerAccessCode" value="'.e((string) ($workshop['ownerAccessCode'] ?? '')).'">
                                 </div>
                             </div>
+                            <label>Telegram chat ID</label>
+                            <input type="text" name="telegramChatId" value="'.e((string) ($workshop['telegramChatId'] ?? '')).'" placeholder="-1001234567890">
                             <label class="checkbox-row"><input type="checkbox" name="isOpen" value="1" '.(($workshop['isOpen'] ?? false) ? 'checked' : '').'> Ustaxona ochiq</label>
                             <label>Xizmatlar</label>
                             <textarea name="servicesText" rows="5" placeholder="srv-1|Kompyuter diagnostika|120000|35|0">'.$this->servicesText($workshop['services'] ?? []).'</textarea>
@@ -113,6 +119,10 @@ class AdminController extends Controller
                             <div class="actions">
                                 <button type="submit">Saqlash</button>
                             </div>
+                        </form>
+                        <form method="post" action="/admin/workshops/'.urlencode((string) $workshop['id']).'/telegram/test">
+                            '.$this->csrf().'
+                            <button type="submit">Telegram test</button>
                         </form>
                         <form method="post" action="/admin/workshops/'.urlencode((string) $workshop['id']).'/delete" onsubmit="return confirm(\'Rostdan ham o‘chirasizmi?\')">
                             '.$this->csrf().'
@@ -160,6 +170,8 @@ class AdminController extends Controller
                             <input type="text" name="ownerAccessCode" value="">
                         </div>
                     </div>
+                    <label>Telegram chat ID</label>
+                    <input type="text" name="telegramChatId" value="" placeholder="-1001234567890">
                     <label class="checkbox-row"><input type="checkbox" name="isOpen" value="1" checked> Ustaxona ochiq</label>
                     <label>Xizmatlar</label>
                     <textarea name="servicesText" rows="5" placeholder="srv-1|Kompyuter diagnostika|120000|35|0"></textarea>
@@ -342,7 +354,7 @@ class AdminController extends Controller
         }
 
         try {
-            $this->repository->updateBookingStatus(
+            $booking = $this->repository->updateBookingStatus(
                 $id,
                 (string) $request->input('bookingStatus'),
                 [
@@ -351,6 +363,14 @@ class AdminController extends Controller
                     'actorRole' => 'admin',
                 ]
             );
+            $workshop = $this->repository->workshopById((string) ($booking['workshopId'] ?? ''));
+            if ($workshop !== null) {
+                try {
+                    $this->notifications->sendBookingStatusNotification($workshop, $booking, 'admin');
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
         } catch (RuntimeException $exception) {
             return redirect()->back()->with('error', $exception->getMessage());
         }
@@ -370,9 +390,36 @@ class AdminController extends Controller
             'longitude' => trim((string) $request->input('longitude')),
             'startingPrice' => Money::parseStoredAmount((string) $request->input('startingPrice', '0')) ?? 0,
             'ownerAccessCode' => trim((string) $request->input('ownerAccessCode')),
+            'telegramChatId' => trim((string) $request->input('telegramChatId')),
+            'telegramChatLabel' => trim((string) $request->input('telegramChatId')) !== ''
+                ? trim((string) $request->input('telegramChatId'))
+                : '',
+            'telegramLinkCode' => trim((string) $request->input('telegramChatId')) !== ''
+                ? ''
+                : null,
             'isOpen' => $request->boolean('isOpen'),
             'services' => $this->parseServicesText((string) $request->input('servicesText')),
         ];
+    }
+
+    public function sendTelegramTest(Request $request, string $id)
+    {
+        if (! $this->isAdmin($request)) {
+            return redirect('/admin/login');
+        }
+
+        $workshop = $this->repository->workshopById($id);
+        if (! $workshop) {
+            return redirect()->back()->with('error', 'Ustaxona topilmadi');
+        }
+
+        try {
+            $this->notifications->sendTestNotification($workshop);
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Telegram test xabari yuborildi');
     }
 
     private function parseServicesText(string $raw): array
@@ -438,6 +485,7 @@ class AdminController extends Controller
                 <a href="/admin/workshops">Ustaxonalar</a>
                 <a href="/admin/bookings">Zakazlar</a>
                 <a href="/admin/reviews">Sharhlar</a>
+                <span class="muted">Telegram: '.e($this->telegramBot->isConfigured() ? 'yoqilgan' : 'o‘chiq').'</span>
                 <form method="post" action="/admin/logout">'.$this->csrf().'<button type="submit">Chiqish</button></form>
             </div>
         ';

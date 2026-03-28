@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\WorkshopNotificationsService;
 use Illuminate\Http\Request;
 use RuntimeException;
 
@@ -11,6 +12,7 @@ class BookingController extends Controller
 {
     public function __construct(
         private readonly UstaTopRepository $repository,
+        private readonly WorkshopNotificationsService $notifications,
     ) {
     }
 
@@ -34,8 +36,18 @@ class BookingController extends Controller
         }
 
         try {
+            $booking = $this->repository->createBooking($user, $request->all());
+            $workshop = $this->repository->workshopById((string) ($booking['workshopId'] ?? ''));
+            if ($workshop !== null) {
+                try {
+                    $this->notifications->sendNewBookingNotification($workshop, $booking);
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
+
             return response()->json([
-                'data' => $this->repository->createBooking($user, $request->all()),
+                'data' => $booking,
             ], 201);
         } catch (RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 400);

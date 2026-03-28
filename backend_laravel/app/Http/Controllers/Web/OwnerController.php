@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Support\UstaTop\Money;
+use App\Support\UstaTop\TelegramBotService;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\WorkshopNotificationsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\HtmlString;
 use RuntimeException;
@@ -13,6 +15,8 @@ class OwnerController extends Controller
 {
     public function __construct(
         private readonly UstaTopRepository $repository,
+        private readonly TelegramBotService $telegramBot,
+        private readonly WorkshopNotificationsService $notifications,
     ) {
     }
 
@@ -149,11 +153,35 @@ class OwnerController extends Controller
             ';
         })->implode('');
 
+        $telegramCard = '
+            <article class="card">
+                <h2>Telegram</h2>
+                <p><strong>Bot holati:</strong> '.e($this->telegramBot->isConfigured() ? 'yoqilgan' : 'o‘chiq').'</p>
+                <p><strong>Chat ID:</strong> '.e((string) (($workshop['telegramChatId'] ?? '') !== '' ? $workshop['telegramChatId'] : 'ulmagan')).'</p>
+                '.(($workshop['telegramLinkCode'] ?? '') !== '' ? '<p><strong>Bog‘lash kodi:</strong> '.e((string) $workshop['telegramLinkCode']).'</p><p class="muted">Telegram botga `/start '.e((string) $workshop['telegramLinkCode']).'` yuboring.</p>' : '').'
+                <div class="grid-two">
+                    <form method="post" action="/owner/telegram/generate">
+                        '.$this->csrf().'
+                        <button type="submit">'.(($workshop['telegramLinkCode'] ?? '') !== '' ? 'Yangi kod yaratish' : 'Bog‘lash kodini yaratish').'</button>
+                    </form>
+                    <form method="post" action="/owner/telegram/check">
+                        '.$this->csrf().'
+                        <button type="submit">Tekshirish</button>
+                    </form>
+                </div>
+                <form method="post" action="/owner/telegram/disconnect">
+                    '.$this->csrf().'
+                    <button type="submit">Telegramni uzish</button>
+                </form>
+            </article>
+        ';
+
         return response($this->page('Owner bookings', '
             <div class="nav">
                 <strong>'.e((string) ($workshop['name'] ?? 'Ustaxona')).'</strong>
                 <form method="post" action="/owner/logout">'.$this->csrf().'<button type="submit">Chiqish</button></form>
             </div>
+            '.$telegramCard.'
             <h1>Zakazlar</h1>
             '.$items.'
             <h1>Xizmatlar</h1>
@@ -176,7 +204,7 @@ class OwnerController extends Controller
         }
 
         try {
-            $this->repository->updateBookingStatus(
+            $updated = $this->repository->updateBookingStatus(
                 $id,
                 (string) $request->input('bookingStatus'),
                 [
@@ -185,6 +213,13 @@ class OwnerController extends Controller
                     'actorRole' => 'owner_panel',
                 ]
             );
+            if ($workshop = $this->repository->workshopById($workshopId)) {
+                try {
+                    $this->notifications->sendBookingStatusNotification($workshop, $updated, 'owner_panel');
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
         } catch (RuntimeException $exception) {
             return redirect()->back()->with('error', $exception->getMessage());
         }
@@ -262,9 +297,130 @@ class OwnerController extends Controller
         return redirect()->back()->with('success', 'Sharhga javob saqlandi');
     }
 
+    public function generateTelegramLinkCode(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'telegramLinkCode' => 'UT-'.strtoupper(substr(bin2hex(random_bytes(4)), 0, 8)),
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Telegram bog‘lash kodi yaratildi');
+    }
+
+    public function checkTelegramLink(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        if (! $this->telegramBot->isConfigured()) {
+            return redirect()->back()->with('error', 'Telegram bot token sozlanmagan');
+        }
+
+        $code = trim((string) ($workshop['telegramLinkCode'] ?? ''));
+        if ($code === '') {
+            return redirect()->back()->with('error', 'Avval bog‘lash kodini yarating');
+        }
+
+        try {
+            $match = collect($this->telegramBot->getUpdates())
+                ->map(function (array $update): ?array {
+                    $message = $update['message'] ?? null;
+                    if (! is_array($message)) {
+                        return null;
+                    }
+
+                    return [
+                        'text' => trim((string) ($message['text'] ?? '')),
+                        'chatId' => (string) (($message['chat']['id'] ?? '')),
+                        'chatLabel' => trim((string) (($message['chat']['title'] ?? $message['chat']['username'] ?? $message['chat']['first_name'] ?? ''))),
+                    ];
+                })
+                ->first(fn (?array $item): bool => is_array($item) && $item['text'] === '/start '.$code);
+
+            if (! is_array($match) || trim((string) ($match['chatId'] ?? '')) === '') {
+                return redirect()->back()->with('error', 'Botda hali bu kod bilan xabar topilmadi');
+            }
+
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'telegramChatId' => trim((string) $match['chatId']),
+                'telegramChatLabel' => trim((string) $match['chatLabel']),
+                'telegramLinkCode' => '',
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Telegram muvaffaqiyatli ulandi');
+    }
+
+    public function disconnectTelegram(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'telegramChatId' => '',
+                'telegramChatLabel' => '',
+                'telegramLinkCode' => '',
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Telegram ulanishi uzildi');
+    }
+
     private function ownerWorkshopId(Request $request): string
     {
         return (string) $request->session()->get('ustatop_owner_workshop_id', '');
+    }
+
+    private function workshopPayload(array $workshop, array $overrides = []): array
+    {
+        return array_merge([
+            'name' => $workshop['name'] ?? '',
+            'master' => $workshop['master'] ?? '',
+            'address' => $workshop['address'] ?? '',
+            'description' => $workshop['description'] ?? '',
+            'badge' => $workshop['badge'] ?? '',
+            'latitude' => $workshop['latitude'] ?? '',
+            'longitude' => $workshop['longitude'] ?? '',
+            'startingPrice' => $workshop['startingPrice'] ?? 0,
+            'ownerAccessCode' => $workshop['ownerAccessCode'] ?? '',
+            'isOpen' => $workshop['isOpen'] ?? true,
+            'services' => $workshop['services'] ?? [],
+            'telegramChatId' => $workshop['telegramChatId'] ?? '',
+            'telegramChatLabel' => $workshop['telegramChatLabel'] ?? '',
+            'telegramLinkCode' => $workshop['telegramLinkCode'] ?? '',
+        ], $overrides);
     }
 
     private function page(string $title, string $body): string
@@ -292,6 +448,7 @@ class OwnerController extends Controller
                 input,select,button,textarea{padding:10px;border-radius:10px;border:1px solid #cfcfcf;font:inherit}
                 textarea{min-height:92px}
                 button{cursor:pointer}
+                .muted{color:#666;font-size:14px}
                 .flash{padding:12px;border-radius:12px;margin-bottom:16px}
                 .flash.error{background:#fee2e2}
                 .flash.success{background:#dcfce7}

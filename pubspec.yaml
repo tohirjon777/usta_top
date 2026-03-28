@@ -22,6 +22,7 @@ dependencies:
   latlong2: ^0.9.1
   geolocator: ^14.0.2
   url_launcher: ^6.3.2
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
@@ -40,3 +41,18 @@ flutter_launcher_icons:
   ios: true
   image_path: assets/images/icon.png
   remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  color_dark: "#FFFFFF"
+  image: assets/images/icon.png
+  image_dark: assets/images/icon.png
+  android: true
+  ios: true
+  web: false
+  fullscreen: true
+  android_12:
+    color: "#FFFFFF"
+    color_dark: "#FFFFFF"
+    image: assets/images/icon.png
+    image_dark: assets/images/icon.png

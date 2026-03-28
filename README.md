@@ -39,8 +39,10 @@ Bu script backendni ko'taradi, health'ni kutadi, keyin appni backend bilan
 `flutter run` orqali ishga tushiradi. Admin panel `http://127.0.0.1:8080/admin/login`
 va owner panel `http://127.0.0.1:8080/owner/login` da ochiladi.
 
-Telegram bot yoqilgan bo'lsa, owner panel ichidan `Bog'lash kodini yaratish`
+Telegram bot yoqilgan bo'lsa, owner panel ichidan `API  keyni yaratish`
 orqali ustaxona profilini o'z Telegram chatiga ulash mumkin.
+Token Laravel backend uchun [backend_laravel/.env.local](/Users/tokhiriy/Downloads/mobile_apps/usta_top/backend_laravel/.env.local)
+ichiga yoziladi.
 
 Backendni terminalsiz avtomatik ishlatish uchun:
 
