@@ -113,7 +113,16 @@ class _BookingScreenState extends State<BookingScreen> {
         context.read<AuthProvider>().currentUser?.savedVehicles ??
             const <SavedVehicleProfile>[];
     if (savedVehicles.isNotEmpty) {
-      _applySavedVehicle(savedVehicles.first);
+      _applySavedVehicle(
+        savedVehicles.first,
+        refreshPriceQuote: false,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _schedulePriceQuoteRefresh(immediate: true);
+      });
     }
   }
 
@@ -310,6 +319,7 @@ class _BookingScreenState extends State<BookingScreen> {
             child: _BookingSectionCard(
               title: l10n.service,
               child: DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: _selectedServiceId,
                 items: widget.salon.services
                     .map(
@@ -317,10 +327,23 @@ class _BookingScreenState extends State<BookingScreen> {
                         value: service.id,
                         child: Text(
                           '${service.name}  •  ${l10n.durationMinutes(service.durationMinutes)}  •  ${AppFormatters.moneyK(service.price)}',
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     )
                     .toList(),
+                selectedItemBuilder: (BuildContext context) {
+                  return widget.salon.services.map((SalonService service) {
+                    return Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        service.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(growable: false);
+                },
                 onChanged: (String? value) {
                   if (value == null) {
                     return;
@@ -368,6 +391,7 @@ class _BookingScreenState extends State<BookingScreen> {
             const SizedBox(height: 14),
           ],
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _brandDropdownValue,
             items: brandItems,
             onChanged: (String? value) {
@@ -424,6 +448,7 @@ class _BookingScreenState extends State<BookingScreen> {
           if (!_isOtherBrandSelected) ...<Widget>[
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _modelDropdownValue,
               items: modelItems,
               onChanged: (String? value) {
@@ -472,6 +497,7 @@ class _BookingScreenState extends State<BookingScreen> {
           ],
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _selectedVehicleTypeId,
             items: vehicleTypes
                 .map(
@@ -806,7 +832,10 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  void _applySavedVehicle(SavedVehicleProfile vehicle) {
+  void _applySavedVehicle(
+    SavedVehicleProfile vehicle, {
+    bool refreshPriceQuote = true,
+  }) {
     final VehicleCatalogEntry? catalogVehicle = vehicle.catalogVehicleId.isEmpty
         ? vehicleCatalogEntryByBrandAndModel(
             brand: vehicle.brand,
@@ -839,7 +868,9 @@ class _BookingScreenState extends State<BookingScreen> {
       _customModelController.text = vehicle.model;
     }
     _selectedVehicleTypeId = vehicle.vehicleTypeId;
-    _schedulePriceQuoteRefresh(immediate: true);
+    if (refreshPriceQuote) {
+      _schedulePriceQuoteRefresh(immediate: true);
+    }
   }
 
   void _selectCatalogVehicle(VehicleCatalogEntry vehicle) {
