@@ -64,8 +64,14 @@ class AppLocalizations {
       'mapTitle': 'Workshops on map',
       'mapHint': 'Tap a marker to open workshop details',
       'mapNoCoordinates': 'Workshop coordinates are not available yet.',
+      'mapNoMatches': 'No workshops match this filter.',
       'openOnMap': 'Open workshop',
       'routeToWorkshop': 'Route',
+      'mapFilterAll': 'All',
+      'mapFilterTopRated': 'Top rated',
+      'mapFilterNearby': 'Nearby',
+      'mapSelectedWorkshop': 'Selected workshop',
+      'mapBrowseList': 'Browse workshops',
       'chooseNavigatorTitle': 'Choose navigator',
       'chooseNavigatorSubtitle': 'Open route to {workshop}',
       'navigatorGoogleMaps': 'Google Maps',
@@ -86,6 +92,7 @@ class AppLocalizations {
       'mapLocationError': 'Current location could not be determined.',
       'searchHint': 'Search workshop, district, or auto service',
       'salonsNearby': '{count} workshops nearby',
+      'workshopsMetricLabel': 'Workshops',
       'fastConfirmation': 'Quick approval',
       'verifiedMasters': 'Certified masters',
       'masterPrefix': 'Master: {name}',
@@ -234,9 +241,13 @@ class AppLocalizations {
           'Choose a new date and time for {service} at {workshop}.',
       'rescheduleCurrentTimeLabel': 'Current time: {time}',
       'rescheduleConfirm': 'Save new time',
+      'acceptRescheduledBooking': 'Accept new time',
+      'acceptRescheduledSuccess': 'The new booking time was accepted',
+      'acceptRescheduledFailed': 'The new booking time could not be accepted',
       'bookingRescheduled': 'Request moved to a new time',
       'rescheduledByLabel': 'Moved by: {actor}',
       'rescheduledAtLabel': 'Moved at: {time}',
+      'acceptedAtLabel': 'Accepted at: {time}',
       'completedAtLabel': 'Completed at: {time}',
       'cancelledByLabel': 'Cancelled by: {actor}',
       'cancelledAtLabel': 'Cancelled at: {time}',
@@ -262,6 +273,7 @@ class AppLocalizations {
       'statusCancelled': 'Cancelled',
       'totalBookings': 'Total requests',
       'upcoming': 'Upcoming',
+      'completedMetricLabel': 'Finished',
       'bookingHistory': 'Request history',
       'bookingHistorySubtitle': 'Review your completed and cancelled requests',
       'savedSalons': 'Saved workshops',
@@ -374,8 +386,14 @@ class AppLocalizations {
       'mapTitle': 'Servislar xaritada',
       'mapHint': 'Servis tafsilotini ochish uchun markerga bosing',
       'mapNoCoordinates': 'Servislar uchun koordinatalar hali kiritilmagan.',
+      'mapNoMatches': 'Bu filter bo‘yicha ustaxona topilmadi.',
       'openOnMap': 'Servisni ochish',
       'routeToWorkshop': 'Marshrut',
+      'mapFilterAll': 'Barchasi',
+      'mapFilterTopRated': 'Yuqori baho',
+      'mapFilterNearby': 'Yaqin',
+      'mapSelectedWorkshop': 'Tanlangan ustaxona',
+      'mapBrowseList': 'Xaritadagi ustaxonalar',
       'chooseNavigatorTitle': 'Navigatorni tanlang',
       'chooseNavigatorSubtitle': '{workshop} ga yo\'l ochish',
       'navigatorGoogleMaps': 'Google Maps',
@@ -397,6 +415,7 @@ class AppLocalizations {
       'mapLocationError': 'Joriy joylashuvni aniqlab bo\'lmadi.',
       'searchHint': 'Servis markazi, tuman yoki xizmatni qidiring',
       'salonsNearby': 'Yaqin atrofda {count} ta servis',
+      'workshopsMetricLabel': 'Ustaxonalar',
       'fastConfirmation': 'Tez tasdiq',
       'verifiedMasters': 'Tasdiqlangan ustalar',
       'masterPrefix': 'Usta: {name}',
@@ -549,9 +568,13 @@ class AppLocalizations {
           '{workshop} dagi {service} uchun yangi sana va vaqtni tanlang.',
       'rescheduleCurrentTimeLabel': 'Joriy vaqt: {time}',
       'rescheduleConfirm': 'Yangi vaqtni saqlash',
+      'acceptRescheduledBooking': 'Yangi vaqtni qabul qilish',
+      'acceptRescheduledSuccess': 'Ko‘chirilgan vaqt qabul qilindi',
+      'acceptRescheduledFailed': 'Ko‘chirilgan vaqtni qabul qilib bo‘lmadi',
       'bookingRescheduled': 'Buyurtma yangi vaqtga ko‘chirildi',
       'rescheduledByLabel': 'Ko‘chirdi: {actor}',
       'rescheduledAtLabel': 'Ko‘chirilgan vaqt: {time}',
+      'acceptedAtLabel': 'Qabul qilingan vaqt: {time}',
       'completedAtLabel': 'Yakunlangan vaqt: {time}',
       'cancelledByLabel': 'Bekor qildi: {actor}',
       'cancelledAtLabel': 'Bekor qilingan vaqt: {time}',
@@ -577,6 +600,7 @@ class AppLocalizations {
       'statusCancelled': 'Bekor qilingan',
       'totalBookings': 'Jami buyurtmalar',
       'upcoming': 'Kutilmoqda',
+      'completedMetricLabel': 'Bajarilganlar',
       'bookingHistory': 'Buyurtmalar tarixi',
       'bookingHistorySubtitle':
           'Yakunlangan va bekor qilingan buyurtmalarni ko\'ring',
@@ -594,7 +618,7 @@ class AppLocalizations {
       'theme': 'Mavzu',
       'systemTheme': 'Qurilma bo\'yicha',
       'lightTheme': 'Yorug\' rejim',
-      'darkTheme': 'Qorong\'u rejim',
+      'darkTheme': 'Tungi rejim',
       'themeChanged': 'Mavzu {theme} ga o\'zgartirildi',
       'profileUnknownName': 'Foydalanuvchi',
       'profileUnknownPhone': 'Telefon ko\'rsatilmagan',
@@ -690,8 +714,14 @@ class AppLocalizations {
       'mapTitle': 'Сервисы на карте',
       'mapHint': 'Нажмите на маркер, чтобы открыть детали сервиса',
       'mapNoCoordinates': 'Координаты сервисов пока не заполнены.',
+      'mapNoMatches': 'По этому фильтру сервисы не найдены.',
       'openOnMap': 'Открыть сервис',
       'routeToWorkshop': 'Маршрут',
+      'mapFilterAll': 'Все',
+      'mapFilterTopRated': 'Высокий рейтинг',
+      'mapFilterNearby': 'Рядом',
+      'mapSelectedWorkshop': 'Выбранный автосервис',
+      'mapBrowseList': 'Автосервисы на карте',
       'chooseNavigatorTitle': 'Выберите навигатор',
       'chooseNavigatorSubtitle': 'Построить маршрут до {workshop}',
       'navigatorGoogleMaps': 'Google Maps',
@@ -712,6 +742,7 @@ class AppLocalizations {
       'mapLocationError': 'Не удалось определить текущее местоположение.',
       'searchHint': 'Поиск сервиса, района или услуги',
       'salonsNearby': 'Сервисов рядом: {count}',
+      'workshopsMetricLabel': 'Автосервисы',
       'fastConfirmation': 'Быстрое подтверждение',
       'verifiedMasters': 'Проверенные мастера',
       'masterPrefix': 'Мастер: {name}',
@@ -863,9 +894,13 @@ class AppLocalizations {
           'Выберите новую дату и время для {service} в {workshop}.',
       'rescheduleCurrentTimeLabel': 'Текущее время: {time}',
       'rescheduleConfirm': 'Сохранить новое время',
+      'acceptRescheduledBooking': 'Принять новое время',
+      'acceptRescheduledSuccess': 'Новое время брони подтверждено',
+      'acceptRescheduledFailed': 'Не удалось подтвердить новое время',
       'bookingRescheduled': 'Заявка перенесена на новое время',
       'rescheduledByLabel': 'Перенес: {actor}',
       'rescheduledAtLabel': 'Перенесено в: {time}',
+      'acceptedAtLabel': 'Принято в: {time}',
       'completedAtLabel': 'Завершено в: {time}',
       'cancelledByLabel': 'Отменил: {actor}',
       'cancelledAtLabel': 'Отменено в: {time}',
@@ -891,6 +926,7 @@ class AppLocalizations {
       'statusCancelled': 'Отменено',
       'totalBookings': 'Всего заявок',
       'upcoming': 'Предстоит',
+      'completedMetricLabel': 'Завершенные',
       'bookingHistory': 'История заявок',
       'bookingHistorySubtitle': 'Просмотр завершенных и отмененных заявок',
       'savedSalons': 'Сохраненные сервисы',
@@ -1036,8 +1072,14 @@ class AppLocalizations {
   String get mapTitle => _text('mapTitle');
   String get mapHint => _text('mapHint');
   String get mapNoCoordinates => _text('mapNoCoordinates');
+  String get mapNoMatches => _text('mapNoMatches');
   String get openOnMap => _text('openOnMap');
   String get routeToWorkshop => _text('routeToWorkshop');
+  String get mapFilterAll => _text('mapFilterAll');
+  String get mapFilterTopRated => _text('mapFilterTopRated');
+  String get mapFilterNearby => _text('mapFilterNearby');
+  String get mapSelectedWorkshop => _text('mapSelectedWorkshop');
+  String get mapBrowseList => _text('mapBrowseList');
   String get chooseNavigatorTitle => _text('chooseNavigatorTitle');
   String chooseNavigatorSubtitle(String workshop) =>
       _fmt('chooseNavigatorSubtitle', <String, Object>{'workshop': workshop});
@@ -1060,6 +1102,7 @@ class AppLocalizations {
   String get searchHint => _text('searchHint');
   String salonsNearby(int count) =>
       _fmt('salonsNearby', <String, Object>{'count': count});
+  String get workshopsMetricLabel => _text('workshopsMetricLabel');
   String get fastConfirmation => _text('fastConfirmation');
   String get verifiedMasters => _text('verifiedMasters');
   String masterPrefix(String name) =>
@@ -1253,11 +1296,16 @@ class AppLocalizations {
         <String, Object>{'time': time},
       );
   String get rescheduleConfirm => _text('rescheduleConfirm');
+  String get acceptRescheduledBooking => _text('acceptRescheduledBooking');
+  String get acceptRescheduledSuccess => _text('acceptRescheduledSuccess');
+  String get acceptRescheduledFailed => _text('acceptRescheduledFailed');
   String get bookingRescheduled => _text('bookingRescheduled');
   String rescheduledByLabel(String actor) =>
       _fmt('rescheduledByLabel', <String, Object>{'actor': actor});
   String rescheduledAtLabel(String time) =>
       _fmt('rescheduledAtLabel', <String, Object>{'time': time});
+  String acceptedAtLabel(String time) =>
+      _fmt('acceptedAtLabel', <String, Object>{'time': time});
   String completedAtLabel(String time) =>
       _fmt('completedAtLabel', <String, Object>{'time': time});
   String cancelledByLabel(String actor) =>
@@ -1295,6 +1343,7 @@ class AppLocalizations {
 
   String get totalBookings => _text('totalBookings');
   String get upcoming => _text('upcoming');
+  String get completedMetricLabel => _text('completedMetricLabel');
   String get bookingHistory => _text('bookingHistory');
   String get bookingHistorySubtitle => _text('bookingHistorySubtitle');
   String get savedSalons => _text('savedSalons');

@@ -14,6 +14,7 @@ import '../providers/saved_workshops_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../services/navigation_launcher.dart';
 import '../ui/review_composer_sheet.dart';
+import '../widgets/workshop_image_view.dart';
 import 'booking_screen.dart';
 
 class SalonDetailScreen extends StatefulWidget {
@@ -304,168 +305,128 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            border: Border(
+              top: BorderSide(color: AppColors.borderOf(context)),
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      l10n.fromPrice(
+                        AppFormatters.moneyK(_salon.startingPrice),
+                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.primaryToneOf(context),
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _salon.isOpen ? l10n.openNow : l10n.currentlyClosed,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _salon.isOpen
+                      ? () => _openBooking(context: context)
+                      : null,
+                  child: Text(
+                    _salon.isOpen
+                        ? l10n.bookNowFrom(
+                            AppFormatters.moneyK(_salon.startingPrice),
+                          )
+                        : l10n.currentlyClosed,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: _reloadWorkshop,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
           children: <Widget>[
-            Container(
-              height: 190,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[heroStart, heroEnd],
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.car_repair,
-                  size: 80,
-                  color: AppColors.primaryToneOf(context),
-                ),
-              ),
+            _DetailHeroCard(
+              salon: _salon,
+              l10n: l10n,
+              heroStart: heroStart,
+              heroEnd: heroEnd,
             ),
-            const SizedBox(height: 14),
-            Text(_salon.name, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            Text(
-              _salon.description,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.secondaryTextOf(context),
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                _MetaPill(
-                  icon: Icons.star,
-                  text: '${_salon.rating} (${_salon.reviewCount})',
-                ),
-                _MetaPill(
-                  icon: Icons.place_outlined,
-                  text: '${_salon.distanceKm} km',
-                ),
-                _MetaPill(
-                  icon: Icons.circle,
-                  text: _salon.isOpen ? l10n.openNow : l10n.closedNow,
-                  color: _salon.isOpen
-                      ? AppColors.primaryToneOf(context)
-                      : AppColors.warning,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                const Icon(Icons.location_on_outlined, size: 18),
-                const SizedBox(width: 4),
-                Expanded(child: Text(_salon.address)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => NavigationLauncher.showNavigatorPicker(
-                context,
-                salon: _salon,
-              ),
-              icon: const Icon(Icons.route_outlined),
-              label: Text(l10n.routeToWorkshop),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Row(
               children: <Widget>[
                 Expanded(
-                  child: Text(
-                    l10n.services,
-                    style: Theme.of(context).textTheme.titleLarge,
+                  child: _InsightTile(
+                    label: l10n.reviewAverageLabel,
+                    value: _salon.rating.toStringAsFixed(1),
+                    icon: Icons.star_rounded,
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => _openReviewComposer(),
-                  icon: const Icon(Icons.rate_review_outlined),
-                  label: Text(l10n.writeReview),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InsightTile(
+                    label: l10n.services,
+                    value: '${_salon.services.length}',
+                    icon: Icons.tune_outlined,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InsightTile(
+                    label: l10n.bookAppointment,
+                    value: AppFormatters.moneyK(_salon.startingPrice),
+                    icon: Icons.payments_outlined,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            ..._salon.services.map(
-              (SalonService service) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    service.name,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    l10n.durationMinutes(
-                                      service.durationMinutes,
-                                    ),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color:
-                                              AppColors.secondaryTextOf(context),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              l10n.fromPrice(
-                                AppFormatters.moneyK(service.price),
-                              ),
-                              style: TextStyle(
-                                color: AppColors.primaryToneOf(context),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: <Widget>[
-                            OutlinedButton(
-                              onPressed: _salon.isOpen
-                                  ? () => _openBooking(
-                                        context: context,
-                                        preselected: service,
-                                      )
-                                  : null,
-                              child: Text(l10n.book),
-                            ),
-                            TextButton.icon(
-                              onPressed: () => _openReviewComposer(
-                                preselectedService: service,
-                              ),
-                              icon: const Icon(Icons.chat_bubble_outline),
-                              label: Text(l10n.writeReview),
-                            ),
-                          ],
-                        ),
-                      ],
+            const SizedBox(height: 20),
+            _SectionCard(
+              title: l10n.services,
+              trailing: TextButton.icon(
+                onPressed: () => _openReviewComposer(),
+                icon: const Icon(Icons.rate_review_outlined),
+                label: Text(l10n.writeReview),
+              ),
+              child: Column(
+                children: _salon.services.map(
+                  (SalonService service) => Padding(
+                    padding: EdgeInsets.only(
+                      bottom: service == _salon.services.last ? 0 : 12,
+                    ),
+                    child: _ServiceActionCard(
+                      l10n: l10n,
+                      salon: _salon,
+                      service: service,
+                      onBook: () => _openBooking(
+                        context: context,
+                        preselected: service,
+                      ),
+                      onReview: () => _openReviewComposer(
+                        preselectedService: service,
+                      ),
                     ),
                   ),
-                ),
+                ).toList(),
               ),
             ),
             const SizedBox(height: 20),
@@ -548,19 +509,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 10),
-            FilledButton(
-              onPressed: _salon.isOpen
-                  ? () => _openBooking(context: context)
-                  : null,
-              child: Text(
-                _salon.isOpen
-                    ? l10n.bookNowFrom(
-                        AppFormatters.moneyK(_salon.startingPrice),
-                      )
-                    : l10n.currentlyClosed,
-              ),
-            ),
+            const SizedBox(height: 4),
           ],
         ),
       ),
@@ -594,6 +543,308 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         SnackBar(content: Text(l10n.savedWorkshopUpdateFailed)),
       );
     }
+  }
+}
+
+class _DetailHeroCard extends StatelessWidget {
+  const _DetailHeroCard({
+    required this.salon,
+    required this.l10n,
+    required this.heroStart,
+    required this.heroEnd,
+  });
+
+  final Salon salon;
+  final AppLocalizations l10n;
+  final Color heroStart;
+  final Color heroEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[heroStart, heroEnd],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                WorkshopImageView(
+                  imageUrl: salon.imageUrl,
+                  width: 70,
+                  height: 70,
+                  borderRadius: BorderRadius.circular(22),
+                  fallbackIcon: Icons.car_repair,
+                  iconSize: 34,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        salon.name,
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        salon.description,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.secondaryTextOf(context),
+                              height: 1.4,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _MetaPill(
+                  icon: Icons.star,
+                  text: '${salon.rating} (${salon.reviewCount})',
+                ),
+                _MetaPill(
+                  icon: Icons.place_outlined,
+                  text: '${salon.distanceKm} km',
+                ),
+                _MetaPill(
+                  icon: Icons.circle,
+                  text: salon.isOpen ? l10n.openNow : l10n.closedNow,
+                  color: salon.isOpen
+                      ? AppColors.primaryToneOf(context)
+                      : AppColors.warning,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.location_on_outlined, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      salon.address,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () => NavigationLauncher.showNavigatorPicker(
+                context,
+                salon: salon,
+              ),
+              icon: const Icon(Icons.route_outlined),
+              label: Text(l10n.routeToWorkshop),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightTile extends StatelessWidget {
+  const _InsightTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 18, color: AppColors.primaryToneOf(context)),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryTextOf(context),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ServiceActionCard extends StatelessWidget {
+  const _ServiceActionCard({
+    required this.l10n,
+    required this.salon,
+    required this.service,
+    required this.onBook,
+    required this.onReview,
+  });
+
+  final AppLocalizations l10n;
+  final Salon salon;
+  final SalonService service;
+  final VoidCallback onBook;
+  final VoidCallback onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.chipBackgroundOf(context),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      service.name,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        _MetaPill(
+                          icon: Icons.schedule_outlined,
+                          text: l10n.durationMinutes(service.durationMinutes),
+                        ),
+                        if (service.prepaymentPercent > 0)
+                          _MetaPill(
+                            icon: Icons.account_balance_wallet_outlined,
+                            text: '${service.prepaymentPercent}%',
+                            color: AppColors.primaryToneOf(context),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                l10n.fromPrice(
+                  AppFormatters.moneyK(service.price),
+                ),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.primaryToneOf(context),
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              OutlinedButton(
+                onPressed: salon.isOpen ? onBook : null,
+                child: Text(l10n.book),
+              ),
+              TextButton.icon(
+                onPressed: onReview,
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: Text(l10n.writeReview),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

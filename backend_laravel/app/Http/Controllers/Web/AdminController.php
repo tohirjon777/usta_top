@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\UstaTop\Money;
 use App\Support\UstaTop\TelegramBotService;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\WorkshopImageStorage;
 use App\Support\UstaTop\WorkshopNotificationsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\HtmlString;
@@ -17,6 +18,7 @@ class AdminController extends Controller
         private readonly UstaTopRepository $repository,
         private readonly TelegramBotService $telegramBot,
         private readonly WorkshopNotificationsService $notifications,
+        private readonly WorkshopImageStorage $imageStorage,
     ) {
     }
 
@@ -69,6 +71,7 @@ class AdminController extends Controller
 
         $items = collect($this->repository->listWorkshops())
             ->map(function (array $workshop): string {
+                $imagePreview = $this->workshopImagePreview($workshop, 'Joriy rasm');
                 return '
                     <article class="card">
                         <div class="card-head">
@@ -78,8 +81,9 @@ class AdminController extends Controller
                             </div>
                             <a class="ghost-link" href="/admin/bookings?workshop='.urlencode((string) $workshop['id']).'">Zakazlar</a>
                         </div>
-                        <form method="post" action="/admin/workshops/'.urlencode((string) $workshop['id']).'/update">
+                        <form method="post" action="/admin/workshops/'.urlencode((string) $workshop['id']).'/update" enctype="multipart/form-data">
                             '.$this->csrf().'
+                            '.$imagePreview.'
                             <label>Nomi</label>
                             <input type="text" name="name" value="'.e((string) $workshop['name']).'">
                             <label>Usta</label>
@@ -90,6 +94,11 @@ class AdminController extends Controller
                             <textarea name="description">'.e((string) ($workshop['description'] ?? '')).'</textarea>
                             <label>Badge</label>
                             <input type="text" name="badge" value="'.e((string) ($workshop['badge'] ?? '')).'">
+                            <label>Rasm URL</label>
+                            <input type="url" name="imageUrl" value="'.e((string) ($workshop['imageUrl'] ?? '')).'" placeholder="https://example.com/ustaxona.jpg">
+                            <label>Yoki rasm fayli</label>
+                            <input type="file" name="imageFile" accept="image/*">
+                            <label class="checkbox-row"><input type="checkbox" name="removeImage" value="1"> Rasmni olib tashlash</label>
                             <div class="grid-two">
                                 <div>
                                     <label>Latitude</label>
@@ -138,7 +147,7 @@ class AdminController extends Controller
             <h1>Ustaxonalar</h1>
             <article class="card">
                 <h2>Yangi ustaxona</h2>
-                <form method="post" action="/admin/workshops">
+                <form method="post" action="/admin/workshops" enctype="multipart/form-data">
                     '.$this->csrf().'
                     <label>Nomi</label>
                     <input type="text" name="name" value="">
@@ -150,6 +159,10 @@ class AdminController extends Controller
                     <textarea name="description"></textarea>
                     <label>Badge</label>
                     <input type="text" name="badge" value="">
+                    <label>Rasm URL</label>
+                    <input type="url" name="imageUrl" value="" placeholder="https://example.com/ustaxona.jpg">
+                    <label>Yoki rasm fayli</label>
+                    <input type="file" name="imageFile" accept="image/*">
                     <div class="grid-two">
                         <div>
                             <label>Latitude</label>
@@ -190,7 +203,9 @@ class AdminController extends Controller
         }
 
         try {
-            $this->repository->createWorkshop($this->parseWorkshopPayload($request));
+            $this->repository->createWorkshop(
+                $this->parseWorkshopPayload($request, null)
+            );
         } catch (RuntimeException $exception) {
             return redirect()->back()->with('error', $exception->getMessage());
         }
@@ -205,7 +220,11 @@ class AdminController extends Controller
         }
 
         try {
-            $this->repository->updateWorkshop($id, $this->parseWorkshopPayload($request));
+            $currentWorkshop = $this->repository->workshopById($id);
+            $this->repository->updateWorkshop(
+                $id,
+                $this->parseWorkshopPayload($request, $currentWorkshop)
+            );
         } catch (RuntimeException $exception) {
             return redirect()->back()->with('error', $exception->getMessage());
         }
@@ -252,6 +271,7 @@ class AdminController extends Controller
                     <p><strong>Status:</strong> '.e((string) $booking['status']).'</p>
                     <p><strong>Narx:</strong> '.e(Money::formatUzs((int) ($booking['price'] ?? 0))).'</p>
                     <p><strong>Avans:</strong> '.e(Money::formatUzs((int) ($booking['prepaymentAmount'] ?? 0))).'</p>
+                    '.(($booking['acceptedAt'] ?? '') !== '' ? '<p><strong>Qabul qilingan vaqt:</strong> '.e((string) $booking['acceptedAt']).'</p>' : '').'
                     '.(($booking['previousDateTime'] ?? '') !== '' ? '<p><strong>Oldingi vaqt:</strong> '.e((string) $booking['previousDateTime']).'</p>' : '').'
                     '.(($booking['rescheduledByRole'] ?? '') !== '' ? '<p><strong>Ko‘chirdi:</strong> '.e((string) $booking['rescheduledByRole']).'</p>' : '').'
                     '.(($booking['rescheduledAt'] ?? '') !== '' ? '<p><strong>Ko‘chirilgan vaqt:</strong> '.e((string) $booking['rescheduledAt']).'</p>' : '').'
@@ -378,7 +398,7 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Zakaz holati yangilandi');
     }
 
-    private function parseWorkshopPayload(Request $request): array
+    private function parseWorkshopPayload(Request $request, ?array $currentWorkshop): array
     {
         return [
             'name' => trim((string) $request->input('name')),
@@ -386,6 +406,7 @@ class AdminController extends Controller
             'address' => trim((string) $request->input('address')),
             'description' => trim((string) $request->input('description')),
             'badge' => trim((string) $request->input('badge')),
+            'imageUrl' => $this->resolveWorkshopImage($request, $currentWorkshop),
             'latitude' => trim((string) $request->input('latitude')),
             'longitude' => trim((string) $request->input('longitude')),
             'startingPrice' => Money::parseStoredAmount((string) $request->input('startingPrice', '0')) ?? 0,
@@ -400,6 +421,29 @@ class AdminController extends Controller
             'isOpen' => $request->boolean('isOpen'),
             'services' => $this->parseServicesText((string) $request->input('servicesText')),
         ];
+    }
+
+    private function resolveWorkshopImage(Request $request, ?array $currentWorkshop): string
+    {
+        $currentImageUrl = trim((string) ($currentWorkshop['imageUrl'] ?? ''));
+
+        if ($request->boolean('removeImage')) {
+            $this->imageStorage->deleteByUrl($currentImageUrl);
+
+            return '';
+        }
+
+        $uploadedImage = $request->file('imageFile');
+        if ($uploadedImage !== null) {
+            return $this->imageStorage->storeUploadedImage($uploadedImage, $currentImageUrl);
+        }
+
+        $imageUrl = trim((string) $request->input('imageUrl'));
+        if ($imageUrl === '') {
+            return $currentImageUrl;
+        }
+
+        return $this->imageStorage->normalizeStoredUrl($imageUrl);
     }
 
     public function sendTelegramTest(Request $request, string $id)
@@ -473,6 +517,32 @@ class AdminController extends Controller
         return e(implode("\n", $lines));
     }
 
+    private function workshopImagePreview(array $workshop, string $title): string
+    {
+        $imageUrl = trim((string) ($workshop['imageUrl'] ?? ''));
+        if ($imageUrl === '') {
+            return '
+                <div class="image-preview empty">
+                    <div class="image-placeholder">Rasm yo‘q</div>
+                    <div>
+                        <strong>'.e($title).'</strong>
+                        <p class="muted">Public URL kiriting yoki fayl yuklang.</p>
+                    </div>
+                </div>
+            ';
+        }
+
+        return '
+            <div class="image-preview">
+                <img src="'.e($imageUrl).'" alt="'.e((string) ($workshop['name'] ?? 'Ustaxona')).'">
+                <div>
+                    <strong>'.e($title).'</strong>
+                    <p class="muted">'.e($imageUrl).'</p>
+                </div>
+            </div>
+        ';
+    }
+
     private function isAdmin(Request $request): bool
     {
         return (bool) $request->session()->get('ustatop_admin');
@@ -526,6 +596,9 @@ class AdminController extends Controller
                 .checkbox-row{display:flex;gap:8px;align-items:center}
                 .ghost-link{padding:10px 12px;border:1px solid #ddd;border-radius:10px;text-decoration:none}
                 .danger{background:#8b1e1e;color:#fff;border-color:#8b1e1e}
+                .image-preview{display:flex;gap:14px;align-items:center;padding:12px;border:1px dashed #d6d0c5;border-radius:14px;background:#fcfaf6;margin-bottom:14px}
+                .image-preview img,.image-placeholder{width:88px;height:88px;border-radius:18px;object-fit:cover;background:#ece6dc;display:flex;align-items:center;justify-content:center;color:#8a6f3a;font-weight:700}
+                .image-preview.empty{background:#faf7f1}
                 @media (max-width:720px){.grid-two{grid-template-columns:1fr}}
             </style>
         </head>

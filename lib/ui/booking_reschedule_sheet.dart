@@ -43,7 +43,7 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
 
   final Map<String, BookingAvailabilityDay> _calendarDaysByDateKey =
       <String, BookingAvailabilityDay>{};
-  List<String> _availableSlots = const <String>[];
+  List<BookingAvailabilitySlot> _slotItems = const <BookingAvailabilitySlot>[];
   late DateTime _selectedDate;
   String? _selectedTime;
   bool _isLoadingCalendar = true;
@@ -56,6 +56,11 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
   String _nearestAvailableTime = '';
   int _calendarRequestId = 0;
   int _availabilityRequestId = 0;
+
+  List<String> get _availableSlots => _slotItems
+      .where((BookingAvailabilitySlot slot) => slot.isAvailable)
+      .map((BookingAvailabilitySlot slot) => slot.time)
+      .toList(growable: false);
 
   @override
   void initState() {
@@ -222,7 +227,7 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
                 title: _availabilityError!,
                 subtitle: l10n.availableTimesRetryHint,
               )
-            else if (_availableSlots.isEmpty)
+            else if (_slotItems.isEmpty)
               _AvailabilityMessageCard(
                 title: _isClosedDay
                     ? l10n.availableTimesClosedDay
@@ -232,22 +237,57 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
                     : l10n.availableTimesEmptyHint,
               )
             else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _availableSlots
-                    .map(
-                      (String slot) => ChoiceChip(
-                        label: Text(slot),
-                        selected: slot == _selectedTime,
-                        onSelected: (_) {
-                          setState(() {
-                            _selectedTime = slot;
-                          });
-                        },
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (_availableSlots.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _AvailabilityMessageCard(
+                        title: _isClosedDay
+                            ? l10n.availableTimesClosedDay
+                            : l10n.availableTimesEmpty,
+                        subtitle: _isClosedDay
+                            ? l10n.availableTimesClosedDayHint
+                            : l10n.availableTimesEmptyHint,
                       ),
-                    )
-                    .toList(),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _slotItems
+                        .map(
+                          (BookingAvailabilitySlot slot) => ChoiceChip(
+                            label: Text(
+                              slot.time,
+                              style: TextStyle(
+                                color: slot.isAvailable
+                                    ? null
+                                    : AppColors.secondaryTextOf(context),
+                              ),
+                            ),
+                            selected: slot.time == _selectedTime,
+                            backgroundColor: slot.isAvailable
+                                ? null
+                                : AppColors.chipBackgroundOf(context),
+                            side: BorderSide(
+                              color: slot.isAvailable
+                                  ? AppColors.borderOf(context)
+                                  : AppColors.borderOf(context)
+                                      .withValues(alpha: 0.6),
+                            ),
+                            onSelected: slot.isAvailable
+                                ? (_) {
+                                    setState(() {
+                                      _selectedTime = slot.time;
+                                    });
+                                  }
+                                : null,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
               ),
             const SizedBox(height: 16),
             FilledButton(
@@ -427,7 +467,7 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
       setState(() {
         _isLoadingAvailability = false;
         _isClosedDay = availability.isClosedDay;
-        _availableSlots = availability.slotTimes;
+        _slotItems = availability.slots;
         if (preferredTime != null && _availableSlots.contains(preferredTime)) {
           _selectedTime = preferredTime;
         } else if (_selectedTime == null ||
@@ -441,7 +481,7 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
       }
       setState(() {
         _isLoadingAvailability = false;
-        _availableSlots = const <String>[];
+        _slotItems = const <BookingAvailabilitySlot>[];
         _selectedTime = null;
         _availabilityError = error.message;
       });
@@ -452,7 +492,7 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
       final AppLocalizations l10n = AppLocalizations.of(context);
       setState(() {
         _isLoadingAvailability = false;
-        _availableSlots = const <String>[];
+        _slotItems = const <BookingAvailabilitySlot>[];
         _selectedTime = null;
         _availabilityError = l10n.availableTimesLoadFailed;
       });

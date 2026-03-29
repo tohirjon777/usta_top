@@ -68,6 +68,7 @@ void main() {
       basePrice: 120,
       price: 120,
       status: BookingStatus.accepted,
+      acceptedAt: DateTime(2026, 3, 24, 9, 30),
     );
   }
 
@@ -121,6 +122,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Qabul qilindi'), findsOneWidget);
+    expect(find.textContaining('Qabul qilingan vaqt:'), findsOneWidget);
     expect(find.text('Yakunlangan'), findsNothing);
     expect(find.text('Sharh yozish'), findsNothing);
     expect(find.text('Sharhingiz yuborilgan'), findsNothing);
@@ -135,6 +137,7 @@ void main() {
 
     expect(find.text('Ko‘chirildi'), findsOneWidget);
     expect(find.textContaining('Oldingi vaqt:'), findsOneWidget);
+    expect(find.text('Yangi vaqtni qabul qilish'), findsOneWidget);
     expect(find.text('Buyurtmani bekor qilish'), findsOneWidget);
     expect(find.text('Sharh yozish'), findsNothing);
   });

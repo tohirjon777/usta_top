@@ -184,4 +184,7 @@ abstract final class ApiEndpoints {
 
   static String rescheduleBooking(String bookingId) =>
       '/bookings/$bookingId/reschedule';
+
+  static String acceptRescheduledBooking(String bookingId) =>
+      '/bookings/$bookingId/accept-reschedule';
 }

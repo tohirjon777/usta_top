@@ -583,6 +583,44 @@ class BookingProvider extends BookingController {
     }
   }
 
+  Future<bool> acceptRescheduledBookingRequest(String bookingId) async {
+    _errorMessage = null;
+    final BookingItem? current = bookings.cast<BookingItem?>().firstWhere(
+          (BookingItem? item) => item?.id == bookingId,
+          orElse: () => null,
+        );
+    if (current == null) {
+      _errorMessage = 'Buyurtma topilmadi';
+      notifyListeners();
+      return false;
+    }
+
+    if (_service == null) {
+      final bool changed = acceptRescheduledBooking(bookingId);
+      if (!changed) {
+        _errorMessage = 'Buyurtmani tasdiqlab bo‘lmadi';
+        notifyListeners();
+      }
+      return changed;
+    }
+
+    try {
+      final BookingItem updated = await _service.acceptRescheduledBooking(
+        bookingId: bookingId,
+      );
+      upsertBooking(updated);
+      return true;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Buyurtmani tasdiqlashda xatolik yuz berdi';
+      notifyListeners();
+      return false;
+    }
+  }
+
   void markBookingReviewed(
     String bookingId, {
     String? reviewId,
@@ -678,7 +716,7 @@ class BookingProvider extends BookingController {
     if (normalized.weekday == DateTime.sunday) {
       return BookingAvailability(
         date: normalized,
-        slotTimes: const <String>[],
+        slots: const <BookingAvailabilitySlot>[],
         isClosedDay: true,
         serviceDurationMinutes: 30,
         openingTime: '10:00',
@@ -707,7 +745,7 @@ class BookingProvider extends BookingController {
       '18:30',
     ];
     final DateTime now = DateTime.now();
-    final List<String> filtered = fallbackSlots.where((String item) {
+    final List<BookingAvailabilitySlot> slots = fallbackSlots.map((String item) {
       final List<String> parts = item.split(':');
       final DateTime slotDate = DateTime(
         normalized.year,
@@ -716,12 +754,17 @@ class BookingProvider extends BookingController {
         int.parse(parts.first),
         int.parse(parts.last),
       );
-      return slotDate.isAfter(now);
+      final bool isAvailable = slotDate.isAfter(now);
+      return BookingAvailabilitySlot(
+        time: item,
+        isAvailable: isAvailable,
+        reason: isAvailable ? 'available' : 'past',
+      );
     }).toList(growable: false);
 
     return BookingAvailability(
       date: normalized,
-      slotTimes: filtered,
+      slots: slots,
       isClosedDay: false,
       serviceDurationMinutes: 30,
       openingTime: '10:00',

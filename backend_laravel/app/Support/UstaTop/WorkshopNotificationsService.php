@@ -54,7 +54,7 @@ class WorkshopNotificationsService
             'Telefon: '.($booking['customerPhone'] ?? '—'),
             'Xizmat: '.($booking['serviceName'] ?? '—'),
             'Mashina: '.($booking['vehicleModel'] ?? '—'),
-            'Vaqt: '.($booking['dateTime'] ?? '—'),
+            'Vaqt: '.$this->formatDateTime((string) ($booking['dateTime'] ?? '')),
             'Narx: '.Money::formatUzs((int) ($booking['price'] ?? 0)),
         ];
 
@@ -78,7 +78,7 @@ class WorkshopNotificationsService
             'Telefon: '.($booking['customerPhone'] ?? '—'),
             'Xizmat: '.($booking['serviceName'] ?? '—'),
             'Mashina: '.($booking['vehicleModel'] ?? '—'),
-            'Vaqt: '.($booking['dateTime'] ?? '—'),
+            'Vaqt: '.$this->formatDateTime((string) ($booking['dateTime'] ?? '')),
             'Narx: '.Money::formatUzs((int) ($booking['price'] ?? 0)),
         ];
 

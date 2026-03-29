@@ -71,6 +71,7 @@ class Salon {
     this.longitude,
     required this.isOpen,
     required this.badge,
+    this.imageUrl,
     required this.services,
     this.reviews = const <SalonReview>[],
   });
@@ -87,6 +88,7 @@ class Salon {
   final double? longitude;
   final bool isOpen;
   final String badge;
+  final String? imageUrl;
   final List<SalonService> services;
   final List<SalonReview> reviews;
 
@@ -124,6 +126,7 @@ class Salon {
       longitude: _toNullableDouble(json['longitude'] ?? json['lng']),
       isOpen: json['isOpen'] == true,
       badge: (json['badge'] ?? '').toString(),
+      imageUrl: _normalizeNullableString(json['imageUrl']),
       services: parsedServices,
       reviews: parsedReviews,
     );
@@ -163,6 +166,7 @@ class Salon {
     double? longitude,
     bool? isOpen,
     String? badge,
+    String? imageUrl,
     List<SalonService>? services,
     List<SalonReview>? reviews,
   }) {
@@ -179,6 +183,7 @@ class Salon {
       longitude: longitude ?? this.longitude,
       isOpen: isOpen ?? this.isOpen,
       badge: badge ?? this.badge,
+      imageUrl: imageUrl ?? this.imageUrl,
       services: services ?? this.services,
       reviews: reviews ?? this.reviews,
     );
@@ -215,5 +220,10 @@ class Salon {
       return value.toDouble();
     }
     return double.tryParse('$value');
+  }
+
+  static String? _normalizeNullableString(Object? value) {
+    final String normalized = (value ?? '').toString().trim();
+    return normalized.isEmpty ? null : normalized;
   }
 }

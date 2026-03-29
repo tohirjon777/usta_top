@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\UstaTop\Money;
 use App\Support\UstaTop\TelegramBotService;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\WorkshopImageStorage;
 use App\Support\UstaTop\WorkshopNotificationsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\HtmlString;
@@ -17,6 +18,7 @@ class OwnerController extends Controller
         private readonly UstaTopRepository $repository,
         private readonly TelegramBotService $telegramBot,
         private readonly WorkshopNotificationsService $notifications,
+        private readonly WorkshopImageStorage $imageStorage,
     ) {
     }
 
@@ -90,6 +92,7 @@ class OwnerController extends Controller
                     <p><strong>Status:</strong> '.e((string) $booking['status']).'</p>
                     <p><strong>Narx:</strong> '.e(Money::formatUzs((int) ($booking['price'] ?? 0))).'</p>
                     <p><strong>Avans:</strong> '.e(Money::formatUzs((int) ($booking['prepaymentAmount'] ?? 0))).'</p>
+                    '.(($booking['acceptedAt'] ?? '') !== '' ? '<p><strong>Qabul qilingan vaqt:</strong> '.e((string) $booking['acceptedAt']).'</p>' : '').'
                     '.(($booking['previousDateTime'] ?? '') !== '' ? '<p><strong>Oldingi vaqt:</strong> '.e((string) $booking['previousDateTime']).'</p>' : '').'
                     '.(($booking['rescheduledByRole'] ?? '') !== '' ? '<p><strong>Ko‘chirdi:</strong> '.e((string) $booking['rescheduledByRole']).'</p>' : '').'
                     '.(($booking['rescheduledAt'] ?? '') !== '' ? '<p><strong>Ko‘chirilgan vaqt:</strong> '.e((string) $booking['rescheduledAt']).'</p>' : '').'
@@ -176,11 +179,28 @@ class OwnerController extends Controller
             </article>
         ';
 
+        $imageCard = '
+            <article class="card">
+                <h2>Ustaxona rasmi</h2>
+                '.$this->workshopImagePreview($workshop).'
+                <form method="post" action="/owner/workshop/image" enctype="multipart/form-data">
+                    '.$this->csrf().'
+                    <label>Rasm URL</label>
+                    <input type="url" name="imageUrl" value="'.e((string) ($workshop['imageUrl'] ?? '')).'" placeholder="https://example.com/ustaxona.jpg">
+                    <label>Yoki yangi rasm fayli</label>
+                    <input type="file" name="imageFile" accept="image/*">
+                    <label class="checkbox-row"><input type="checkbox" name="removeImage" value="1"> Rasmni olib tashlash</label>
+                    <button type="submit">Rasmni saqlash</button>
+                </form>
+            </article>
+        ';
+
         return response($this->page('Owner bookings', '
             <div class="nav">
                 <strong>'.e((string) ($workshop['name'] ?? 'Ustaxona')).'</strong>
                 <form method="post" action="/owner/logout">'.$this->csrf().'<button type="submit">Chiqish</button></form>
             </div>
+            '.$imageCard.'
             '.$telegramCard.'
             <h1>Zakazlar</h1>
             '.$items.'
@@ -255,19 +275,9 @@ class OwnerController extends Controller
         }, $workshop['services'] ?? []);
 
         try {
-            $this->repository->updateWorkshop($workshopId, [
-                'name' => $workshop['name'],
-                'master' => $workshop['master'],
-                'address' => $workshop['address'],
-                'description' => $workshop['description'],
-                'badge' => $workshop['badge'],
-                'latitude' => $workshop['latitude'] ?? '',
-                'longitude' => $workshop['longitude'] ?? '',
-                'startingPrice' => $workshop['startingPrice'] ?? 0,
-                'ownerAccessCode' => $workshop['ownerAccessCode'] ?? '',
-                'isOpen' => $workshop['isOpen'] ?? true,
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
                 'services' => $services,
-            ]);
+            ]));
         } catch (RuntimeException $exception) {
             return redirect()->back()->with('error', $exception->getMessage());
         }
@@ -398,6 +408,29 @@ class OwnerController extends Controller
         return redirect()->back()->with('success', 'Telegram ulanishi uzildi');
     }
 
+    public function updateWorkshopImage(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'imageUrl' => $this->resolveWorkshopImage($request, $workshop),
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Ustaxona rasmi yangilandi');
+    }
+
     private function ownerWorkshopId(Request $request): string
     {
         return (string) $request->session()->get('ustatop_owner_workshop_id', '');
@@ -411,6 +444,7 @@ class OwnerController extends Controller
             'address' => $workshop['address'] ?? '',
             'description' => $workshop['description'] ?? '',
             'badge' => $workshop['badge'] ?? '',
+            'imageUrl' => $workshop['imageUrl'] ?? '',
             'latitude' => $workshop['latitude'] ?? '',
             'longitude' => $workshop['longitude'] ?? '',
             'startingPrice' => $workshop['startingPrice'] ?? 0,
@@ -421,6 +455,55 @@ class OwnerController extends Controller
             'telegramChatLabel' => $workshop['telegramChatLabel'] ?? '',
             'telegramLinkCode' => $workshop['telegramLinkCode'] ?? '',
         ], $overrides);
+    }
+
+    private function resolveWorkshopImage(Request $request, array $workshop): string
+    {
+        $currentImageUrl = trim((string) ($workshop['imageUrl'] ?? ''));
+
+        if ($request->boolean('removeImage')) {
+            $this->imageStorage->deleteByUrl($currentImageUrl);
+
+            return '';
+        }
+
+        $uploadedImage = $request->file('imageFile');
+        if ($uploadedImage !== null) {
+            return $this->imageStorage->storeUploadedImage($uploadedImage, $currentImageUrl);
+        }
+
+        $imageUrl = trim((string) $request->input('imageUrl'));
+        if ($imageUrl === '') {
+            return $currentImageUrl;
+        }
+
+        return $this->imageStorage->normalizeStoredUrl($imageUrl);
+    }
+
+    private function workshopImagePreview(array $workshop): string
+    {
+        $imageUrl = trim((string) ($workshop['imageUrl'] ?? ''));
+        if ($imageUrl === '') {
+            return '
+                <div class="image-preview empty">
+                    <div class="image-placeholder">Rasm yo‘q</div>
+                    <div>
+                        <strong>Joriy rasm</strong>
+                        <p class="muted">Ustaxona uchun rasm URL kiriting yoki fayl yuklang.</p>
+                    </div>
+                </div>
+            ';
+        }
+
+        return '
+            <div class="image-preview">
+                <img src="'.e($imageUrl).'" alt="'.e((string) ($workshop['name'] ?? 'Ustaxona')).'">
+                <div>
+                    <strong>Joriy rasm</strong>
+                    <p class="muted">'.e($imageUrl).'</p>
+                </div>
+            </div>
+        ';
     }
 
     private function page(string $title, string $body): string
@@ -453,6 +536,9 @@ class OwnerController extends Controller
                 .flash.error{background:#fee2e2}
                 .flash.success{background:#dcfce7}
                 .grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+                .image-preview{display:flex;gap:14px;align-items:center;padding:12px;border:1px dashed #d6d0c5;border-radius:14px;background:#fcfaf6;margin-bottom:14px}
+                .image-preview img,.image-placeholder{width:88px;height:88px;border-radius:18px;object-fit:cover;background:#ece6dc;display:flex;align-items:center;justify-content:center;color:#8a6f3a;font-weight:700}
+                .image-preview.empty{background:#faf7f1}
                 @media (max-width:720px){.grid-two{grid-template-columns:1fr}}
             </style>
         </head>

@@ -24,6 +24,17 @@ class MyBookingsScreen extends StatelessWidget {
     final List<BookingItem> bookings = bookingProvider.bookings.toList();
     final bool isLoading = bookingProvider.isLoading;
     final String? errorMessage = bookingProvider.errorMessage;
+    final int activeCount = bookings
+        .where(
+          (BookingItem item) =>
+              item.status == BookingStatus.upcoming ||
+              item.status == BookingStatus.accepted ||
+              item.status == BookingStatus.rescheduled,
+        )
+        .length;
+    final int completedCount = bookings
+        .where((BookingItem item) => item.status == BookingStatus.completed)
+        .length;
 
     if (isLoading && bookings.isEmpty) {
       return const SafeArea(child: AppLoadingView());
@@ -74,6 +85,26 @@ class MyBookingsScreen extends StatelessWidget {
       );
     }
 
+    Future<void> acceptRescheduledBooking(BookingItem booking) async {
+      final bool changed = await bookingProvider.acceptRescheduledBookingRequest(
+        booking.id,
+      );
+      if (!context.mounted) {
+        return;
+      }
+      if (!changed) {
+        final String message =
+            bookingProvider.errorMessage ?? l10n.acceptRescheduledFailed;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.acceptRescheduledSuccess)),
+      );
+    }
+
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: bookingProvider.loadBookings,
@@ -81,31 +112,33 @@ class MyBookingsScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    l10n.navBookings,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                IconButton(
-                  onPressed: isLoading ? null : bookingProvider.loadBookings,
-                  icon: const Icon(Icons.refresh),
-                  tooltip: l10n.refresh,
-                ),
-              ],
+            _BookingsHeroCard(
+              l10n: l10n,
+              title: l10n.navBookings,
+              subtitle: l10n.bookingHistorySubtitle,
+              totalCount: bookings.length,
+              activeCount: activeCount,
+              completedCount: completedCount,
+              onRefresh: isLoading ? null : bookingProvider.loadBookings,
+              refreshTooltip: l10n.refresh,
             ),
             if (errorMessage != null && bookings.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 errorMessage,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.warning,
-                    ),
+                ),
               ),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 18),
+            _BookingsSectionHeader(
+              title: l10n.bookingHistory,
+              subtitle: bookings.isEmpty
+                  ? l10n.bookingsEmptyHint
+                  : '${bookings.length}',
+            ),
+            const SizedBox(height: 12),
             if (bookings.isEmpty)
               _EmptyBookingsState(
                 l10n: l10n,
@@ -115,7 +148,7 @@ class MyBookingsScreen extends StatelessWidget {
             else
               ...bookings.map((BookingItem booking) {
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: 14),
                   child: _BookingCard(
                     l10n: l10n,
                     booking: booking,
@@ -143,6 +176,13 @@ class MyBookingsScreen extends StatelessWidget {
                     onReschedule: () {
                       openRescheduleForBooking(booking);
                     },
+                    onAcceptRescheduled:
+                        booking.status == BookingStatus.rescheduled &&
+                                booking.rescheduledByRole != 'customer'
+                            ? () {
+                                acceptRescheduledBooking(booking);
+                              }
+                            : null,
                     onWriteReview: booking.status == BookingStatus.completed &&
                             !booking.hasReview
                         ? () {
@@ -165,6 +205,7 @@ class _BookingCard extends StatelessWidget {
     required this.booking,
     required this.onCancel,
     required this.onReschedule,
+    this.onAcceptRescheduled,
     this.onWriteReview,
   });
 
@@ -172,37 +213,78 @@ class _BookingCard extends StatelessWidget {
   final BookingItem booking;
   final VoidCallback onCancel;
   final VoidCallback onReschedule;
+  final VoidCallback? onAcceptRescheduled;
   final VoidCallback? onWriteReview;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoftOf(context),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    Icons.directions_car_filled_rounded,
+                    color: AppColors.primaryToneOf(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    booking.salonName,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        booking.salonName,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        booking.serviceName,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.secondaryTextOf(context),
+                            ),
+                      ),
+                    ],
                   ),
                 ),
                 _StatusBadge(l10n: l10n, status: booking.status),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(l10n.masterPrefix(booking.masterName)),
-            Text(l10n.serviceLabel(booking.serviceName)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _BookingInfoPill(
+                  icon: Icons.person_outline_rounded,
+                  text: l10n.masterPrefix(booking.masterName),
+                ),
+                _BookingInfoPill(
+                  icon: Icons.calendar_today_outlined,
+                  text: l10n.dateLabel(AppFormatters.dateTime(booking.dateTime)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             Text(l10n.vehicleModelLabel(booking.vehicleModel)),
             Text(
               l10n.vehicleTypeLabel(
                 vehicleTypeById(booking.vehicleTypeId).label(l10n),
               ),
             ),
-            Text(l10n.dateLabel(AppFormatters.dateTime(booking.dateTime))),
             if (booking.status == BookingStatus.rescheduled &&
                 booking.previousDateTime != null)
               Column(
@@ -229,6 +311,13 @@ class _BookingCard extends StatelessWidget {
                       ),
                     ),
                 ],
+              ),
+            if (booking.acceptedAt != null &&
+                booking.status != BookingStatus.upcoming)
+              Text(
+                l10n.acceptedAtLabel(
+                  AppFormatters.dateTime(booking.acceptedAt!),
+                ),
               ),
             const SizedBox(height: 6),
             Text(l10n.basePriceLabel(AppFormatters.moneyK(booking.basePrice))),
@@ -302,6 +391,12 @@ class _BookingCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
+                  if (onAcceptRescheduled != null)
+                    TextButton.icon(
+                      onPressed: onAcceptRescheduled,
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: Text(l10n.acceptRescheduledBooking),
+                    ),
                   TextButton.icon(
                     onPressed: onReschedule,
                     icon: const Icon(Icons.schedule_outlined, size: 18),
@@ -442,6 +537,217 @@ class _StatusBadge extends StatelessWidget {
       case BookingStatus.cancelled:
         return l10n.statusCancelled;
     }
+  }
+}
+
+class _BookingsHeroCard extends StatelessWidget {
+  const _BookingsHeroCard({
+    required this.l10n,
+    required this.title,
+    required this.subtitle,
+    required this.totalCount,
+    required this.activeCount,
+    required this.completedCount,
+    required this.refreshTooltip,
+    this.onRefresh,
+  });
+
+  final AppLocalizations l10n;
+  final String title;
+  final String subtitle;
+  final int totalCount;
+  final int activeCount;
+  final int completedCount;
+  final String refreshTooltip;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            AppColors.primarySoftOf(context),
+            AppColors.accentSoftOf(context),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onRefresh,
+                tooltip: refreshTooltip,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _BookingsMetricTile(
+                  icon: Icons.receipt_long_rounded,
+                  label: l10n.totalBookings,
+                  value: '$totalCount',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BookingsMetricTile(
+                  icon: Icons.schedule_rounded,
+                  label: l10n.upcoming,
+                  value: '$activeCount',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BookingsMetricTile(
+                  icon: Icons.check_circle_outline_rounded,
+                  label: l10n.completedMetricLabel,
+                  value: '$completedCount',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingsMetricTile extends StatelessWidget {
+  const _BookingsMetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 18, color: AppColors.primaryToneOf(context)),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryTextOf(context),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingsSectionHeader extends StatelessWidget {
+  const _BookingsSectionHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.secondaryTextOf(context),
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingInfoPill extends StatelessWidget {
+  const _BookingInfoPill({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.chipBackgroundOf(context),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15, color: AppColors.primaryToneOf(context)),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

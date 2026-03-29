@@ -62,4 +62,33 @@ void main() {
     );
     expect(controller.bookings.first.dateTime, DateTime(2026, 3, 20, 12, 30));
   });
+
+  test('accepts rescheduled booking from workshop side', () {
+    final BookingController controller = BookingController();
+
+    final BookingItem booking = BookingItem(
+      id: 'b-3',
+      workshopId: 'w-1',
+      salonName: 'Turbo Usta Servis',
+      masterName: 'Aziz Usta',
+      serviceId: 'srv-1',
+      serviceName: 'Kompyuter diagnostika',
+      vehicleModel: 'Chevrolet Cobalt',
+      vehicleTypeId: 'sedan',
+      dateTime: DateTime(2026, 3, 20, 12, 30),
+      basePrice: 120,
+      price: 120,
+      status: BookingStatus.rescheduled,
+      previousDateTime: DateTime(2026, 3, 20, 11, 0),
+      rescheduledByRole: 'owner_panel',
+    );
+
+    controller.addBooking(booking);
+    final bool accepted = controller.acceptRescheduledBooking('b-3');
+
+    expect(accepted, isTrue);
+    expect(controller.bookings.first.status, BookingStatus.accepted);
+    expect(controller.bookings.first.acceptedAt, isNotNull);
+    expect(controller.upcomingBookings, 1);
+  });
 }

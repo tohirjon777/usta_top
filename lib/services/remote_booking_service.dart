@@ -208,6 +208,25 @@ class RemoteBookingService implements BookingService {
   }
 
   @override
+  Future<BookingItem> acceptRescheduledBooking({
+    required String bookingId,
+  }) async {
+    final Map<String, dynamic> body = await _request(
+      method: _HttpMethod.patch,
+      path: ApiEndpoints.acceptRescheduledBooking(bookingId),
+    );
+
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException(
+        'Server tasdiqlangan buyurtma ma\'lumotini qaytarmadi',
+      );
+    }
+
+    return BookingItem.fromJson(data);
+  }
+
+  @override
   Future<List<BookingChatMessage>> fetchBookingMessages({
     required String bookingId,
   }) async {

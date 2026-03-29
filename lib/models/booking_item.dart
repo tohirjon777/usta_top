@@ -41,6 +41,7 @@ class BookingItem {
     this.paymentMethod = '',
     this.paidAt,
     this.status = BookingStatus.upcoming,
+    this.acceptedAt,
     this.completedAt,
     this.previousDateTime,
     this.rescheduledAt,
@@ -75,6 +76,7 @@ class BookingItem {
   final String paymentMethod;
   final DateTime? paidAt;
   final BookingStatus status;
+  final DateTime? acceptedAt;
   final DateTime? completedAt;
   final DateTime? previousDateTime;
   final DateTime? rescheduledAt;
@@ -107,8 +109,7 @@ class BookingItem {
       vehicleTypeId: vehicleTypeById(
         (json['vehicleTypeId'] ?? 'sedan').toString(),
       ).id,
-      dateTime: DateTime.tryParse((json['dateTime'] ?? '').toString()) ??
-          DateTime.now(),
+      dateTime: _parseDateTime(json['dateTime']) ?? DateTime.now(),
       basePrice: _toInt(json['basePrice']) == 0
           ? _toInt(json['price'])
           : _toInt(json['basePrice']),
@@ -120,27 +121,24 @@ class BookingItem {
         (json['paymentStatus'] ?? '').toString(),
       ),
       paymentMethod: (json['paymentMethod'] ?? '').toString().trim(),
-      paidAt: DateTime.tryParse((json['paidAt'] ?? '').toString()),
+      paidAt: _parseDateTime(json['paidAt']),
       status: _statusFromString((json['status'] ?? '').toString()),
-      completedAt: DateTime.tryParse((json['completedAt'] ?? '').toString()),
-      previousDateTime:
-          DateTime.tryParse((json['previousDateTime'] ?? '').toString()),
-      rescheduledAt:
-          DateTime.tryParse((json['rescheduledAt'] ?? '').toString()),
+      acceptedAt: _parseDateTime(json['acceptedAt']),
+      completedAt: _parseDateTime(json['completedAt']),
+      previousDateTime: _parseDateTime(json['previousDateTime']),
+      rescheduledAt: _parseDateTime(json['rescheduledAt']),
       rescheduledByRole:
           (json['rescheduledByRole'] ?? '').toString().trim(),
       reviewId: (json['reviewId'] ?? '').toString().trim(),
-      reviewSubmittedAt:
-          DateTime.tryParse((json['reviewSubmittedAt'] ?? '').toString()),
+      reviewSubmittedAt: _parseDateTime(json['reviewSubmittedAt']),
       messageCount: _toInt(json['messageCount']),
       unreadForCustomerCount: _toInt(json['unreadForCustomerCount']),
       lastMessagePreview: (json['lastMessagePreview'] ?? '').toString(),
       lastMessageSenderRole: (json['lastMessageSenderRole'] ?? '').toString(),
-      lastMessageAt:
-          DateTime.tryParse((json['lastMessageAt'] ?? '').toString()),
+      lastMessageAt: _parseDateTime(json['lastMessageAt']),
       cancelReasonId: (json['cancelReasonId'] ?? '').toString().trim(),
       cancelledByRole: (json['cancelledByRole'] ?? '').toString().trim(),
-      cancelledAt: DateTime.tryParse((json['cancelledAt'] ?? '').toString()),
+      cancelledAt: _parseDateTime(json['cancelledAt']),
     );
   }
 
@@ -163,6 +161,7 @@ class BookingItem {
     String? paymentMethod,
     DateTime? paidAt,
     BookingStatus? status,
+    DateTime? acceptedAt,
     DateTime? completedAt,
     DateTime? previousDateTime,
     DateTime? rescheduledAt,
@@ -197,6 +196,7 @@ class BookingItem {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paidAt: paidAt ?? this.paidAt,
       status: status ?? this.status,
+      acceptedAt: acceptedAt ?? this.acceptedAt,
       completedAt: completedAt ?? this.completedAt,
       previousDateTime: previousDateTime ?? this.previousDateTime,
       rescheduledAt: rescheduledAt ?? this.rescheduledAt,
@@ -224,6 +224,14 @@ class BookingItem {
       return value.toInt();
     }
     return int.tryParse('$value') ?? 0;
+  }
+
+  static DateTime? _parseDateTime(Object? value) {
+    final DateTime? parsed = DateTime.tryParse((value ?? '').toString());
+    if (parsed == null) {
+      return null;
+    }
+    return parsed.isUtc ? parsed.toLocal() : parsed;
   }
 
   static BookingStatus _statusFromString(String value) {

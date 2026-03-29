@@ -397,7 +397,7 @@ class UstaTopRepository
             throw new RuntimeException('Mashina modeli kerak');
         }
 
-        $dateTime = CarbonImmutable::parse($dateTimeRaw);
+        $dateTime = $this->bookingDateTime($dateTimeRaw);
         $availableSlots = $this->slotTimesForDate($workshop, $service, $dateTime->startOfDay(), null);
         if (! in_array($dateTime->format('H:i'), $availableSlots, true)) {
             throw new RuntimeException('Tanlangan vaqt band bo‘lib qoldi. Boshqa vaqt tanlang');
@@ -494,6 +494,32 @@ class UstaTopRepository
         });
     }
 
+    public function acceptRescheduledBookingForUser(string $userId, string $bookingId): array
+    {
+        return $this->mutateBooking($bookingId, function (array $booking) use ($userId): array {
+            if (($booking['userId'] ?? '') !== $userId) {
+                throw new RuntimeException('Buyurtma topilmadi');
+            }
+
+            if (($booking['status'] ?? '') !== 'rescheduled') {
+                throw new RuntimeException('Faqat ko‘chirilgan buyurtmani tasdiqlash mumkin');
+            }
+
+            if (($booking['rescheduledByRole'] ?? '') === 'customer') {
+                throw new RuntimeException('Bu buyurtma allaqachon siz tomonidan ko‘chirilgan');
+            }
+
+            $booking['status'] = 'accepted';
+            $booking['acceptedAt'] = now()->toIso8601String();
+            $booking['completedAt'] = null;
+            $booking['cancelReasonId'] = '';
+            $booking['cancelledByRole'] = '';
+            $booking['cancelledAt'] = null;
+
+            return $booking;
+        });
+    }
+
     public function updateBookingStatus(string $bookingId, string $status, array $options = []): array
     {
         return $this->mutateBooking($bookingId, function (array $booking) use ($status, $options): array {
@@ -518,6 +544,7 @@ class UstaTopRepository
             $booking['status'] = $normalizedStatus;
 
             if ($normalizedStatus === 'accepted') {
+                $booking['acceptedAt'] = now()->toIso8601String();
                 $booking['completedAt'] = null;
                 $booking['cancelReasonId'] = '';
                 $booking['cancelledByRole'] = '';
@@ -561,6 +588,7 @@ class UstaTopRepository
         return [
             'date' => $day->format('Y-m-d'),
             'slots' => $slots,
+            'allSlots' => $this->slotStatesForDate($workshop, $service, $day, null),
             'isClosedDay' => in_array($day->dayOfWeekIso, $schedule['closedWeekdays'], true),
             'serviceDurationMinutes' => max(30, (int) ($service['durationMinutes'] ?? 30)),
             'openingTime' => $schedule['openingTime'],
@@ -1015,6 +1043,11 @@ class UstaTopRepository
         return array_values($this->store->readArray(config('ustatop.users_file')));
     }
 
+    private function bookingDateTime(string $raw): CarbonImmutable
+    {
+        return CarbonImmutable::parse($raw)->setTimezone(config('app.timezone'));
+    }
+
     private function userById(string $userId): ?array
     {
         foreach ($this->users() as $user) {
@@ -1117,6 +1150,7 @@ class UstaTopRepository
             },
             array_values($workshop['services'] ?? [])
         ));
+        $workshop['imageUrl'] = trim((string) ($workshop['imageUrl'] ?? ''));
 
         if ($includeReviews) {
             $workshop['reviews'] = $this->reviewsForWorkshop((string) ($workshop['id'] ?? ''));
@@ -1143,6 +1177,7 @@ class UstaTopRepository
             'longitude' => $longitude === null || $longitude === '' ? null : (float) $longitude,
             'isOpen' => ($payload['isOpen'] ?? $current['isOpen'] ?? true) === true,
             'badge' => trim((string) ($payload['badge'] ?? $current['badge'] ?? '')),
+            'imageUrl' => trim((string) ($payload['imageUrl'] ?? $current['imageUrl'] ?? '')),
             'ownerAccessCode' => trim((string) ($payload['ownerAccessCode'] ?? $current['ownerAccessCode'] ?? $this->defaultOwnerAccessCode($workshopId))),
             'startingPrice' => (int) ($payload['startingPrice'] ?? $current['startingPrice'] ?? 0),
             'services' => array_values($payload['services'] ?? $current['services'] ?? []),
@@ -1283,7 +1318,7 @@ class UstaTopRepository
             throw new RuntimeException('Ustaxona yoki xizmat topilmadi');
         }
 
-        $dateTime = CarbonImmutable::parse($dateTimeRaw);
+        $dateTime = $this->bookingDateTime($dateTimeRaw);
         $availableSlots = $this->slotTimesForDate($workshop, $service, $dateTime->startOfDay(), (string) ($booking['id'] ?? ''));
         if (! in_array($dateTime->format('H:i'), $availableSlots, true)) {
             throw new RuntimeException('Tanlangan vaqt band bo‘lib qoldi. Boshqa vaqt tanlang');
@@ -1354,6 +1389,17 @@ class UstaTopRepository
 
     private function slotTimesForDate(array $workshop, array $service, CarbonImmutable $day, ?string $ignoreBookingId): array
     {
+        return array_values(array_map(
+            static fn (array $slot): string => (string) $slot['time'],
+            array_filter(
+                $this->slotStatesForDate($workshop, $service, $day, $ignoreBookingId),
+                static fn (array $slot): bool => ($slot['isAvailable'] ?? false) === true,
+            )
+        ));
+    }
+
+    private function slotStatesForDate(array $workshop, array $service, CarbonImmutable $day, ?string $ignoreBookingId): array
+    {
         $schedule = $this->scheduleForWorkshop($workshop);
         if (in_array($day->dayOfWeekIso, $schedule['closedWeekdays'], true)) {
             return [];
@@ -1364,6 +1410,8 @@ class UstaTopRepository
         $closing = $this->dayTime($day, $schedule['closingTime']);
         $breakStart = trim($schedule['breakStartTime']) !== '' ? $this->dayTime($day, $schedule['breakStartTime']) : null;
         $breakEnd = trim($schedule['breakEndTime']) !== '' ? $this->dayTime($day, $schedule['breakEndTime']) : null;
+        $currentDateTime = CarbonImmutable::now($day->getTimezone());
+        $isToday = $day->isSameDay($currentDateTime);
 
         $active = array_filter($this->rawBookings(), function (array $booking) use ($workshop, $day, $ignoreBookingId): bool {
             if (($booking['workshopId'] ?? '') !== ($workshop['id'] ?? '')) {
@@ -1389,6 +1437,12 @@ class UstaTopRepository
                 continue;
             }
 
+            $state = 'available';
+
+            if ($isToday && ! $cursor->gt($currentDateTime)) {
+                $state = 'past';
+            }
+
             if ($breakStart && $breakEnd && $this->overlaps($cursor, $end, $breakStart, $breakEnd)) {
                 continue;
             }
@@ -1406,9 +1460,15 @@ class UstaTopRepository
                 }
             }
 
-            if (! $conflict) {
-                $slots[] = $cursor->format('H:i');
+            if ($conflict) {
+                $state = 'booked';
             }
+
+            $slots[] = [
+                'time' => $cursor->format('H:i'),
+                'isAvailable' => $state === 'available',
+                'reason' => $state,
+            ];
         }
 
         return $slots;

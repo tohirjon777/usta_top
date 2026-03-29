@@ -56,7 +56,7 @@ class _BookingScreenState extends State<BookingScreen> {
   bool _isLoadingAvailability = false;
   bool _isClosedDay = false;
   String? _availabilityError;
-  List<String> _availableSlots = const <String>[];
+  List<BookingAvailabilitySlot> _slotItems = const <BookingAvailabilitySlot>[];
   int _availabilityRequestId = 0;
   bool _isLoadingCalendar = false;
   String? _calendarError;
@@ -193,6 +193,11 @@ class _BookingScreenState extends State<BookingScreen> {
 
   bool get _isTestCardPayment => _selectedPaymentMethod == 'test_card';
 
+  List<String> get _availableSlots => _slotItems
+      .where((BookingAvailabilitySlot slot) => slot.isAvailable)
+      .map((BookingAvailabilitySlot slot) => slot.time)
+      .toList(growable: false);
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -229,49 +234,107 @@ class _BookingScreenState extends State<BookingScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.bookAppointment)),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            border: Border(
+              top: BorderSide(color: AppColors.borderOf(context)),
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      AppFormatters.moneyK(_calculatedPrice),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.primaryToneOf(context),
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedTime == null
+                          ? l10n.bookingTimePending
+                          : '$selectedDateLabel • $_selectedTime',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed:
+                      _isSubmitting || _selectedTime == null ? null : _submitBooking,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          _selectedPaymentMethod == 'cash'
+                              ? l10n.bookWithCash
+                              : (_isTestCardPayment
+                                  ? l10n.payWithTestCardAndBook
+                                  : l10n.confirmBooking),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: <Widget>[
-          Text(
-            widget.salon.name,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.masterPrefix(widget.salon.master),
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedServiceId,
-            items: widget.salon.services
-                .map(
-                  (SalonService service) => DropdownMenuItem<String>(
-                    value: service.id,
-                    child: Text(
-                      '${service.name}  •  ${l10n.durationMinutes(service.durationMinutes)}  •  ${AppFormatters.moneyK(service.price)}',
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              setState(() {
-                _selectedServiceId = value;
-              });
-              _refreshAvailabilityCalendar(forceAdjustSelection: true);
-              _schedulePriceQuoteRefresh(immediate: true);
-            },
-            decoration: InputDecoration(labelText: l10n.service),
+          _BookingHeroCard(
+            salon: widget.salon,
+            l10n: l10n,
           ),
           const SizedBox(height: 18),
-          Text(
-            l10n.vehicleSelectionTitle,
-            style: Theme.of(context).textTheme.titleMedium,
+          _BookingSectionCard(
+            title: l10n.service,
+            child: DropdownButtonFormField<String>(
+              initialValue: _selectedServiceId,
+              items: widget.salon.services
+                  .map(
+                    (SalonService service) => DropdownMenuItem<String>(
+                      value: service.id,
+                      child: Text(
+                        '${service.name}  •  ${l10n.durationMinutes(service.durationMinutes)}  •  ${AppFormatters.moneyK(service.price)}',
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (String? value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _selectedServiceId = value;
+                });
+                _refreshAvailabilityCalendar(forceAdjustSelection: true);
+                _schedulePriceQuoteRefresh(immediate: true);
+              },
+              decoration: InputDecoration(labelText: l10n.service),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
+          _BookingSectionCard(
+            title: l10n.vehicleSelectionTitle,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
           if (savedVehicles.isNotEmpty) ...<Widget>[
             Text(
               l10n.savedVehiclesTitle,
@@ -421,6 +484,9 @@ class _BookingScreenState extends State<BookingScreen> {
             },
             decoration: InputDecoration(labelText: l10n.vehicleTypeField),
           ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () async {
@@ -502,6 +568,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         _selectedTime != _nearestAvailableTime) ...<Widget>[
                       const SizedBox(height: 10),
                       FilledButton.tonal(
+                        key: const Key('select_nearest_available_button'),
                         onPressed: _selectNearestAvailableSlot,
                         child: Text(l10n.selectNearestAvailable),
                       ),
@@ -533,7 +600,7 @@ class _BookingScreenState extends State<BookingScreen> {
               title: _availabilityError!,
               subtitle: l10n.availableTimesRetryHint,
             )
-          else if (_availableSlots.isEmpty)
+          else if (_slotItems.isEmpty)
             _AvailabilityMessageCard(
               title: _isClosedDay
                   ? l10n.availableTimesClosedDay
@@ -543,22 +610,57 @@ class _BookingScreenState extends State<BookingScreen> {
                   : l10n.availableTimesEmptyHint,
             )
           else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _availableSlots
-                  .map(
-                    (String slot) => ChoiceChip(
-                      label: Text(slot),
-                      selected: slot == _selectedTime,
-                      onSelected: (_) {
-                        setState(() {
-                          _selectedTime = slot;
-                        });
-                      },
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (_availableSlots.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _AvailabilityMessageCard(
+                      title: _isClosedDay
+                          ? l10n.availableTimesClosedDay
+                          : l10n.availableTimesEmpty,
+                      subtitle: _isClosedDay
+                          ? l10n.availableTimesClosedDayHint
+                          : l10n.availableTimesEmptyHint,
                     ),
-                  )
-                  .toList(),
+                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _slotItems
+                      .map(
+                        (BookingAvailabilitySlot slot) => ChoiceChip(
+                          label: Text(
+                            slot.time,
+                            style: TextStyle(
+                              color: slot.isAvailable
+                                  ? null
+                                  : AppColors.secondaryTextOf(context),
+                            ),
+                          ),
+                          selected: slot.time == _selectedTime,
+                          backgroundColor: slot.isAvailable
+                              ? null
+                              : AppColors.chipBackgroundOf(context),
+                          side: BorderSide(
+                            color: slot.isAvailable
+                                ? AppColors.borderOf(context)
+                                : AppColors.borderOf(context)
+                                    .withValues(alpha: 0.6),
+                          ),
+                          onSelected: slot.isAvailable
+                              ? (_) {
+                                  setState(() {
+                                    _selectedTime = slot.time;
+                                  });
+                                }
+                              : null,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
             ),
           const SizedBox(height: 18),
           Card(
@@ -675,25 +777,6 @@ class _BookingScreenState extends State<BookingScreen> {
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _isSubmitting || _selectedTime == null
-                ? null
-                : _submitBooking,
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    _selectedPaymentMethod == 'cash'
-                        ? l10n.bookWithCash
-                        : (_isTestCardPayment
-                            ? l10n.payWithTestCardAndBook
-                            : l10n.confirmBooking),
-                  ),
           ),
         ],
       ),
@@ -979,7 +1062,7 @@ class _BookingScreenState extends State<BookingScreen> {
       setState(() {
         _isLoadingAvailability = false;
         _isClosedDay = availability.isClosedDay;
-        _availableSlots = availability.slotTimes;
+        _slotItems = availability.slots;
         if (preferredTime != null && _availableSlots.contains(preferredTime)) {
           _selectedTime = preferredTime;
         } else if (_selectedTime == null ||
@@ -994,7 +1077,7 @@ class _BookingScreenState extends State<BookingScreen> {
       setState(() {
         _isLoadingAvailability = false;
         _isClosedDay = false;
-        _availableSlots = const <String>[];
+        _slotItems = const <BookingAvailabilitySlot>[];
         _selectedTime = null;
         _availabilityError = error.message;
       });
@@ -1006,7 +1089,7 @@ class _BookingScreenState extends State<BookingScreen> {
       setState(() {
         _isLoadingAvailability = false;
         _isClosedDay = false;
-        _availableSlots = const <String>[];
+        _slotItems = const <BookingAvailabilitySlot>[];
         _selectedTime = null;
         _availabilityError = l10n.availableTimesLoadFailed;
       });
@@ -1293,6 +1376,164 @@ class _BookingScreenState extends State<BookingScreen> {
     return result == true;
   }
 
+}
+
+class _BookingHeroCard extends StatelessWidget {
+  const _BookingHeroCard({
+    required this.salon,
+    required this.l10n,
+  });
+
+  final Salon salon;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            AppColors.primarySoftOf(context),
+            AppColors.accentSoftOf(context),
+          ],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    Icons.event_available_outlined,
+                    color: AppColors.primaryToneOf(context),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        salon.name,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.masterPrefix(salon.master),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.secondaryTextOf(context),
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _BookingTag(
+                  icon: Icons.star_rounded,
+                  text: '${salon.rating} (${salon.reviewCount})',
+                ),
+                _BookingTag(
+                  icon: Icons.location_on_outlined,
+                  text: '${salon.distanceKm} km',
+                ),
+                _BookingTag(
+                  icon: Icons.tune_outlined,
+                  text: '${salon.services.length} ${l10n.services}',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingSectionCard extends StatelessWidget {
+  const _BookingSectionCard({
+    required this.title,
+    required this.child,
+  });
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingTag extends StatelessWidget {
+  const _BookingTag({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15, color: AppColors.primaryToneOf(context)),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AvailabilityMessageCard extends StatelessWidget {

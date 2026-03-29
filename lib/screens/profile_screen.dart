@@ -9,7 +9,6 @@ import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/notification_settings_provider.dart';
-import '../providers/push_notifications_provider.dart';
 import '../providers/theme_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -51,8 +50,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final LanguageProvider languageProvider = context.watch<LanguageProvider>();
     final NotificationSettingsProvider notificationSettingsProvider =
         context.watch<NotificationSettingsProvider>();
-    final PushNotificationsProvider pushNotificationsProvider =
-        context.watch<PushNotificationsProvider>();
     final ThemeProvider themeProvider = context.watch<ThemeProvider>();
     final AuthProvider authProvider = context.watch<AuthProvider>();
     final AppLanguage language = languageProvider.language;
@@ -74,86 +71,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoftOf(context),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(
-                  Icons.person,
-                  size: 40,
-                  color: AppColors.primaryToneOf(context),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      fullName,
-                      style: Theme.of(context).textTheme.titleLarge,
+          _ProfileHeroCard(
+            fullName: fullName,
+            phone: phone,
+            isLoadingProfile: isLoadingProfile,
+            refreshTooltip: l10n.refresh,
+            editLabel: l10n.editProfile,
+            passwordLabel: l10n.changePassword,
+            onRefresh: () => context.read<AuthProvider>().loadCurrentUser(),
+            onEditProfile: isLoadingProfile || authProvider.currentUser == null
+                ? null
+                : () => _showEditProfileSheet(
+                      initialName: rawFullName,
+                      initialPhone: rawPhone,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      phone,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.secondaryTextOf(context),
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: <Widget>[
-                        TextButton.icon(
-                          onPressed: isLoadingProfile ||
-                                  authProvider.currentUser == null
-                              ? null
-                              : () => _showEditProfileSheet(
-                                    initialName: rawFullName,
-                                    initialPhone: rawPhone,
-                                  ),
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(0, 32),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            alignment: Alignment.centerLeft,
-                          ),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: Text(l10n.editProfile),
-                        ),
-                        TextButton.icon(
-                          onPressed: isLoadingProfile ||
-                                  authProvider.currentUser == null
-                              ? null
-                              : _showChangePasswordSheet,
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(0, 32),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            alignment: Alignment.centerLeft,
-                          ),
-                          icon: const Icon(Icons.lock_outline, size: 18),
-                          label: Text(l10n.changePassword),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: isLoadingProfile
+            onChangePassword:
+                isLoadingProfile || authProvider.currentUser == null
                     ? null
-                    : () => context.read<AuthProvider>().loadCurrentUser(),
-                icon: const Icon(Icons.refresh),
-                tooltip: l10n.refresh,
-              ),
-            ],
+                    : _showChangePasswordSheet,
           ),
           if (isLoadingProfile) ...<Widget>[
             const SizedBox(height: 10),
@@ -169,13 +104,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
           const SizedBox(height: 18),
+          _ProfileSectionHeader(
+            title: l10n.totalBookings,
+            subtitle: l10n.bookingHistorySubtitle,
+          ),
+          const SizedBox(height: 12),
           Row(
             children: <Widget>[
               Expanded(
                 child: _StatCard(
                   label: l10n.totalBookings,
                   value: '${bookingProvider.totalBookings}',
-                  icon: Icons.bar_chart,
+                  icon: Icons.bar_chart_rounded,
                 ),
               ),
               const SizedBox(width: 10),
@@ -183,26 +123,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _StatCard(
                   label: l10n.upcoming,
                   value: '${bookingProvider.upcomingBookings}',
-                  icon: Icons.upcoming,
+                  icon: Icons.event_available_rounded,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 18),
+          _ProfileSectionHeader(
+            title: l10n.navProfile,
+            subtitle: l10n.themeModeName(themePreference),
+          ),
+          const SizedBox(height: 12),
           _MenuTile(
             icon: Icons.history,
             title: l10n.bookingHistory,
             subtitle: l10n.bookingHistorySubtitle,
             onTap: widget.onOpenBookingHistory,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _MenuTile(
             icon: Icons.favorite_outline,
             title: l10n.savedSalons,
             subtitle: l10n.savedSalonsSubtitle,
             onTap: widget.onOpenSavedSalons,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _MenuTile(
             icon: Icons.notifications_none,
             title: l10n.notifications,
@@ -211,26 +156,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 : l10n.disabled,
             onTap: _toggleNotifications,
           ),
-          const SizedBox(height: 8),
-          _MenuTile(
-            icon: Icons.notification_add_outlined,
-            title: l10n.testPushNotification,
-            subtitle: pushNotificationsProvider.lastError ??
-                (pushNotificationsProvider.isFirebaseReady
-                    ? l10n.pushReady
-                    : l10n.pushNotReady),
-            onTap: authProvider.isLoggedIn ? () => _sendTestPush() : null,
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _MenuTile(
             icon: Icons.language,
             title: l10n.language,
             subtitle: l10n.languageName(language),
             onTap: _showLanguagePicker,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _MenuTile(
-            icon: Icons.brightness_6_outlined,
+            icon: Icons.bedtime_outlined,
             title: l10n.theme,
             subtitle: l10n.themeModeName(themePreference),
             onTap: _showThemePicker,
@@ -262,20 +197,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               : l10n.notificationsDisabled,
         ),
       ),
-    );
-  }
-
-  Future<void> _sendTestPush() async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final bool success = await context.read<AuthProvider>().sendTestPush();
-    if (!mounted) {
-      return;
-    }
-    final String message = success
-        ? l10n.testPushSent
-        : (context.read<AuthProvider>().errorMessage ?? l10n.testPushFailed);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
     );
   }
 
@@ -767,6 +688,181 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _ProfileHeroCard extends StatelessWidget {
+  const _ProfileHeroCard({
+    required this.fullName,
+    required this.phone,
+    required this.isLoadingProfile,
+    required this.refreshTooltip,
+    required this.editLabel,
+    required this.passwordLabel,
+    required this.onRefresh,
+    this.onEditProfile,
+    this.onChangePassword,
+  });
+
+  final String fullName;
+  final String phone;
+  final bool isLoadingProfile;
+  final String refreshTooltip;
+  final String editLabel;
+  final String passwordLabel;
+  final VoidCallback onRefresh;
+  final VoidCallback? onEditProfile;
+  final VoidCallback? onChangePassword;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            AppColors.primarySoftOf(context),
+            AppColors.accentSoftOf(context),
+          ],
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 74,
+            height: 74,
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Icon(
+              Icons.person_rounded,
+              size: 42,
+              color: AppColors.primaryToneOf(context),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  fullName,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  phone,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.secondaryTextOf(context),
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    _HeroActionChip(
+                      icon: Icons.edit_outlined,
+                      label: editLabel,
+                      onTap: onEditProfile,
+                    ),
+                    _HeroActionChip(
+                      icon: Icons.lock_outline,
+                      label: passwordLabel,
+                      onTap: onChangePassword,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: isLoadingProfile ? null : onRefresh,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: refreshTooltip,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroActionChip extends StatelessWidget {
+  const _HeroActionChip({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 16, color: AppColors.primaryToneOf(context)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSectionHeader extends StatelessWidget {
+  const _ProfileSectionHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.secondaryTextOf(context),
+              ),
+        ),
+      ],
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.label,
@@ -782,13 +878,26 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Icon(icon, color: AppColors.primaryToneOf(context)),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.primarySoftOf(context),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: AppColors.primaryToneOf(context)),
+            ),
             const SizedBox(height: 8),
-            Text(value, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
             const SizedBox(height: 2),
             Text(
               label,
@@ -819,12 +928,50 @@ class _MenuTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: ListTile(
+      child: InkWell(
         onTap: onTap,
-        leading: Icon(icon, color: AppColors.primaryToneOf(context)),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoftOf(context),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: AppColors.primaryToneOf(context)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.secondaryTextOf(context),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

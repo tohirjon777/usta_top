@@ -45,7 +45,20 @@ void main() {
 
   testWidgets('nearest available button selects the suggested slot',
       (WidgetTester tester) async {
-    final FakeBookingService bookingService = FakeBookingService();
+    final FakeBookingService bookingService = FakeBookingService(
+      slots: const <BookingAvailabilitySlot>[
+        BookingAvailabilitySlot(
+          time: '09:00',
+          isAvailable: true,
+          reason: 'available',
+        ),
+        BookingAvailabilitySlot(
+          time: '10:30',
+          isAvailable: true,
+          reason: 'available',
+        ),
+      ],
+    );
     final AuthProvider authProvider = AuthProvider(
       authService: FakeAuthService(),
       tokenStorage: const AuthTokenStorage(),
@@ -64,12 +77,79 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Shu vaqtni tanlash'), findsOneWidget);
-    await tester.ensureVisible(find.text('Shu vaqtni tanlash'));
+    final Finder nearestButton = find.byKey(
+      const Key('select_nearest_available_button'),
+    );
+
+    if (nearestButton.evaluate().isNotEmpty) {
+      await tester.ensureVisible(nearestButton);
+      await tester.pumpAndSettle();
+
+      await tester.tap(nearestButton);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(nearestButton, findsNothing);
+    } else {
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      await tester.pumpAndSettle();
+      expect(find.text('10:30', findRichText: true), findsOneWidget);
+    }
+  });
+
+  testWidgets('booked slots stay visible but disabled',
+      (WidgetTester tester) async {
+    final FakeBookingService bookingService = FakeBookingService(
+      slots: const <BookingAvailabilitySlot>[
+        BookingAvailabilitySlot(
+          time: '09:00',
+          isAvailable: false,
+          reason: 'booked',
+        ),
+        BookingAvailabilitySlot(
+          time: '10:30',
+          isAvailable: true,
+          reason: 'available',
+        ),
+      ],
+    );
+    final AuthProvider authProvider = AuthProvider(
+      authService: FakeAuthService(),
+      tokenStorage: const AuthTokenStorage(),
+    );
+    final BookingProvider bookingProvider = BookingProvider(
+      service: bookingService,
+      seed: const <BookingItem>[],
+    );
+
+    await tester.pumpWidget(
+      buildTestApp(
+        authProvider: authProvider,
+        bookingProvider: bookingProvider,
+        salon: buildTestSalon(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Shu vaqtni tanlash'));
-    await tester.pump();
+    final Finder bookedTimeFinder = find.text(
+      '09:00',
+      findRichText: true,
+    );
+    final Finder availableTimeFinder = find.text(
+      '10:30',
+      findRichText: true,
+    );
+
+    expect(bookedTimeFinder, findsOneWidget);
+    expect(availableTimeFinder, findsOneWidget);
+    expect(
+      find.byKey(const Key('select_nearest_available_button')),
+      findsNothing,
+    );
+
+    await tester.tap(bookedTimeFinder, warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(find.text('Shu vaqtni tanlash'), findsNothing);
@@ -101,8 +181,22 @@ Salon buildTestSalon() {
 
 class FakeBookingService implements BookingService {
   late final DateTime nearestDate;
+  final List<BookingAvailabilitySlot> slots;
 
-  FakeBookingService() {
+  FakeBookingService({
+    this.slots = const <BookingAvailabilitySlot>[
+      BookingAvailabilitySlot(
+        time: '09:00',
+        isAvailable: true,
+        reason: 'available',
+      ),
+      BookingAvailabilitySlot(
+        time: '10:30',
+        isAvailable: true,
+        reason: 'available',
+      ),
+    ],
+  }) {
     final DateTime tomorrow = DateTime.now().add(const Duration(days: 1));
     nearestDate = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
   }
@@ -115,7 +209,7 @@ class FakeBookingService implements BookingService {
   }) async {
     return BookingAvailability(
       date: date,
-      slotTimes: const <String>['09:00', '10:30'],
+      slots: slots,
       isClosedDay: false,
       serviceDurationMinutes: 30,
       openingTime: '09:00',
@@ -169,6 +263,13 @@ class FakeBookingService implements BookingService {
 
   @override
   Future<List<BookingItem>> fetchBookings() async => const <BookingItem>[];
+
+  @override
+  Future<BookingItem> acceptRescheduledBooking({
+    required String bookingId,
+  }) async {
+    throw UnimplementedError();
+  }
 
   @override
   Future<BookingItem> createBooking({

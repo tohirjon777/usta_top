@@ -104,10 +104,11 @@ class TelegramBotService
         }
 
         $response = Http::timeout(8)
+            ->retry(2, 250, throw: false)
             ->acceptJson()
             ->get($this->methodUrl($method), $query);
 
-        return $this->decodeResponse($response->status(), $response->json());
+        return $this->decodeResponse($response->status(), $response->json(), $response->body());
     }
 
     private function post(string $method, array $payload): array
@@ -117,17 +118,19 @@ class TelegramBotService
         }
 
         $response = Http::timeout(8)
+            ->retry(2, 250, throw: false)
             ->acceptJson()
             ->asJson()
             ->post($this->methodUrl($method), $payload);
 
-        return $this->decodeResponse($response->status(), $response->json());
+        return $this->decodeResponse($response->status(), $response->json(), $response->body());
     }
 
-    private function decodeResponse(int $statusCode, mixed $decoded): array
+    private function decodeResponse(int $statusCode, mixed $decoded, string $body = ''): array
     {
         if ($statusCode < 200 || $statusCode >= 300) {
-            throw new RuntimeException('Telegram API xatoligi: HTTP '.$statusCode);
+            $details = trim($body) !== '' ? ' - '.mb_substr(trim($body), 0, 280) : '';
+            throw new RuntimeException('Telegram API xatoligi: HTTP '.$statusCode.$details);
         }
 
         if (! is_array($decoded)) {

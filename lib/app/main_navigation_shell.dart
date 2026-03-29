@@ -302,17 +302,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            action: SnackBarAction(
-              label: l10n.view,
-              onPressed: () {
-                if (!mounted) {
-                  return;
-                }
-                setState(() {
-                  _currentIndex = 2;
-                });
-              },
-            ),
           ),
         );
       }

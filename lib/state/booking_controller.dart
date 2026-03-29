@@ -82,6 +82,27 @@ class BookingController extends ChangeNotifier {
     return true;
   }
 
+  bool acceptRescheduledBooking(String bookingId) {
+    final int index =
+        _bookings.indexWhere((BookingItem item) => item.id == bookingId);
+    if (index == -1) {
+      return false;
+    }
+
+    final BookingItem current = _bookings[index];
+    if (current.status != BookingStatus.rescheduled ||
+        current.rescheduledByRole == 'customer') {
+      return false;
+    }
+
+    _bookings[index] = current.copyWith(
+      status: BookingStatus.accepted,
+      acceptedAt: DateTime.now(),
+    );
+    notifyListeners();
+    return true;
+  }
+
   @protected
   void replaceBookings(Iterable<BookingItem> items) {
     _bookings

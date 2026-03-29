@@ -51,6 +51,10 @@ abstract interface class BookingService {
     required DateTime dateTime,
   });
 
+  Future<BookingItem> acceptRescheduledBooking({
+    required String bookingId,
+  });
+
   Future<List<BookingChatMessage>> fetchBookingMessages({
     required String bookingId,
   });

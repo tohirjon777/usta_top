@@ -90,6 +90,33 @@ class BookingController extends Controller
         }
     }
 
+    public function acceptRescheduled(Request $request, string $id)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $booking = $this->repository->acceptRescheduledBookingForUser(
+                (string) $user['id'],
+                $id
+            );
+            $workshop = $this->repository->workshopById((string) ($booking['workshopId'] ?? ''));
+            if ($workshop !== null) {
+                try {
+                    $this->notifications->sendBookingStatusNotification($workshop, $booking, 'customer');
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
+
+            return response()->json(['data' => $booking]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
     public function messages(Request $request, string $id)
     {
         $user = $this->userFromRequest($request);

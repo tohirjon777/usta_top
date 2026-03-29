@@ -29,6 +29,7 @@ Route::get('/bookings', [BookingController::class, 'index']);
 Route::post('/bookings', [BookingController::class, 'store']);
 Route::patch('/bookings/{id}/cancel', [BookingController::class, 'cancel']);
 Route::patch('/bookings/{id}/reschedule', [BookingController::class, 'reschedule']);
+Route::patch('/bookings/{id}/accept-reschedule', [BookingController::class, 'acceptRescheduled']);
 Route::get('/bookings/{id}/messages', [BookingController::class, 'messages']);
 Route::post('/bookings/{id}/messages', [BookingController::class, 'sendMessage']);
 Route::patch('/bookings/{id}/messages/read', [BookingController::class, 'markMessagesRead']);

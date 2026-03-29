@@ -157,6 +157,18 @@ wait_for_health() {
   return 1
 }
 
+print_failure_diagnostics() {
+  printf 'Backend health tekshiruvdan o‘tmadi: %s\n' "$HEALTH_URL" >&2
+  if [[ -f "$OUT_LOG" ]]; then
+    printf '\nLast stdout lines:\n' >&2
+    tail -n 20 "$OUT_LOG" >&2 || true
+  fi
+  if [[ -f "$ERR_LOG" ]]; then
+    printf '\nLast stderr lines:\n' >&2
+    tail -n 20 "$ERR_LOG" >&2 || true
+  fi
+}
+
 install_service() {
   ensure_env_file
   sync_runtime
@@ -166,7 +178,10 @@ install_service() {
   launchctl bootstrap "$LAUNCH_DOMAIN" "$PLIST_PATH"
   launchctl enable "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "$LAUNCH_DOMAIN/$LABEL"
-  wait_for_health 20 1 || true
+  if ! wait_for_health 20 1; then
+    print_failure_diagnostics
+    return 1
+  fi
 
   printf 'Laravel backend service installed: %s\n' "$PLIST_PATH"
 }
@@ -184,7 +199,10 @@ start_service() {
   fi
   launchctl enable "$LAUNCH_DOMAIN/$LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "$LAUNCH_DOMAIN/$LABEL"
-  wait_for_health 20 1 || true
+  if ! wait_for_health 20 1; then
+    print_failure_diagnostics
+    return 1
+  fi
 }
 
 stop_service() {

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Support\UstaTop\UstaTopRepository;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Tests\Concerns\UsesIsolatedUstaTopData;
 use Tests\TestCase;
@@ -19,6 +20,8 @@ class UstaTopApiFlowTest extends TestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
         $this->tearDownUstaTopData();
         parent::tearDown();
     }
@@ -64,7 +67,11 @@ class UstaTopApiFlowTest extends TestCase
         $this->assertNotSame('', $date);
         $this->assertNotSame('', $time);
 
-        $bookingDateTime = CarbonImmutable::parse($date.' '.$time, 'UTC')->toIso8601String();
+        $bookingDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i',
+            $date.' '.$time,
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
         $bookingResponse = $this->withHeaders($headers)->postJson('/bookings', [
             'workshopId' => 'w-1',
             'serviceId' => 'srv-1',
@@ -103,7 +110,11 @@ class UstaTopApiFlowTest extends TestCase
             ->first(fn ($slot) => $slot !== $time);
         $this->assertNotNull($nextTime);
 
-        $rescheduledDateTime = CarbonImmutable::parse($date.' '.$nextTime, 'UTC')->toIso8601String();
+        $rescheduledDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i',
+            $date.' '.$nextTime,
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
         $this->withHeaders($headers)
             ->patchJson('/bookings/'.$bookingId.'/reschedule', [
                 'dateTime' => $rescheduledDateTime,
@@ -128,5 +139,131 @@ class UstaTopApiFlowTest extends TestCase
             ->getJson('/bookings')
             ->assertOk()
             ->assertJsonPath('data.0.reviewId', fn ($value) => is_string($value) && $value !== '');
+    }
+
+    public function test_today_availability_hides_past_slots_and_old_booking_is_rejected(): void
+    {
+        Carbon::setTestNow('2026-03-30 14:10:00');
+        CarbonImmutable::setTestNow('2026-03-30 14:10:00');
+
+        $phone = '+99890'.random_int(1000000, 9999999);
+        $registerResponse = $this->postJson('/auth/register', [
+            'fullName' => 'Time Guard',
+            'phone' => $phone,
+            'password' => 'secret123',
+        ])->assertOk();
+
+        $token = (string) $registerResponse->json('data.token');
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $availabilityResponse = $this->getJson('/workshops/w-1/availability?serviceId=srv-1&date=2026-03-30')
+            ->assertOk();
+
+        $slots = $availabilityResponse->json('data.slots');
+        $allSlots = $availabilityResponse->json('data.allSlots');
+        $this->assertIsArray($slots);
+        $this->assertIsArray($allSlots);
+        $this->assertFalse(in_array('09:00', $slots, true));
+        $this->assertFalse(in_array('13:30', $slots, true));
+        $this->assertFalse(in_array('14:00', $slots, true));
+        $this->assertSame('14:30', $slots[0] ?? null);
+        $this->assertContains([
+            'time' => '09:00',
+            'isAvailable' => false,
+            'reason' => 'past',
+        ], $allSlots);
+        $this->assertContains([
+            'time' => '14:30',
+            'isAvailable' => true,
+            'reason' => 'available',
+        ], $allSlots);
+
+        $pastBookingDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i:s',
+            '2026-03-30 10:00:00',
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
+        $this->withHeaders($headers)
+            ->postJson('/bookings', [
+                'workshopId' => 'w-1',
+                'serviceId' => 'srv-1',
+                'vehicleBrand' => 'Chevrolet',
+                'vehicleModelName' => 'Cobalt',
+                'vehicleModel' => 'Chevrolet Cobalt',
+                'catalogVehicleId' => 'chevrolet_cobalt',
+                'isCustomVehicle' => false,
+                'vehicleTypeId' => 'sedan',
+                'dateTime' => $pastBookingDateTime,
+                'paymentMethod' => 'cash',
+            ])
+            ->assertStatus(400)
+            ->assertJsonPath('error', 'Tanlangan vaqt band bo‘lib qoldi. Boshqa vaqt tanlang');
+    }
+
+    public function test_customer_can_accept_rescheduled_booking_from_workshop_side(): void
+    {
+        $phone = '+99890'.random_int(1000000, 9999999);
+
+        $registerResponse = $this->postJson('/auth/register', [
+            'fullName' => 'Accept Flow',
+            'phone' => $phone,
+            'password' => 'secret123',
+        ]);
+        $registerResponse->assertOk();
+
+        $token = (string) $registerResponse->json('data.token');
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $calendarResponse = $this->getJson('/workshops/w-1/availability/calendar?serviceId=srv-1&from=2026-03-30&days=7');
+        $calendarResponse->assertOk();
+
+        $date = (string) $calendarResponse->json('data.nearestAvailableDate');
+        $time = (string) $calendarResponse->json('data.nearestAvailableTime');
+        $bookingDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i',
+            $date.' '.$time,
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
+
+        $bookingResponse = $this->withHeaders($headers)->postJson('/bookings', [
+            'workshopId' => 'w-1',
+            'serviceId' => 'srv-1',
+            'vehicleBrand' => 'Chevrolet',
+            'vehicleModelName' => 'Cobalt',
+            'vehicleModel' => 'Chevrolet Cobalt',
+            'catalogVehicleId' => 'chevrolet_cobalt',
+            'isCustomVehicle' => false,
+            'vehicleTypeId' => 'sedan',
+            'dateTime' => $bookingDateTime,
+            'paymentMethod' => 'cash',
+        ]);
+        $bookingResponse->assertCreated();
+
+        $bookingId = (string) $bookingResponse->json('data.id');
+
+        $availabilityResponse = $this->getJson('/workshops/w-1/availability?serviceId=srv-1&date='.$date);
+        $availabilityResponse->assertOk();
+
+        $nextTime = collect($availabilityResponse->json('data.slots'))
+            ->first(fn ($slot) => $slot !== $time);
+        $this->assertNotNull($nextTime);
+
+        $rescheduledDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i',
+            $date.' '.$nextTime,
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
+
+        app(UstaTopRepository::class)->updateBookingStatus($bookingId, 'rescheduled', [
+            'actorRole' => 'admin',
+            'scheduledAt' => $rescheduledDateTime,
+        ]);
+
+        $this->withHeaders($headers)
+            ->patchJson('/bookings/'.$bookingId.'/accept-reschedule')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'accepted')
+            ->assertJsonPath('data.acceptedAt', fn ($value) => is_string($value) && $value !== '')
+            ->assertJsonPath('data.rescheduledByRole', 'admin');
     }
 }
