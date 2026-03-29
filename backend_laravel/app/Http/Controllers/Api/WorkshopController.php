@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\WorkshopNotificationsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -12,6 +13,7 @@ class WorkshopController extends Controller
 {
     public function __construct(
         private readonly UstaTopRepository $repository,
+        private readonly WorkshopNotificationsService $notifications,
     ) {
     }
 
@@ -92,8 +94,19 @@ class WorkshopController extends Controller
         }
 
         try {
+            $result = $this->repository->createReview($user, $id, $request->all());
+            $workshop = $result['workshop'] ?? null;
+            $review = $result['review'] ?? null;
+            if (is_array($workshop) && is_array($review)) {
+                try {
+                    $this->notifications->sendNewReviewNotification($workshop, $review);
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
+
             return response()->json([
-                'data' => $this->repository->createReview($user, $id, $request->all()),
+                'data' => $workshop,
             ]);
         } catch (RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 400);

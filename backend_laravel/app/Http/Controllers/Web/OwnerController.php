@@ -81,6 +81,15 @@ class OwnerController extends Controller
             $this->repository->listAdminReviews(),
             fn (array $review): bool => ($review['workshopId'] ?? '') === $workshopId
         ));
+        usort($reviews, function (array $a, array $b): int {
+            $aHasReply = trim((string) ($a['ownerReply'] ?? '')) !== '';
+            $bHasReply = trim((string) ($b['ownerReply'] ?? '')) !== '';
+            if ($aHasReply !== $bHasReply) {
+                return $aHasReply <=> $bHasReply;
+            }
+
+            return strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? ''));
+        });
 
         $items = collect($bookings)->map(function (array $booking): string {
             return '
@@ -145,8 +154,9 @@ class OwnerController extends Controller
                     <h2>'.e((string) ($review['serviceName'] ?? '')).'</h2>
                     <p><strong>Mijoz:</strong> '.e((string) ($review['customerName'] ?? '')).'</p>
                     <p><strong>Baho:</strong> '.e((string) ($review['rating'] ?? '')).'/5</p>
+                    <p><strong>Sharh vaqti:</strong> '.e((string) ($review['createdAt'] ?? '')).'</p>
                     <p>'.nl2br(e((string) ($review['comment'] ?? ''))).'</p>
-                    '.(trim((string) ($review['ownerReply'] ?? '')) !== '' ? '<p><strong>Javob:</strong> '.nl2br(e((string) ($review['ownerReply'] ?? ''))).'</p>' : '').'
+                    '.(trim((string) ($review['ownerReply'] ?? '')) !== '' ? '<p><strong>Javob:</strong> '.nl2br(e((string) ($review['ownerReply'] ?? ''))).'</p><p class="muted">Manba: '.e((string) ($review['ownerReplySource'] ?? 'owner_panel')).'</p>' : '<p class="muted">Telegram xabariga reply yozish yoki shu yerdan javob qoldirish mumkin.</p>').'
                     <form method="post" action="/owner/reviews/'.urlencode((string) $review['id']).'/reply">
                         '.$this->csrf().'
                         <textarea name="reply" placeholder="Mijozga javob yozing"></textarea>
@@ -161,6 +171,7 @@ class OwnerController extends Controller
                 <h2>Telegram</h2>
                 <p><strong>Bot holati:</strong> '.e($this->telegramBot->isConfigured() ? 'yoqilgan' : 'o‘chiq').'</p>
                 <p><strong>Chat ID:</strong> '.e((string) (($workshop['telegramChatId'] ?? '') !== '' ? $workshop['telegramChatId'] : 'ulmagan')).'</p>
+                '.(trim((string) ($workshop['telegramChatId'] ?? '')) !== '' ? '<p class="muted">Telegram ulangan va siz uni o‘zingiz uzmaguningizcha saqlanib turadi.</p>' : '').'
                 '.(($workshop['telegramLinkCode'] ?? '') !== '' ? '<p><strong>Bog‘lash kodi:</strong> '.e((string) $workshop['telegramLinkCode']).'</p><p class="muted">Telegram botga `/start '.e((string) $workshop['telegramLinkCode']).'` yuboring.</p>' : '').'
                 <div class="grid-two">
                     <form method="post" action="/owner/telegram/generate">
@@ -202,12 +213,13 @@ class OwnerController extends Controller
             </div>
             '.$imageCard.'
             '.$telegramCard.'
+            <h1>Sharhlar</h1>
+            <p class="muted">Bu yerda faqat sizning ustaxonangizga yozilgan sharhlar ko‘rinadi. Telegramdan ham shu sharhlarga javob qaytarishingiz mumkin.</p>
+            '.$reviewCards.'
             <h1>Zakazlar</h1>
             '.$items.'
             <h1>Xizmatlar</h1>
             '.$serviceCards.'
-            <h1>Sharhlar</h1>
-            '.$reviewCards.'
         '));
     }
 

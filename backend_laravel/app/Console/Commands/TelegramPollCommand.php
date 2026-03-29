@@ -67,7 +67,71 @@ class TelegramPollCommand extends Command
             $callback = $update['callback_query'] ?? null;
             if (is_array($callback)) {
                 $this->handleCallbackQuery($callback);
+                continue;
             }
+
+            $message = $update['message'] ?? null;
+            if (is_array($message)) {
+                $this->handleMessage($message);
+            }
+        }
+    }
+
+    private function handleMessage(array $message): void
+    {
+        try {
+            $text = trim((string) ($message['text'] ?? ''));
+            $chatId = trim((string) (($message['chat']['id'] ?? '')));
+            if ($text === '' || $chatId === '') {
+                return;
+            }
+
+            if (str_starts_with($text, '/start ')) {
+                $this->handleStartLinkMessage($message, $chatId, $text);
+
+                return;
+            }
+
+            $replyToMessage = $message['reply_to_message'] ?? null;
+            if (! is_array($replyToMessage)) {
+                return;
+            }
+
+            $reviewId = $this->extractReviewId((string) ($replyToMessage['text'] ?? ''));
+            if ($reviewId === '') {
+                return;
+            }
+
+            $review = $this->repository->reviewById($reviewId);
+            if (! $review) {
+                return;
+            }
+
+            $workshop = $this->repository->workshopById((string) ($review['workshopId'] ?? ''));
+            if (! $workshop) {
+                return;
+            }
+
+            if (trim((string) ($workshop['telegramChatId'] ?? '')) !== $chatId) {
+                return;
+            }
+
+            $updatedReview = $this->repository->replyReview($reviewId, $text, 'owner_telegram');
+            $replyToMessageId = (int) ($replyToMessage['message_id'] ?? 0);
+            if ($replyToMessageId > 0) {
+                $this->telegramBot->editMessageText(
+                    $chatId,
+                    $replyToMessageId,
+                    $this->notifications->reviewText($workshop, $updatedReview),
+                );
+            }
+
+            $this->telegramBot->sendMessage(
+                $chatId,
+                $this->notifications->reviewReplySavedText($workshop, $updatedReview),
+            );
+        } catch (\Throwable $error) {
+            report($error);
         }
     }
 
@@ -208,6 +272,33 @@ class TelegramPollCommand extends Command
         }
     }
 
+    private function handleStartLinkMessage(array $message, string $chatId, string $text): void
+    {
+        $parts = preg_split('/\s+/', $text);
+        $code = trim((string) ($parts[1] ?? ''));
+        if ($code === '') {
+            return;
+        }
+
+        $workshop = $this->repository->workshopByTelegramLinkCode($code);
+        if (! $workshop) {
+            return;
+        }
+
+        $chatLabel = trim((string) (($message['chat']['title'] ?? $message['chat']['username'] ?? $message['chat']['first_name'] ?? '')));
+
+        $this->repository->updateWorkshop((string) ($workshop['id'] ?? ''), [
+            'telegramChatId' => $chatId,
+            'telegramChatLabel' => $chatLabel,
+            'telegramLinkCode' => '',
+        ]);
+
+        $this->telegramBot->sendMessage(
+            $chatId,
+            'Usta Top: Telegram ushbu ustaxonaga muvaffaqiyatli ulandi.',
+        );
+    }
+
     private function mapCancellationReason(string $shortCode): string
     {
         return match (trim($shortCode)) {
@@ -238,5 +329,14 @@ class TelegramPollCommand extends Command
         }
 
         return $dateTime->utc()->toIso8601String();
+    }
+
+    private function extractReviewId(string $text): string
+    {
+        if (preg_match('/Sharh ID:\s*([A-Za-z0-9._-]+)/u', $text, $matches) !== 1) {
+            return '';
+        }
+
+        return trim((string) ($matches[1] ?? ''));
     }
 }

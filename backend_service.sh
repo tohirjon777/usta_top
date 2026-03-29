@@ -57,16 +57,15 @@ sync_runtime() {
   rsync -a --delete \
     --exclude 'vendor/' \
     --exclude 'node_modules/' \
+    --exclude 'data/' \
     --exclude '.env' \
     --exclude '.env.local' \
     --exclude 'storage/logs/' \
     --exclude 'storage/app/ustatop/' \
     "$BACKEND_DIR/" "$RUNTIME_DIR/"
 
-  if [[ ! -f "$DATA_SEED_MARKER" ]] || find "$SOURCE_DATA_DIR" -type f -newer "$DATA_SEED_MARKER" | grep -q .; then
-    rsync -a "$SOURCE_DATA_DIR/" "$DATA_DIR/"
-    touch "$DATA_SEED_MARKER"
-  fi
+  rsync -a --ignore-existing "$SOURCE_DATA_DIR/" "$DATA_DIR/"
+  touch "$DATA_SEED_MARKER"
 
   if [[ -f "$BACKEND_DIR/.env" ]]; then
     cp "$BACKEND_DIR/.env" "$RUNTIME_DIR/.env"

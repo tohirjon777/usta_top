@@ -7,7 +7,7 @@ Asosiy imkoniyatlar:
 - JSON fayllar bilan ishlaydigan repository qatlam
 - API: `/health`, `/auth`, `/workshops`, `/bookings`
 - Booking availability, price quote, review, booking message endpointlari
-- Admin panel: `/admin/login`, `/admin/workshops`, `/admin/bookings`, `/admin/reviews`
+- Admin panel: `/admin/login`, `/admin/workshops`, `/admin/bookings`, `/admin/analytics`
 - Owner panel: `/owner/login`, `/owner/bookings`
 - Telegram: owner link code, admin test xabari, yangi zakaz/status xabarlari
 - Root-level service script: `../backend_service.sh`

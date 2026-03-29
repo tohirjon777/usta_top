@@ -43,6 +43,11 @@ class WorkshopNotificationsService
         $this->sendToWorkshop($workshop, $this->bookingStatusText($workshop, $booking, $actor));
     }
 
+    public function sendNewReviewNotification(array $workshop, array $review): void
+    {
+        $this->sendToWorkshop($workshop, $this->reviewText($workshop, $review));
+    }
+
     public function newBookingText(array $workshop, array $booking, bool $includeStatus = false): string
     {
         $lines = [
@@ -90,6 +95,48 @@ class WorkshopNotificationsService
         }
 
         return implode("\n", $lines);
+    }
+
+    public function reviewText(array $workshop, array $review, bool $includeOwnerReply = true): string
+    {
+        $lines = [
+            'Usta Top: yangi sharh qoldirildi',
+            '',
+            'Ustaxona: '.($workshop['name'] ?? ''),
+            'Sharh ID: '.($review['id'] ?? ''),
+            'Mijoz: '.($review['customerName'] ?? '—'),
+            'Xizmat: '.($review['serviceName'] ?? '—'),
+            'Baho: '.($review['rating'] ?? '—').'/5',
+            'Sharh vaqti: '.$this->formatDateTime((string) ($review['createdAt'] ?? '')),
+            'Sharh: '.($review['comment'] ?? '—'),
+        ];
+
+        $ownerReply = trim((string) ($review['ownerReply'] ?? ''));
+        if ($includeOwnerReply && $ownerReply !== '') {
+            $lines[] = 'Usta javobi: '.$ownerReply;
+            $ownerReplyAt = trim((string) ($review['ownerReplyAt'] ?? ''));
+            if ($ownerReplyAt !== '') {
+                $lines[] = 'Javob vaqti: '.$this->formatDateTime($ownerReplyAt);
+            }
+        } else {
+            $lines[] = '';
+            $lines[] = 'Javob berish uchun shu xabarga reply yozing.';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    public function reviewReplySavedText(array $workshop, array $review): string
+    {
+        return implode("\n", [
+            'Usta Top: sharhga javob saqlandi',
+            '',
+            'Ustaxona: '.($workshop['name'] ?? ''),
+            'Sharh ID: '.($review['id'] ?? ''),
+            'Mijoz: '.($review['customerName'] ?? '—'),
+            'Xizmat: '.($review['serviceName'] ?? '—'),
+            'Javob: '.($review['ownerReply'] ?? '—'),
+        ]);
     }
 
     public function bookingRescheduleSelectionText(array $workshop, array $booking, array $page): string

@@ -92,8 +92,36 @@ class UstaTopTelegramFlowTest extends TestCase
                 'dateTime' => $date.'T'.$time.':00Z',
                 'paymentMethod' => 'cash',
             ])
-            ->assertCreated();
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'upcoming');
+
+        $bookingId = (string) $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->getJson('/bookings')
+            ->json('data.0.id');
+
+        app(UstaTopRepository::class)->updateBookingStatus($bookingId, 'completed', [
+            'actorRole' => 'admin',
+        ]);
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/workshops/w-1/reviews', [
+                'serviceId' => 'srv-1',
+                'rating' => 5,
+                'comment' => 'Zo‘r xizmat, tez va toza ishlashdi.',
+                'bookingId' => $bookingId,
+            ])
+            ->assertOk();
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/sendMessage'));
+        Http::assertSent(function ($request): bool {
+            if (! str_contains($request->url(), '/sendMessage')) {
+                return false;
+            }
+
+            $text = (string) ($request->data()['text'] ?? '');
+
+            return str_contains($text, 'Usta Top: yangi sharh qoldirildi')
+                && str_contains($text, 'Sharh ID:');
+        });
     }
 }

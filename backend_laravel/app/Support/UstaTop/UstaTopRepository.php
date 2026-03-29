@@ -40,7 +40,7 @@ class UstaTopRepository
                 continue;
             }
 
-            if (trim((string) ($workshop['ownerAccessCode'] ?? '')) !== trim($accessCode)) {
+            if ($this->resolveOwnerAccessCode([], $workshop, $workshopId) !== trim($accessCode)) {
                 return null;
             }
 
@@ -343,6 +343,17 @@ class UstaTopRepository
             fn (array $booking): bool => ($booking['workshopId'] ?? '') === $workshopId
         );
 
+        usort($items, fn (array $a, array $b): int => strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? '')));
+
+        return array_values(array_map(
+            fn (array $booking): array => $this->enrichBooking($booking),
+            $items
+        ));
+    }
+
+    public function allBookings(): array
+    {
+        $items = $this->rawBookings();
         usort($items, fn (array $a, array $b): int => strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? '')));
 
         return array_values(array_map(
@@ -847,8 +858,11 @@ class UstaTopRepository
 
         $this->incrementWorkshopReviewStats($workshopId, $review['rating']);
 
-        return $this->workshopById($workshopId)
-            ?? throw new RuntimeException('Sharhdan keyin ustaxona topilmadi');
+        return [
+            'workshop' => $this->workshopById($workshopId)
+                ?? throw new RuntimeException('Sharhdan keyin ustaxona topilmadi'),
+            'review' => $review,
+        ];
     }
 
     public function listAdminReviews(): array
@@ -879,6 +893,58 @@ class UstaTopRepository
         }
 
         throw new RuntimeException('Sharh topilmadi');
+    }
+
+    public function reviewById(string $reviewId): ?array
+    {
+        foreach ($this->rawReviews() as $review) {
+            if (($review['id'] ?? '') !== $reviewId) {
+                continue;
+            }
+
+            $workshop = $this->workshopById((string) ($review['workshopId'] ?? ''));
+            $review['workshopName'] = $workshop['name'] ?? '';
+
+            return $review;
+        }
+
+        return null;
+    }
+
+    public function workshopByTelegramChatId(string $chatId): ?array
+    {
+        $normalizedChatId = trim($chatId);
+        if ($normalizedChatId === '') {
+            return null;
+        }
+
+        foreach ($this->rawWorkshops() as $workshop) {
+            if (trim((string) ($workshop['telegramChatId'] ?? '')) !== $normalizedChatId) {
+                continue;
+            }
+
+            return $this->normalizeWorkshop($workshop, includeReviews: true);
+        }
+
+        return null;
+    }
+
+    public function workshopByTelegramLinkCode(string $code): ?array
+    {
+        $normalizedCode = trim($code);
+        if ($normalizedCode === '') {
+            return null;
+        }
+
+        foreach ($this->rawWorkshops() as $workshop) {
+            if (trim((string) ($workshop['telegramLinkCode'] ?? '')) !== $normalizedCode) {
+                continue;
+            }
+
+            return $this->normalizeWorkshop($workshop, includeReviews: true);
+        }
+
+        return null;
     }
 
     public function replyReview(string $reviewId, string $reply, string $source = 'owner_panel'): array
@@ -985,7 +1051,22 @@ class UstaTopRepository
 
     private function rawWorkshops(): array
     {
-        return array_values($this->store->readArray(config('ustatop.workshops_file')));
+        $workshops = array_values($this->store->readArray(config('ustatop.workshops_file')));
+        $changed = false;
+
+        foreach ($workshops as $index => $workshop) {
+            $resolvedAccessCode = $this->resolveOwnerAccessCode([], $workshop, (string) ($workshop['id'] ?? ''));
+            if (($workshop['ownerAccessCode'] ?? null) !== $resolvedAccessCode) {
+                $workshops[$index]['ownerAccessCode'] = $resolvedAccessCode;
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $this->saveWorkshops($workshops);
+        }
+
+        return $workshops;
     }
 
     private function rawBookings(): array
@@ -1178,7 +1259,7 @@ class UstaTopRepository
             'isOpen' => ($payload['isOpen'] ?? $current['isOpen'] ?? true) === true,
             'badge' => trim((string) ($payload['badge'] ?? $current['badge'] ?? '')),
             'imageUrl' => trim((string) ($payload['imageUrl'] ?? $current['imageUrl'] ?? '')),
-            'ownerAccessCode' => trim((string) ($payload['ownerAccessCode'] ?? $current['ownerAccessCode'] ?? $this->defaultOwnerAccessCode($workshopId))),
+            'ownerAccessCode' => $this->resolveOwnerAccessCode($payload, $current, $workshopId),
             'startingPrice' => (int) ($payload['startingPrice'] ?? $current['startingPrice'] ?? 0),
             'services' => array_values($payload['services'] ?? $current['services'] ?? []),
             'schedule' => $current['schedule'] ?? [
@@ -1193,6 +1274,21 @@ class UstaTopRepository
             'telegramChatLabel' => trim((string) ($payload['telegramChatLabel'] ?? $current['telegramChatLabel'] ?? '')),
             'telegramLinkCode' => trim((string) ($payload['telegramLinkCode'] ?? $current['telegramLinkCode'] ?? '')),
         ];
+    }
+
+    private function resolveOwnerAccessCode(array $payload, ?array $current, string $workshopId): string
+    {
+        $payloadValue = trim((string) ($payload['ownerAccessCode'] ?? ''));
+        if ($payloadValue !== '') {
+            return $payloadValue;
+        }
+
+        $currentValue = trim((string) ($current['ownerAccessCode'] ?? ''));
+        if ($currentValue !== '') {
+            return $currentValue;
+        }
+
+        return $this->defaultOwnerAccessCode($workshopId);
     }
 
     private function reviewsForWorkshop(string $workshopId): array
@@ -1609,8 +1705,10 @@ class UstaTopRepository
 
     private function defaultOwnerAccessCode(string $workshopId): string
     {
-        if (preg_match('/(\d{4})$/', $workshopId, $matches) === 1) {
-            return $matches[1];
+        if (preg_match('/(\d+)$/', $workshopId, $matches) === 1) {
+            $digits = substr($matches[1], -4);
+
+            return str_pad($digits, 4, '0', STR_PAD_LEFT);
         }
 
         return '0000';

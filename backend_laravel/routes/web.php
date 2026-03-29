@@ -19,6 +19,8 @@ Route::post('/admin/workshops/{id}/update', [AdminController::class, 'updateWork
 Route::post('/admin/workshops/{id}/delete', [AdminController::class, 'deleteWorkshop']);
 Route::post('/admin/workshops/{id}/telegram/test', [AdminController::class, 'sendTelegramTest']);
 Route::get('/admin/bookings', [AdminController::class, 'bookingsPage']);
+Route::get('/admin/analytics', [AdminController::class, 'analyticsPage']);
+Route::get('/admin/analytics/export.csv', [AdminController::class, 'exportAnalyticsCsv']);
 Route::post('/admin/bookings/{id}/status', [AdminController::class, 'updateBookingStatus']);
 Route::get('/admin/reviews', [AdminController::class, 'reviewsPage']);
 Route::post('/admin/reviews/{id}/hide', [AdminController::class, 'hideReview']);

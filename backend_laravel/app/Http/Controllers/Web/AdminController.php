@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Support\UstaTop\AdminAnalyticsService;
 use App\Support\UstaTop\Money;
 use App\Support\UstaTop\TelegramBotService;
 use App\Support\UstaTop\UstaTopRepository;
@@ -16,6 +17,7 @@ class AdminController extends Controller
 {
     public function __construct(
         private readonly UstaTopRepository $repository,
+        private readonly AdminAnalyticsService $analytics,
         private readonly TelegramBotService $telegramBot,
         private readonly WorkshopNotificationsService $notifications,
         private readonly WorkshopImageStorage $imageStorage,
@@ -307,34 +309,160 @@ class AdminController extends Controller
             return redirect('/admin/login');
         }
 
-        $items = collect($this->repository->listAdminReviews())
-            ->map(function (array $review): string {
-                $toggleAction = ($review['isHidden'] ?? false) === true ? 'unhide' : 'hide';
-                $toggleLabel = ($review['isHidden'] ?? false) === true ? 'Qayta ko‘rsatish' : 'Yashirish';
+        return redirect('/admin/workshops')->with('success', 'Sharhlar endi owner panelda ko‘rinadi');
+    }
 
-                return '
-                    <article class="card">
-                        <h2>'.e((string) ($review['workshopName'] ?? '')).' · '.e((string) ($review['serviceName'] ?? '')).'</h2>
-                        <p><strong>Mijoz:</strong> '.e((string) ($review['customerName'] ?? '')).'</p>
-                        <p><strong>Baho:</strong> '.e((string) ($review['rating'] ?? '')).'/5</p>
-                        <p>'.nl2br(e((string) ($review['comment'] ?? ''))).'</p>
-                        '.(trim((string) ($review['ownerReply'] ?? '')) !== '' ? '<p><strong>Usta javobi:</strong> '.nl2br(e((string) $review['ownerReply'])).'</p>' : '').'
-                        <div class="actions">
-                            <form method="post" action="/admin/reviews/'.urlencode((string) $review['id']).'/'.$toggleAction.'">
-                                '.$this->csrf().'
-                                <button type="submit">'.$toggleLabel.'</button>
-                            </form>
-                        </div>
-                    </article>
-                ';
+    public function analyticsPage(Request $request)
+    {
+        if (! $this->isAdmin($request)) {
+            return redirect('/admin/login');
+        }
+
+        try {
+            $dashboard = $this->analytics->buildDashboard(
+                $request->query('workshop'),
+                (string) $request->query('range', '7d'),
+                $request->query('from'),
+                $request->query('to'),
+            );
+        } catch (RuntimeException $exception) {
+            return redirect('/admin/bookings')->with('error', $exception->getMessage());
+        }
+
+        $filters = $dashboard['filters'];
+        $workshopOptions = collect($filters['workshops'] ?? [])
+            ->map(function (array $workshop) use ($filters): string {
+                $selected = ((string) ($filters['workshopId'] ?? '')) === (string) ($workshop['id'] ?? '') ? 'selected' : '';
+
+                return '<option value="'.e((string) ($workshop['id'] ?? '')).'" '.$selected.'>'.e((string) ($workshop['name'] ?? 'Ustaxona')).'</option>';
             })
             ->implode('');
 
-        return response($this->page('Admin reviews', '
+        $query = http_build_query([
+            'range' => $filters['range'] ?? '7d',
+            'workshop' => $filters['workshopId'] ?? '',
+            'from' => $filters['from'] ?? '',
+            'to' => $filters['to'] ?? '',
+        ]);
+
+        return response($this->page('Admin analytics', '
             '.$this->nav().'
-            <h1>Sharhlar</h1>
-            '.$items.'
+            <div class="hero">
+                <div>
+                    <h1>Statistika</h1>
+                    <p class="muted">Admin uchun booking, tushum, sharh va ustaxona kesimlari bir joyda.</p>
+                </div>
+                <a class="ghost-link" href="/admin/analytics/export.csv?'.$query.'">CSV yuklab olish</a>
+            </div>
+            <article class="card">
+                <form method="get" action="/admin/analytics" class="filter-grid">
+                    <div>
+                        <label>Davr</label>
+                        <select name="range">
+                            <option value="today" '.(($filters['range'] ?? '') === 'today' ? 'selected' : '').'>Bugun</option>
+                            <option value="7d" '.(($filters['range'] ?? '') === '7d' ? 'selected' : '').'>7 kun</option>
+                            <option value="30d" '.(($filters['range'] ?? '') === '30d' ? 'selected' : '').'>30 kun</option>
+                            <option value="custom" '.(($filters['range'] ?? '') === 'custom' ? 'selected' : '').'>Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Ustaxona</label>
+                        <select name="workshop">
+                            <option value="">Barchasi</option>
+                            '.$workshopOptions.'
+                        </select>
+                    </div>
+                    <div>
+                        <label>Dan</label>
+                        <input type="date" name="from" value="'.e((string) ($filters['from'] ?? '')).'">
+                    </div>
+                    <div>
+                        <label>Gacha</label>
+                        <input type="date" name="to" value="'.e((string) ($filters['to'] ?? '')).'">
+                    </div>
+                    <div class="actions">
+                        <button type="submit">Qo‘llash</button>
+                    </div>
+                </form>
+                <p class="hint">Faol davr: '.e((string) ($dashboard['periodLabel'] ?? '')).'</p>
+            </article>
+            <section class="metrics-grid">
+                '.$this->metricsHtml($dashboard['metrics'] ?? []).'
+            </section>
+            <section class="section-grid">
+                '.$this->chartCardHtml('Kunlik zakazlar', 'Rejalashtirilgan bronlar va yangi yaratilgan zakazlar', $dashboard['bookingsChart'] ?? [], false).'
+                '.$this->chartCardHtml('Kunlik tushum', 'Bekor qilinmagan bronlar summasi', $dashboard['revenueChart'] ?? [], true).'
+            </section>
+            <section class="section-grid">
+                '.$this->summaryListHtml('Status taqsimoti', 'Holatlar bo‘yicha kesim', $dashboard['statusBreakdown'] ?? [], false).'
+                '.$this->metricsCardHtml('Sharh statistikasi', 'Foydalanuvchi fikr-mulohazalari', $dashboard['reviewMetrics'] ?? []).'
+            </section>
+            <section class="section-grid">
+                '.$this->summaryListHtml('Top ustaxonalar', 'Eng ko‘p bron tushgan nuqtalar', $dashboard['topWorkshops'] ?? [], true).'
+                '.$this->summaryListHtml('Top xizmatlar', 'Qaysi xizmatlarga talab kuchli', $dashboard['topServices'] ?? [], true).'
+            </section>
+            <section class="section-grid">
+                '.$this->summaryListHtml('Top mashinalar', 'Eng ko‘p kelgan model va brendlar', $dashboard['topVehicles'] ?? [], true).'
+                '.$this->summaryListHtml('Bekor qilish sabablari', 'Qaysi sabablar ko‘proq uchrayapti', $dashboard['cancelReasons'] ?? [], false).'
+            </section>
+            <section class="section-grid single">
+                '.$this->summaryListHtml('Reytinglar', 'Bahosi yuqori ustaxonalar', $dashboard['ratings'] ?? [], false).'
+            </section>
         '));
+    }
+
+    public function exportAnalyticsCsv(Request $request)
+    {
+        if (! $this->isAdmin($request)) {
+            return redirect('/admin/login');
+        }
+
+        $dashboard = $this->analytics->buildDashboard(
+            $request->query('workshop'),
+            (string) $request->query('range', '7d'),
+            $request->query('from'),
+            $request->query('to'),
+        );
+
+        $rows = $dashboard['exportRows'] ?? [];
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, [
+            'booking_id',
+            'created_at',
+            'scheduled_at',
+            'workshop',
+            'service',
+            'customer',
+            'phone',
+            'vehicle',
+            'status',
+            'accepted_at',
+            'rescheduled_at',
+            'previous_datetime',
+            'completed_at',
+            'cancelled_at',
+            'cancel_reason',
+            'price_uzs',
+            'prepayment_uzs',
+            'payment_status',
+            'payment_method',
+        ]);
+
+        foreach ($rows as $row) {
+            fputcsv($stream, $row);
+        }
+
+        rewind($stream);
+        $csv = stream_get_contents($stream) ?: '';
+        fclose($stream);
+
+        $filename = 'admin-analytics-'.now()->format('Ymd-His').'.csv';
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
     }
 
     public function hideReview(Request $request, string $id)
@@ -554,7 +682,7 @@ class AdminController extends Controller
             <div class="nav">
                 <a href="/admin/workshops">Ustaxonalar</a>
                 <a href="/admin/bookings">Zakazlar</a>
-                <a href="/admin/reviews">Sharhlar</a>
+                <a href="/admin/analytics">Statistika</a>
                 <span class="muted">Telegram: '.e($this->telegramBot->isConfigured() ? 'yoqilgan' : 'o‘chiq').'</span>
                 <form method="post" action="/admin/logout">'.$this->csrf().'<button type="submit">Chiqish</button></form>
             </div>
@@ -583,6 +711,7 @@ class AdminController extends Controller
                 .nav form{margin:0}
                 .card{background:#fff;border:1px solid #ddd;border-radius:16px;padding:16px;margin-bottom:16px}
                 .card-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+                .hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap}
                 form{display:grid;gap:10px}
                 textarea{min-height:92px}
                 input,select,textarea,button{padding:10px;border-radius:10px;border:1px solid #cfcfcf;font:inherit}
@@ -591,6 +720,20 @@ class AdminController extends Controller
                 .flash.error{background:#fee2e2}
                 .flash.success{background:#dcfce7}
                 .grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+                .filter-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:end}
+                .metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+                .metric-card{background:#fff;border:1px solid #ddd;border-radius:16px;padding:16px}
+                .metric-label{font-size:13px;color:#6b6b6b;text-transform:uppercase;letter-spacing:.04em}
+                .metric-value{font-size:28px;font-weight:800;margin:8px 0 6px}
+                .metric-hint{font-size:13px;color:#6b6b6b}
+                .section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+                .section-grid.single{grid-template-columns:1fr}
+                .chart-list,.summary-list{display:grid;gap:12px}
+                .chart-row,.summary-row{display:grid;gap:8px}
+                .chart-head,.summary-head{display:flex;justify-content:space-between;gap:12px;align-items:center}
+                .bar-track{height:10px;border-radius:999px;background:#ece7dc;overflow:hidden}
+                .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0f766e,#14b8a6)}
+                .summary-value{font-weight:700}
                 .actions{display:flex;gap:10px;flex-wrap:wrap}
                 .hint,.muted{color:#666;font-size:14px}
                 .checkbox-row{display:flex;gap:8px;align-items:center}
@@ -599,11 +742,107 @@ class AdminController extends Controller
                 .image-preview{display:flex;gap:14px;align-items:center;padding:12px;border:1px dashed #d6d0c5;border-radius:14px;background:#fcfaf6;margin-bottom:14px}
                 .image-preview img,.image-placeholder{width:88px;height:88px;border-radius:18px;object-fit:cover;background:#ece6dc;display:flex;align-items:center;justify-content:center;color:#8a6f3a;font-weight:700}
                 .image-preview.empty{background:#faf7f1}
-                @media (max-width:720px){.grid-two{grid-template-columns:1fr}}
+                @media (max-width:960px){.metrics-grid,.section-grid,.filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+                @media (max-width:720px){.grid-two,.metrics-grid,.section-grid,.filter-grid{grid-template-columns:1fr}}
             </style>
         </head>
         <body>'.$flash.$body.'</body>
         </html>';
+    }
+
+    private function metricsHtml(array $metrics): string
+    {
+        return collect($metrics)->map(function (array $metric): string {
+            return '
+                <article class="metric-card">
+                    <div class="metric-label">'.e((string) ($metric['label'] ?? '')).'</div>
+                    <div class="metric-value">'.e((string) ($metric['value'] ?? '0')).'</div>
+                    <div class="metric-hint">'.e((string) ($metric['hint'] ?? '')).'</div>
+                </article>
+            ';
+        })->implode('');
+    }
+
+    private function metricsCardHtml(string $title, string $subtitle, array $metrics): string
+    {
+        return '
+            <article class="card">
+                <h2>'.e($title).'</h2>
+                <p class="muted">'.e($subtitle).'</p>
+                <div class="metrics-grid">
+                    '.$this->metricsHtml($metrics).'
+                </div>
+            </article>
+        ';
+    }
+
+    private function chartCardHtml(string $title, string $subtitle, array $items, bool $currencyMeta): string
+    {
+        $maxValue = max(array_map(
+            fn (array $item): int => max(0, (int) ($item['value'] ?? 0)),
+            $items === [] ? [['value' => 0]] : $items
+        ));
+
+        $rows = collect($items)->map(function (array $item) use ($maxValue, $currencyMeta): string {
+            $value = max(0, (int) ($item['value'] ?? 0));
+            $percent = $maxValue > 0 ? (int) round(($value / $maxValue) * 100) : 0;
+            $meta = (string) ($item['meta'] ?? '');
+
+            return '
+                <div class="chart-row">
+                    <div class="chart-head">
+                        <strong>'.e((string) ($item['label'] ?? '')).'</strong>
+                        <span class="summary-value">'.e($currencyMeta ? Money::formatUzs($value) : (string) $value).'</span>
+                    </div>
+                    <div class="bar-track"><div class="bar-fill" style="width: '.$percent.'%"></div></div>
+                    <div class="muted">'.e($meta).'</div>
+                </div>
+            ';
+        })->implode('');
+
+        return '
+            <article class="card">
+                <h2>'.e($title).'</h2>
+                <p class="muted">'.e($subtitle).'</p>
+                <div class="chart-list">'.$rows.'</div>
+            </article>
+        ';
+    }
+
+    private function summaryListHtml(string $title, string $subtitle, array $items, bool $showRevenue): string
+    {
+        $maxValue = max(array_map(
+            fn (array $item): int|float => max(0, (float) ($item['value'] ?? 0)),
+            $items === [] ? [['value' => 0]] : $items
+        ));
+
+        $rows = collect($items)->map(function (array $item) use ($maxValue, $showRevenue): string {
+            $value = (float) ($item['value'] ?? 0);
+            $percent = $maxValue > 0 ? (int) round(($value / $maxValue) * 100) : 0;
+            $meta = trim((string) ($item['meta'] ?? ''));
+            $revenue = $showRevenue && array_key_exists('revenue', $item)
+                ? Money::formatUzs((int) ($item['revenue'] ?? 0))
+                : '';
+
+            return '
+                <div class="summary-row">
+                    <div class="summary-head">
+                        <strong>'.e((string) ($item['label'] ?? '')).'</strong>
+                        <span class="summary-value">'.e(is_float($value) && floor($value) !== $value ? number_format($value, 1, '.', ' ') : (string) ((int) $value === $value ? (int) $value : $value)).'</span>
+                    </div>
+                    <div class="bar-track"><div class="bar-fill" style="width: '.$percent.'%"></div></div>
+                    <div class="muted">'.e(trim($meta.' '.($revenue !== '' ? '· '.$revenue : ''))).'</div>
+                </div>
+            ';
+        })->implode('');
+
+        return '
+            <article class="card">
+                <h2>'.e($title).'</h2>
+                <p class="muted">'.e($subtitle).'</p>
+                <div class="summary-list">'.$rows.'</div>
+            </article>
+        ';
     }
 
     private function csrf(): HtmlString

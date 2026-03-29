@@ -39,12 +39,25 @@ class UstaTopWebPanelTest extends TestCase
             ->assertOk()
             ->assertSee('Ustaxonalar');
 
+        $this->get('/admin/analytics')
+            ->assertOk()
+            ->assertSee('Statistika')
+            ->assertSee('Jami zakazlar')
+            ->assertSee('Top xizmatlar');
+
+        $this->get('/admin/analytics/export.csv?range=30d')
+            ->assertOk()
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8')
+            ->assertSee('booking_id')
+            ->assertSee('Turbo Usta Servis');
+
         $this->post('/admin/workshops', [
             'name' => 'Laravel Ustaxona',
             'master' => 'Bek Usta',
             'address' => 'Sergeli',
             'description' => 'Sinov uchun yaratilgan ustaxona',
             'badge' => 'Tez servis',
+            'imageUrl' => 'https://example.com/workshop-cover.jpg',
             'latitude' => '41.300000',
             'longitude' => '69.250000',
             'startingPrice' => '150000',
@@ -58,6 +71,16 @@ class UstaTopWebPanelTest extends TestCase
 
         $this->assertNotNull($createdWorkshop);
         $this->assertSame(150, (int) ($createdWorkshop['startingPrice'] ?? 0));
+        $this->assertSame(
+            'https://example.com/workshop-cover.jpg',
+            (string) ($createdWorkshop['imageUrl'] ?? '')
+        );
+        $this->assertSame('7878', (string) ($createdWorkshop['ownerAccessCode'] ?? ''));
+
+        $this->post('/owner/login', [
+            'workshopId' => (string) ($createdWorkshop['id'] ?? ''),
+            'accessCode' => '7878',
+        ])->assertRedirect('/owner/bookings');
 
         $this->post('/admin/bookings/b-seed-1/status', [
             'bookingStatus' => 'accepted',
@@ -89,6 +112,10 @@ class UstaTopWebPanelTest extends TestCase
             'prepaymentPercent' => '20',
         ])->assertRedirect();
 
+        $this->post('/owner/workshop/image', [
+            'imageUrl' => 'https://example.com/owner-updated.jpg',
+        ])->assertRedirect();
+
         $workshop = app(UstaTopRepository::class)->workshopById('w-1');
         $service = collect($workshop['services'] ?? [])
             ->first(fn (array $item): bool => ($item['id'] ?? '') === 'srv-1');
@@ -97,5 +124,7 @@ class UstaTopWebPanelTest extends TestCase
         $this->assertSame(155, (int) ($service['price'] ?? 0));
         $this->assertSame(45, (int) ($service['durationMinutes'] ?? 0));
         $this->assertSame(20, (int) ($service['prepaymentPercent'] ?? 0));
+        $this->assertSame('https://example.com/owner-updated.jpg', (string) ($workshop['imageUrl'] ?? ''));
+        $this->assertSame('0002', (string) (app(UstaTopRepository::class)->workshopById('w-2')['ownerAccessCode'] ?? ''));
     }
 }

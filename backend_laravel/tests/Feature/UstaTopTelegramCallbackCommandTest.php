@@ -216,6 +216,48 @@ class UstaTopTelegramCallbackCommandTest extends TestCase
         });
     }
 
+    public function test_owner_can_reply_to_review_from_telegram_message(): void
+    {
+        $repository = app(UstaTopRepository::class);
+        $this->linkWorkshopChat($repository);
+        $review = $this->createSeedReview($repository);
+
+        Http::fake([
+            'https://api.telegram.org/*/getUpdates*' => Http::response([
+                'ok' => true,
+                'result' => [[
+                    'update_id' => 105,
+                    'message' => [
+                        'message_id' => 82,
+                        'text' => 'Rahmat, keyingi safar yanada tezroq xizmat qilamiz.',
+                        'chat' => ['id' => '99887766'],
+                        'reply_to_message' => [
+                            'message_id' => 81,
+                            'text' => "Usta Top: yangi sharh qoldirildi\nSharh ID: ".($review['id'] ?? ''),
+                        ],
+                    ],
+                ]],
+            ], 200),
+            'https://api.telegram.org/*/sendMessage' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 82],
+            ], 200),
+            'https://api.telegram.org/*/editMessageText' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 81],
+            ], 200),
+        ]);
+
+        Artisan::call('ustatop:telegram-poll', ['--once' => true]);
+
+        $updatedReview = $repository->reviewById((string) ($review['id'] ?? ''));
+        $this->assertSame(
+            'Rahmat, keyingi safar yanada tezroq xizmat qilamiz.',
+            (string) ($updatedReview['ownerReply'] ?? '')
+        );
+        $this->assertSame('owner_telegram', (string) ($updatedReview['ownerReplySource'] ?? ''));
+    }
+
     private function linkWorkshopChat(UstaTopRepository $repository): void
     {
         $workshop = $repository->workshopById('w-1');
@@ -224,5 +266,25 @@ class UstaTopTelegramCallbackCommandTest extends TestCase
             'telegramChatLabel' => 'usta_top_owner',
             'telegramLinkCode' => '',
         ]));
+    }
+
+    private function createSeedReview(UstaTopRepository $repository): array
+    {
+        $booking = $repository->updateBookingStatus('b-seed-1', 'completed', [
+            'actorRole' => 'admin',
+        ]);
+
+        $result = $repository->createReview([
+            'id' => (string) ($booking['userId'] ?? 'u-1'),
+            'fullName' => (string) ($booking['customerName'] ?? 'Seed User'),
+            'phone' => (string) ($booking['customerPhone'] ?? ''),
+        ], 'w-1', [
+            'serviceId' => (string) ($booking['serviceId'] ?? 'srv-1'),
+            'rating' => 5,
+            'comment' => 'Zo‘r xizmat',
+            'bookingId' => 'b-seed-1',
+        ]);
+
+        return $result['review'] ?? [];
     }
 }
