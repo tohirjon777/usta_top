@@ -1,3 +1,4 @@
+import '../models/saved_payment_card.dart';
 import 'auth_service.dart';
 
 class LocalAuthService implements AuthService {
@@ -114,6 +115,122 @@ class LocalAuthService implements AuthService {
   }
 
   @override
+  Future<AuthUser> addPaymentCard({
+    required String accessToken,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final AuthUser current = _requireUserByToken(accessToken);
+    final String normalizedHolderName = holderName.trim();
+    final String digits = SavedPaymentCard.normalizeDigits(cardNumber);
+
+    _validateCardHolderName(normalizedHolderName);
+    _validateCardDigits(digits);
+    _validateCardExpiry(expiryMonth, expiryYear);
+
+    final SavedPaymentCard nextCard = SavedPaymentCard(
+      id: 'card-${DateTime.now().microsecondsSinceEpoch}',
+      holderName: normalizedHolderName,
+      brand: SavedPaymentCard.detectBrand(digits),
+      maskedNumber: SavedPaymentCard.maskDigits(digits),
+      last4: digits.substring(digits.length - 4),
+      expiryMonth: expiryMonth,
+      expiryYear: expiryYear,
+      isDefault: isDefault || current.savedPaymentCards.isEmpty,
+      updatedAt: DateTime.now(),
+    );
+
+    final List<SavedPaymentCard> nextCards = _normalizePaymentCards(
+      <SavedPaymentCard>[
+        ...current.savedPaymentCards,
+        nextCard,
+      ],
+    );
+
+    final AuthUser updated = current.copyWith(savedPaymentCards: nextCards);
+    _usersById[current.id] = updated;
+    return updated;
+  }
+
+  @override
+  Future<AuthUser> updatePaymentCard({
+    required String accessToken,
+    required String cardId,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final AuthUser current = _requireUserByToken(accessToken);
+    final int cardIndex = current.savedPaymentCards.indexWhere(
+      (SavedPaymentCard card) => card.id == cardId,
+    );
+    if (cardIndex < 0) {
+      throw const AuthException('Karta topilmadi');
+    }
+
+    final SavedPaymentCard existing = current.savedPaymentCards[cardIndex];
+    final String normalizedHolderName = holderName.trim();
+    final String digits = SavedPaymentCard.normalizeDigits(cardNumber);
+
+    _validateCardHolderName(normalizedHolderName);
+    if (digits.isNotEmpty) {
+      _validateCardDigits(digits);
+    }
+    _validateCardExpiry(expiryMonth, expiryYear);
+
+    final SavedPaymentCard updatedCard = existing.copyWith(
+      holderName: normalizedHolderName,
+      brand: digits.isEmpty
+          ? existing.brand
+          : SavedPaymentCard.detectBrand(digits),
+      maskedNumber: digits.isEmpty
+          ? existing.maskedNumber
+          : SavedPaymentCard.maskDigits(digits),
+      last4: digits.isEmpty ? existing.last4 : digits.substring(digits.length - 4),
+      expiryMonth: expiryMonth,
+      expiryYear: expiryYear,
+      isDefault: isDefault,
+      updatedAt: DateTime.now(),
+    );
+
+    final List<SavedPaymentCard> nextCards = current.savedPaymentCards
+        .map((SavedPaymentCard card) => card.id == cardId ? updatedCard : card)
+        .toList(growable: false);
+
+    final AuthUser updated = current.copyWith(
+      savedPaymentCards: _normalizePaymentCards(nextCards),
+    );
+    _usersById[current.id] = updated;
+    return updated;
+  }
+
+  @override
+  Future<AuthUser> deletePaymentCard({
+    required String accessToken,
+    required String cardId,
+  }) async {
+    final AuthUser current = _requireUserByToken(accessToken);
+    final List<SavedPaymentCard> nextCards = current.savedPaymentCards
+        .where((SavedPaymentCard card) => card.id != cardId)
+        .toList(growable: false);
+
+    if (nextCards.length == current.savedPaymentCards.length) {
+      throw const AuthException('Karta topilmadi');
+    }
+
+    final AuthUser updated = current.copyWith(
+      savedPaymentCards: _normalizePaymentCards(nextCards),
+    );
+    _usersById[current.id] = updated;
+    return updated;
+  }
+
+  @override
   Future<void> changePassword({
     required String accessToken,
     required String currentPassword,
@@ -208,5 +325,46 @@ class LocalAuthService implements AuthService {
     if (value.length < 6) {
       throw AuthException('$label kamida 6 ta belgidan iborat bo\'lsin');
     }
+  }
+
+  void _validateCardHolderName(String value) {
+    if (value.length < 2) {
+      throw const AuthException('Karta egasi ismi kamida 2 ta harfdan iborat bo\'lsin');
+    }
+  }
+
+  void _validateCardDigits(String digits) {
+    if (digits.length < 12 || digits.length > 19) {
+      throw const AuthException('Karta raqami noto\'g\'ri');
+    }
+  }
+
+  void _validateCardExpiry(int month, int year) {
+    if (month < 1 || month > 12) {
+      throw const AuthException('Karta amal qilish muddati noto\'g\'ri');
+    }
+    if (year < 2000) {
+      throw const AuthException('Karta amal qilish muddati noto\'g\'ri');
+    }
+
+    final DateTime now = DateTime.now();
+    if (year < now.year || (year == now.year && month < now.month)) {
+      throw const AuthException('Karta muddati allaqachon tugagan');
+    }
+  }
+
+  List<SavedPaymentCard> _normalizePaymentCards(List<SavedPaymentCard> cards) {
+    if (cards.isEmpty) {
+      return const <SavedPaymentCard>[];
+    }
+
+    final bool hasDefault = cards.any((SavedPaymentCard card) => card.isDefault);
+    final String defaultId = hasDefault ? cards.firstWhere((SavedPaymentCard card) => card.isDefault).id : cards.first.id;
+
+    return List<SavedPaymentCard>.unmodifiable(
+      cards.map((SavedPaymentCard card) {
+        return card.copyWith(isDefault: card.id == defaultId);
+      }),
+    );
   }
 }

@@ -1,3 +1,4 @@
+import '../models/saved_payment_card.dart';
 import '../models/saved_vehicle_profile.dart';
 
 class AuthUser {
@@ -6,23 +7,27 @@ class AuthUser {
     required this.fullName,
     required this.phone,
     this.savedVehicles = const <SavedVehicleProfile>[],
+    this.savedPaymentCards = const <SavedPaymentCard>[],
   });
 
   final String id;
   final String fullName;
   final String phone;
   final List<SavedVehicleProfile> savedVehicles;
+  final List<SavedPaymentCard> savedPaymentCards;
 
   AuthUser copyWith({
     String? fullName,
     String? phone,
     List<SavedVehicleProfile>? savedVehicles,
+    List<SavedPaymentCard>? savedPaymentCards,
   }) {
     return AuthUser(
       id: id,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
       savedVehicles: savedVehicles ?? this.savedVehicles,
+      savedPaymentCards: savedPaymentCards ?? this.savedPaymentCards,
     );
   }
 
@@ -39,6 +44,16 @@ class AuthUser {
               .map(SavedVehicleProfile.fromJson)
               .where((SavedVehicleProfile item) {
         return item.brand.isNotEmpty && item.model.isNotEmpty;
+      }).toList(growable: false),
+      savedPaymentCards:
+          ((json['savedPaymentCards'] as List<dynamic>?) ?? const <dynamic>[])
+              .whereType<Map<String, dynamic>>()
+              .map(SavedPaymentCard.fromJson)
+              .where((SavedPaymentCard item) {
+        return item.id.isNotEmpty &&
+            item.maskedNumber.isNotEmpty &&
+            item.expiryMonth > 0 &&
+            item.expiryYear > 0;
       }).toList(growable: false),
     );
   }
@@ -91,6 +106,30 @@ abstract interface class AuthService {
     required String accessToken,
     required String fullName,
     required String phone,
+  });
+
+  Future<AuthUser> addPaymentCard({
+    required String accessToken,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  });
+
+  Future<AuthUser> updatePaymentCard({
+    required String accessToken,
+    required String cardId,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  });
+
+  Future<AuthUser> deletePaymentCard({
+    required String accessToken,
+    required String cardId,
   });
 
   Future<void> changePassword({

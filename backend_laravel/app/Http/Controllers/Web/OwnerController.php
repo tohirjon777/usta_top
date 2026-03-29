@@ -8,8 +8,8 @@ use App\Support\UstaTop\TelegramBotService;
 use App\Support\UstaTop\UstaTopRepository;
 use App\Support\UstaTop\WorkshopImageStorage;
 use App\Support\UstaTop\WorkshopNotificationsService;
+use App\Support\UstaTop\VehiclePricingExcelService;
 use Illuminate\Http\Request;
-use Illuminate\Support\HtmlString;
 use RuntimeException;
 
 class OwnerController extends Controller
@@ -19,6 +19,7 @@ class OwnerController extends Controller
         private readonly TelegramBotService $telegramBot,
         private readonly WorkshopNotificationsService $notifications,
         private readonly WorkshopImageStorage $imageStorage,
+        private readonly VehiclePricingExcelService $vehiclePricingExcel,
     ) {
     }
 
@@ -29,21 +30,10 @@ class OwnerController extends Controller
 
     public function loginPage()
     {
-        $options = collect($this->repository->listWorkshops())
-            ->map(fn (array $workshop): string => '<option value="'.e((string) $workshop['id']).'">'.e((string) $workshop['name']).'</option>')
-            ->implode('');
-
-        return response($this->page('Owner login', '
-            <h1>Owner login</h1>
-            <form method="post" action="/owner/login">
-                '.$this->csrf().'
-                <label>Ustaxona</label>
-                <select name="workshopId">'.$options.'</select>
-                <label>Access code</label>
-                <input type="password" name="accessCode">
-                <button type="submit">Kirish</button>
-            </form>
-        '));
+        return view('ustatop.owner.login', [
+            'title' => 'Owner login',
+            'workshops' => $this->repository->listWorkshops(),
+        ]);
     }
 
     public function login(Request $request)
@@ -76,6 +66,9 @@ class OwnerController extends Controller
             return redirect('/owner/login');
         }
         $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
         $bookings = $this->repository->bookingsForWorkshop($workshopId);
         $reviews = array_values(array_filter(
             $this->repository->listAdminReviews(),
@@ -91,136 +84,44 @@ class OwnerController extends Controller
             return strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? ''));
         });
 
-        $items = collect($bookings)->map(function (array $booking): string {
-            return '
-                <article class="card">
-                    <h2>'.e((string) $booking['serviceName']).'</h2>
-                    <p><strong>Mijoz:</strong> '.e((string) $booking['customerName']).' ('.e((string) $booking['customerPhone']).')</p>
-                    <p><strong>Mashina:</strong> '.e((string) ($booking['vehicleModel'] ?? '')).'</p>
-                    <p><strong>Vaqt:</strong> '.e((string) $booking['dateTime']).'</p>
-                    <p><strong>Status:</strong> '.e((string) $booking['status']).'</p>
-                    <p><strong>Narx:</strong> '.e(Money::formatUzs((int) ($booking['price'] ?? 0))).'</p>
-                    <p><strong>Avans:</strong> '.e(Money::formatUzs((int) ($booking['prepaymentAmount'] ?? 0))).'</p>
-                    '.(($booking['acceptedAt'] ?? '') !== '' ? '<p><strong>Qabul qilingan vaqt:</strong> '.e((string) $booking['acceptedAt']).'</p>' : '').'
-                    '.(($booking['previousDateTime'] ?? '') !== '' ? '<p><strong>Oldingi vaqt:</strong> '.e((string) $booking['previousDateTime']).'</p>' : '').'
-                    '.(($booking['rescheduledByRole'] ?? '') !== '' ? '<p><strong>Ko‘chirdi:</strong> '.e((string) $booking['rescheduledByRole']).'</p>' : '').'
-                    '.(($booking['rescheduledAt'] ?? '') !== '' ? '<p><strong>Ko‘chirilgan vaqt:</strong> '.e((string) $booking['rescheduledAt']).'</p>' : '').'
-                    '.(($booking['completedAt'] ?? '') !== '' ? '<p><strong>Yakunlangan vaqt:</strong> '.e((string) $booking['completedAt']).'</p>' : '').'
-                    '.(($booking['cancelledAt'] ?? '') !== '' ? '<p><strong>Bekor qilingan vaqt:</strong> '.e((string) $booking['cancelledAt']).'</p>' : '').'
-                    '.(($booking['cancelReasonId'] ?? '') !== '' ? '<p><strong>Sabab:</strong> '.e((string) $booking['cancelReasonId']).'</p>' : '').'
-                    <form method="post" action="/owner/bookings/'.urlencode((string) $booking['id']).'/status">
-                        '.$this->csrf().'
-                        <select name="bookingStatus">
-                            <option value="accepted">Qabul qilindi</option>
-                            <option value="completed">Yakunlandi</option>
-                            <option value="cancelled">Bekor qilindi</option>
-                            <option value="rescheduled">Ko‘chirildi</option>
-                        </select>
-                        <input type="datetime-local" name="scheduledAt">
-                        <input type="text" name="cancellationReasonId" placeholder="workshop_busy">
-                        <button type="submit">Saqlash</button>
-                    </form>
-                </article>
-            ';
-        })->implode('');
+        $schedule = $workshop['schedule'] ?? [];
+        $closedWeekdays = array_map('intval', $schedule['closedWeekdays'] ?? []);
+        $weekdayOptions = [
+            1 => 'Dushanba',
+            2 => 'Seshanba',
+            3 => 'Chorshanba',
+            4 => 'Payshanba',
+            5 => 'Juma',
+            6 => 'Shanba',
+            7 => 'Yakshanba',
+        ];
+        $pricingRuleCount = count(array_values($workshop['vehiclePricingRules'] ?? []));
 
-        $serviceCards = collect($workshop['services'] ?? [])->map(function (array $service): string {
-            return '
-                <article class="card">
-                    <h2>'.e((string) $service['name']).'</h2>
-                    <form method="post" action="/owner/services/'.urlencode((string) $service['id']).'/price">
-                        '.$this->csrf().'
-                        <div class="grid-two">
-                            <div>
-                                <label>Narx</label>
-                                <input type="number" min="0" name="price" value="'.e(Money::inputValue((int) ($service['price'] ?? 0))).'">
-                            </div>
-                            <div>
-                                <label>Davomiyligi (min)</label>
-                                <input type="number" min="15" step="5" name="durationMinutes" value="'.e((string) ($service['durationMinutes'] ?? 30)).'">
-                            </div>
-                        </div>
-                        <label>Avans foizi</label>
-                        <input type="number" min="0" max="100" name="prepaymentPercent" value="'.e((string) ($service['prepaymentPercent'] ?? 0)).'">
-                        <button type="submit">Yangilash</button>
-                    </form>
-                </article>
-            ';
-        })->implode('');
+        $bookings = collect($bookings)->map(function (array $booking): array {
+            $booking['priceLabel'] = Money::formatUzs((int) ($booking['price'] ?? 0));
+            $booking['prepaymentLabel'] = Money::formatUzs((int) ($booking['prepaymentAmount'] ?? 0));
 
-        $reviewCards = collect($reviews)->map(function (array $review): string {
-            return '
-                <article class="card">
-                    <h2>'.e((string) ($review['serviceName'] ?? '')).'</h2>
-                    <p><strong>Mijoz:</strong> '.e((string) ($review['customerName'] ?? '')).'</p>
-                    <p><strong>Baho:</strong> '.e((string) ($review['rating'] ?? '')).'/5</p>
-                    <p><strong>Sharh vaqti:</strong> '.e((string) ($review['createdAt'] ?? '')).'</p>
-                    <p>'.nl2br(e((string) ($review['comment'] ?? ''))).'</p>
-                    '.(trim((string) ($review['ownerReply'] ?? '')) !== '' ? '<p><strong>Javob:</strong> '.nl2br(e((string) ($review['ownerReply'] ?? ''))).'</p><p class="muted">Manba: '.e((string) ($review['ownerReplySource'] ?? 'owner_panel')).'</p>' : '<p class="muted">Telegram xabariga reply yozish yoki shu yerdan javob qoldirish mumkin.</p>').'
-                    <form method="post" action="/owner/reviews/'.urlencode((string) $review['id']).'/reply">
-                        '.$this->csrf().'
-                        <textarea name="reply" placeholder="Mijozga javob yozing"></textarea>
-                        <button type="submit">Javob yuborish</button>
-                    </form>
-                </article>
-            ';
-        })->implode('');
+            return $booking;
+        })->values()->all();
 
-        $telegramCard = '
-            <article class="card">
-                <h2>Telegram</h2>
-                <p><strong>Bot holati:</strong> '.e($this->telegramBot->isConfigured() ? 'yoqilgan' : 'o‘chiq').'</p>
-                <p><strong>Chat ID:</strong> '.e((string) (($workshop['telegramChatId'] ?? '') !== '' ? $workshop['telegramChatId'] : 'ulmagan')).'</p>
-                '.(trim((string) ($workshop['telegramChatId'] ?? '')) !== '' ? '<p class="muted">Telegram ulangan va siz uni o‘zingiz uzmaguningizcha saqlanib turadi.</p>' : '').'
-                '.(($workshop['telegramLinkCode'] ?? '') !== '' ? '<p><strong>Bog‘lash kodi:</strong> '.e((string) $workshop['telegramLinkCode']).'</p><p class="muted">Telegram botga `/start '.e((string) $workshop['telegramLinkCode']).'` yuboring.</p>' : '').'
-                <div class="grid-two">
-                    <form method="post" action="/owner/telegram/generate">
-                        '.$this->csrf().'
-                        <button type="submit">'.(($workshop['telegramLinkCode'] ?? '') !== '' ? 'Yangi kod yaratish' : 'Bog‘lash kodini yaratish').'</button>
-                    </form>
-                    <form method="post" action="/owner/telegram/check">
-                        '.$this->csrf().'
-                        <button type="submit">Tekshirish</button>
-                    </form>
-                </div>
-                <form method="post" action="/owner/telegram/disconnect">
-                    '.$this->csrf().'
-                    <button type="submit">Telegramni uzish</button>
-                </form>
-            </article>
-        ';
+        $services = collect($workshop['services'] ?? [])->map(function (array $service): array {
+            $service['priceInput'] = Money::inputValue((int) ($service['price'] ?? 0));
 
-        $imageCard = '
-            <article class="card">
-                <h2>Ustaxona rasmi</h2>
-                '.$this->workshopImagePreview($workshop).'
-                <form method="post" action="/owner/workshop/image" enctype="multipart/form-data">
-                    '.$this->csrf().'
-                    <label>Rasm URL</label>
-                    <input type="url" name="imageUrl" value="'.e((string) ($workshop['imageUrl'] ?? '')).'" placeholder="https://example.com/ustaxona.jpg">
-                    <label>Yoki yangi rasm fayli</label>
-                    <input type="file" name="imageFile" accept="image/*">
-                    <label class="checkbox-row"><input type="checkbox" name="removeImage" value="1"> Rasmni olib tashlash</label>
-                    <button type="submit">Rasmni saqlash</button>
-                </form>
-            </article>
-        ';
+            return $service;
+        })->values()->all();
 
-        return response($this->page('Owner bookings', '
-            <div class="nav">
-                <strong>'.e((string) ($workshop['name'] ?? 'Ustaxona')).'</strong>
-                <form method="post" action="/owner/logout">'.$this->csrf().'<button type="submit">Chiqish</button></form>
-            </div>
-            '.$imageCard.'
-            '.$telegramCard.'
-            <h1>Sharhlar</h1>
-            <p class="muted">Bu yerda faqat sizning ustaxonangizga yozilgan sharhlar ko‘rinadi. Telegramdan ham shu sharhlarga javob qaytarishingiz mumkin.</p>
-            '.$reviewCards.'
-            <h1>Zakazlar</h1>
-            '.$items.'
-            <h1>Xizmatlar</h1>
-            '.$serviceCards.'
-        '));
+        return view('ustatop.owner.bookings', [
+            'title' => 'Owner bookings',
+            'workshop' => $workshop,
+            'bookings' => $bookings,
+            'reviews' => $reviews,
+            'services' => $services,
+            'schedule' => $schedule,
+            'closedWeekdays' => $closedWeekdays,
+            'weekdayOptions' => $weekdayOptions,
+            'pricingRuleCount' => $pricingRuleCount,
+            'telegramConfigured' => $this->telegramBot->isConfigured(),
+        ]);
     }
 
     public function updateStatus(Request $request, string $id)
@@ -420,6 +321,83 @@ class OwnerController extends Controller
         return redirect()->back()->with('success', 'Telegram ulanishi uzildi');
     }
 
+    public function downloadVehiclePricingTemplate(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        $filename = 'vehicle-pricing-'.preg_replace('/[^A-Za-z0-9_-]+/', '-', strtolower((string) ($workshop['name'] ?? 'workshop'))).'.xlsx';
+
+        return response(
+            $this->vehiclePricingExcel->buildWorkbook($workshop),
+            200,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]
+        );
+    }
+
+    public function importVehiclePricing(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $file = $request->file('pricingFile');
+            if ($file === null) {
+                throw new RuntimeException('Excel fayl tanlanmagan');
+            }
+
+            $rules = $this->vehiclePricingExcel->parseWorkbook($file, $workshop);
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'vehiclePricingRules' => $rules,
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Excel narxlari yuklandi');
+    }
+
+    public function updateSchedule(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $schedule = $this->parseSchedule($request);
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'schedule' => $schedule,
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Ish jadvali saqlandi');
+    }
+
     public function updateWorkshopImage(Request $request)
     {
         $workshopId = $this->ownerWorkshopId($request);
@@ -463,6 +441,8 @@ class OwnerController extends Controller
             'ownerAccessCode' => $workshop['ownerAccessCode'] ?? '',
             'isOpen' => $workshop['isOpen'] ?? true,
             'services' => $workshop['services'] ?? [],
+            'schedule' => $workshop['schedule'] ?? [],
+            'vehiclePricingRules' => $workshop['vehiclePricingRules'] ?? [],
             'telegramChatId' => $workshop['telegramChatId'] ?? '',
             'telegramChatLabel' => $workshop['telegramChatLabel'] ?? '',
             'telegramLinkCode' => $workshop['telegramLinkCode'] ?? '',
@@ -492,74 +472,29 @@ class OwnerController extends Controller
         return $this->imageStorage->normalizeStoredUrl($imageUrl);
     }
 
-    private function workshopImagePreview(array $workshop): string
+    private function parseSchedule(Request $request): array
     {
-        $imageUrl = trim((string) ($workshop['imageUrl'] ?? ''));
-        if ($imageUrl === '') {
-            return '
-                <div class="image-preview empty">
-                    <div class="image-placeholder">Rasm yo‘q</div>
-                    <div>
-                        <strong>Joriy rasm</strong>
-                        <p class="muted">Ustaxona uchun rasm URL kiriting yoki fayl yuklang.</p>
-                    </div>
-                </div>
-            ';
+        $openingTime = trim((string) $request->input('openingTime', '09:00'));
+        $closingTime = trim((string) $request->input('closingTime', '19:00'));
+        $breakStartTime = trim((string) $request->input('breakStartTime', '13:00'));
+        $breakEndTime = trim((string) $request->input('breakEndTime', '14:00'));
+        $closedWeekdays = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $value): int => (int) $value,
+            (array) $request->input('closedWeekdays', [7])
+        ), static fn (int $weekday): bool => $weekday >= 1 && $weekday <= 7)));
+
+        foreach ([$openingTime, $closingTime, $breakStartTime, $breakEndTime] as $time) {
+            if ($time !== '' && preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time) !== 1) {
+                throw new RuntimeException('Vaqt formati noto‘g‘ri');
+            }
         }
 
-        return '
-            <div class="image-preview">
-                <img src="'.e($imageUrl).'" alt="'.e((string) ($workshop['name'] ?? 'Ustaxona')).'">
-                <div>
-                    <strong>Joriy rasm</strong>
-                    <p class="muted">'.e($imageUrl).'</p>
-                </div>
-            </div>
-        ';
-    }
-
-    private function page(string $title, string $body): string
-    {
-        $flash = '';
-        if (session('error')) {
-            $flash .= '<div class="flash error">'.e((string) session('error')).'</div>';
-        }
-        if (session('success')) {
-            $flash .= '<div class="flash success">'.e((string) session('success')).'</div>';
-        }
-
-        return '<!doctype html>
-        <html lang="uz">
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>'.e($title).'</title>
-            <style>
-                body{font-family:ui-sans-serif,system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:24px;background:#f6f4ef;color:#1c1c1c}
-                .nav{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
-                .nav form{margin:0}
-                .card{background:#fff;border:1px solid #ddd;border-radius:16px;padding:16px;margin-bottom:16px}
-                form{display:grid;gap:10px}
-                input,select,button,textarea{padding:10px;border-radius:10px;border:1px solid #cfcfcf;font:inherit}
-                textarea{min-height:92px}
-                button{cursor:pointer}
-                .muted{color:#666;font-size:14px}
-                .flash{padding:12px;border-radius:12px;margin-bottom:16px}
-                .flash.error{background:#fee2e2}
-                .flash.success{background:#dcfce7}
-                .grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-                .image-preview{display:flex;gap:14px;align-items:center;padding:12px;border:1px dashed #d6d0c5;border-radius:14px;background:#fcfaf6;margin-bottom:14px}
-                .image-preview img,.image-placeholder{width:88px;height:88px;border-radius:18px;object-fit:cover;background:#ece6dc;display:flex;align-items:center;justify-content:center;color:#8a6f3a;font-weight:700}
-                .image-preview.empty{background:#faf7f1}
-                @media (max-width:720px){.grid-two{grid-template-columns:1fr}}
-            </style>
-        </head>
-        <body>'.$flash.$body.'</body>
-        </html>';
-    }
-
-    private function csrf(): HtmlString
-    {
-        return new HtmlString('<input type="hidden" name="_token" value="'.csrf_token().'">');
+        return [
+            'openingTime' => $openingTime !== '' ? $openingTime : '09:00',
+            'closingTime' => $closingTime !== '' ? $closingTime : '19:00',
+            'breakStartTime' => $breakStartTime,
+            'breakEndTime' => $breakEndTime,
+            'closedWeekdays' => $closedWeekdays === [] ? [7] : $closedWeekdays,
+        ];
     }
 }

@@ -135,6 +135,7 @@ class UstaTopRepository
             'password' => $password,
             'pushTokens' => [],
             'savedVehicles' => [],
+            'paymentCards' => [],
         ];
 
         $users = $this->users();
@@ -209,6 +210,88 @@ class UstaTopRepository
 
             $users[$index]['fullName'] = trim($fullName);
             $users[$index]['phone'] = $normalizedPhone;
+            $this->saveUsers($users);
+
+            return $this->publicUser($users[$index]);
+        }
+
+        throw new RuntimeException('Foydalanuvchi topilmadi');
+    }
+
+    public function addPaymentCard(string $userId, array $payload): array
+    {
+        $users = $this->users();
+        foreach ($users as $index => $user) {
+            if (($user['id'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $paymentCards = array_values($user['paymentCards'] ?? []);
+            $paymentCards[] = $this->buildPaymentCardPayload(
+                $payload,
+                null,
+                $this->id('card'),
+                empty($paymentCards)
+            );
+            $users[$index]['paymentCards'] = $this->normalizePaymentCards($paymentCards);
+            $this->saveUsers($users);
+
+            return $this->publicUser($users[$index]);
+        }
+
+        throw new RuntimeException('Foydalanuvchi topilmadi');
+    }
+
+    public function updatePaymentCard(string $userId, string $cardId, array $payload): array
+    {
+        $users = $this->users();
+        foreach ($users as $index => $user) {
+            if (($user['id'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $paymentCards = array_values($user['paymentCards'] ?? []);
+            foreach ($paymentCards as $cardIndex => $card) {
+                if (($card['id'] ?? '') !== $cardId) {
+                    continue;
+                }
+
+                $paymentCards[$cardIndex] = $this->buildPaymentCardPayload(
+                    $payload,
+                    $card,
+                    $cardId,
+                    (bool) ($card['isDefault'] ?? false)
+                );
+                $users[$index]['paymentCards'] = $this->normalizePaymentCards($paymentCards);
+                $this->saveUsers($users);
+
+                return $this->publicUser($users[$index]);
+            }
+
+            throw new RuntimeException('Karta topilmadi');
+        }
+
+        throw new RuntimeException('Foydalanuvchi topilmadi');
+    }
+
+    public function deletePaymentCard(string $userId, string $cardId): array
+    {
+        $users = $this->users();
+        foreach ($users as $index => $user) {
+            if (($user['id'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $paymentCards = array_values(array_filter(
+                $user['paymentCards'] ?? [],
+                fn (array $card): bool => ($card['id'] ?? '') !== $cardId
+            ));
+
+            if (count($paymentCards) === count($user['paymentCards'] ?? [])) {
+                throw new RuntimeException('Karta topilmadi');
+            }
+
+            $users[$index]['paymentCards'] = $this->normalizePaymentCards($paymentCards);
             $this->saveUsers($users);
 
             return $this->publicUser($users[$index]);
@@ -1046,6 +1129,7 @@ class UstaTopRepository
             'fullName' => $user['fullName'],
             'phone' => $user['phone'],
             'savedVehicles' => array_values($user['savedVehicles'] ?? []),
+            'savedPaymentCards' => array_values($user['paymentCards'] ?? []),
         ];
     }
 
@@ -1135,6 +1219,7 @@ class UstaTopRepository
             if (($user['id'] ?? '') === $userId) {
                 $user['pushTokens'] = array_values($user['pushTokens'] ?? []);
                 $user['savedVehicles'] = array_values($user['savedVehicles'] ?? []);
+                $user['paymentCards'] = array_values($user['paymentCards'] ?? []);
 
                 return $user;
             }
@@ -1206,6 +1291,121 @@ class UstaTopRepository
         }
     }
 
+    private function buildPaymentCardPayload(
+        array $payload,
+        ?array $existing,
+        string $cardId,
+        bool $fallbackDefault
+    ): array {
+        $holderName = trim((string) ($payload['holderName'] ?? ''));
+        if (mb_strlen($holderName) < 2) {
+            throw new RuntimeException('Karta egasi ismi kamida 2 ta belgidan iborat bo‘lsin');
+        }
+
+        $digits = preg_replace('/\D+/', '', (string) ($payload['cardNumber'] ?? '')) ?? '';
+        if ($existing === null && $digits === '') {
+            throw new RuntimeException('Karta raqami kerak');
+        }
+        if ($digits !== '' && (strlen($digits) < 12 || strlen($digits) > 19)) {
+            throw new RuntimeException('Karta raqami noto‘g‘ri');
+        }
+
+        $expiryMonth = (int) ($payload['expiryMonth'] ?? ($existing['expiryMonth'] ?? 0));
+        $expiryYear = (int) ($payload['expiryYear'] ?? ($existing['expiryYear'] ?? 0));
+        if ($expiryYear > 0 && $expiryYear < 100) {
+            $expiryYear += 2000;
+        }
+
+        if ($expiryMonth < 1 || $expiryMonth > 12 || $expiryYear < 2000) {
+            throw new RuntimeException('Karta amal qilish muddati noto‘g‘ri');
+        }
+
+        $now = CarbonImmutable::now(config('app.timezone'));
+        if ($expiryYear < $now->year || ($expiryYear === $now->year && $expiryMonth < $now->month)) {
+            throw new RuntimeException('Karta muddati allaqachon tugagan');
+        }
+
+        $brand = $existing['brand'] ?? 'Card';
+        $maskedNumber = $existing['maskedNumber'] ?? '';
+        $last4 = $existing['last4'] ?? '';
+        if ($digits !== '') {
+            $brand = $this->detectPaymentCardBrand($digits);
+            $maskedNumber = $this->maskPaymentCardNumber($digits);
+            $last4 = substr($digits, -4);
+        }
+
+        return [
+            'id' => $cardId,
+            'holderName' => $holderName,
+            'brand' => $brand,
+            'maskedNumber' => $maskedNumber,
+            'last4' => $last4,
+            'expiryMonth' => $expiryMonth,
+            'expiryYear' => $expiryYear,
+            'isDefault' => ($payload['isDefault'] ?? $fallbackDefault) === true,
+            'updatedAt' => now()->toIso8601String(),
+            'createdAt' => $existing['createdAt'] ?? now()->toIso8601String(),
+        ];
+    }
+
+    private function normalizePaymentCards(array $cards): array
+    {
+        $cards = array_values($cards);
+        if ($cards === []) {
+            return [];
+        }
+
+        $defaultId = null;
+        foreach ($cards as $card) {
+            if (($card['isDefault'] ?? false) === true) {
+                $defaultId = (string) ($card['id'] ?? '');
+                break;
+            }
+        }
+        if (! $defaultId) {
+            $defaultId = (string) ($cards[0]['id'] ?? '');
+        }
+
+        return array_values(array_map(function (array $card) use ($defaultId): array {
+            $card['isDefault'] = (($card['id'] ?? '') === $defaultId);
+
+            return $card;
+        }, $cards));
+    }
+
+    private function detectPaymentCardBrand(string $digits): string
+    {
+        if (str_starts_with($digits, '8600')) {
+            return 'Uzcard';
+        }
+        if (str_starts_with($digits, '9860')) {
+            return 'Humo';
+        }
+        if (str_starts_with($digits, '4')) {
+            return 'Visa';
+        }
+
+        $prefixTwo = strlen($digits) >= 2 ? (int) substr($digits, 0, 2) : 0;
+        $prefixFour = strlen($digits) >= 4 ? (int) substr($digits, 0, 4) : 0;
+        if (($prefixTwo >= 51 && $prefixTwo <= 55) || ($prefixFour >= 2221 && $prefixFour <= 2720)) {
+            return 'Mastercard';
+        }
+        if (str_starts_with($digits, '62')) {
+            return 'UnionPay';
+        }
+
+        return 'Card';
+    }
+
+    private function maskPaymentCardNumber(string $digits): string
+    {
+        $visibleCount = min(4, strlen($digits));
+        $masked = str_repeat('*', max(strlen($digits) - $visibleCount, 0)).substr($digits, -$visibleCount);
+        $groups = str_split($masked, 4);
+
+        return implode(' ', array_filter($groups, fn (string $group): bool => $group !== ''));
+    }
+
     private function normalizeWorkshop(array $workshop, bool $includeReviews = false): array
     {
         $locations = $this->store->readArray(config('ustatop.workshop_locations_file'));
@@ -1244,6 +1444,14 @@ class UstaTopRepository
     {
         $latitude = $payload['latitude'] ?? ($current['latitude'] ?? null);
         $longitude = $payload['longitude'] ?? ($current['longitude'] ?? null);
+        $schedule = $payload['schedule'] ?? ($current['schedule'] ?? [
+            'openingTime' => '09:00',
+            'closingTime' => '19:00',
+            'breakStartTime' => '13:00',
+            'breakEndTime' => '14:00',
+            'closedWeekdays' => [7],
+        ]);
+        $vehiclePricingRules = $payload['vehiclePricingRules'] ?? ($current['vehiclePricingRules'] ?? []);
 
         return [
             'id' => $workshopId,
@@ -1262,14 +1470,14 @@ class UstaTopRepository
             'ownerAccessCode' => $this->resolveOwnerAccessCode($payload, $current, $workshopId),
             'startingPrice' => (int) ($payload['startingPrice'] ?? $current['startingPrice'] ?? 0),
             'services' => array_values($payload['services'] ?? $current['services'] ?? []),
-            'schedule' => $current['schedule'] ?? [
-                'openingTime' => '09:00',
-                'closingTime' => '19:00',
-                'breakStartTime' => '13:00',
-                'breakEndTime' => '14:00',
-                'closedWeekdays' => [7],
+            'schedule' => [
+                'openingTime' => trim((string) ($schedule['openingTime'] ?? '09:00')),
+                'closingTime' => trim((string) ($schedule['closingTime'] ?? '19:00')),
+                'breakStartTime' => trim((string) ($schedule['breakStartTime'] ?? '13:00')),
+                'breakEndTime' => trim((string) ($schedule['breakEndTime'] ?? '14:00')),
+                'closedWeekdays' => array_values(array_map('intval', $schedule['closedWeekdays'] ?? [7])),
             ],
-            'vehiclePricingRules' => array_values($current['vehiclePricingRules'] ?? []),
+            'vehiclePricingRules' => array_values($vehiclePricingRules),
             'telegramChatId' => trim((string) ($payload['telegramChatId'] ?? $current['telegramChatId'] ?? '')),
             'telegramChatLabel' => trim((string) ($payload['telegramChatLabel'] ?? $current['telegramChatLabel'] ?? '')),
             'telegramLinkCode' => trim((string) ($payload['telegramLinkCode'] ?? $current['telegramLinkCode'] ?? '')),

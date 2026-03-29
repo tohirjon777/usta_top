@@ -12,6 +12,7 @@ import '../providers/workshop_provider.dart';
 import '../services/navigation_launcher.dart';
 import '../ui/app_loading_view.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/app_reveal.dart';
 import '../widgets/workshop_image_view.dart';
 
 enum _MapDiscoveryFilter { all, open, topRated, nearby }
@@ -86,237 +87,286 @@ class _MapScreenState extends State<MapScreen> {
                   )));
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            _MapDiscoveryHeroCard(
-              l10n: l10n,
-              workshopCount: salonsWithCoords.length,
-              openCount: openCount,
-              averageRating: averageRating,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double mapHeight = constraints.maxHeight * 0.5;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+            child: ListView(
               children: <Widget>[
-                _MapFilterChip(
-                  label: l10n.mapFilterAll,
-                  selected: _activeFilter == _MapDiscoveryFilter.all,
-                  onSelected: () => _setFilter(_MapDiscoveryFilter.all),
+                AppReveal(
+                  child: _MapDiscoveryHeroCard(
+                    l10n: l10n,
+                    workshopCount: salonsWithCoords.length,
+                    openCount: openCount,
+                    averageRating: averageRating,
+                  ),
                 ),
-                _MapFilterChip(
-                  label: l10n.openNow,
-                  selected: _activeFilter == _MapDiscoveryFilter.open,
-                  onSelected: () => _setFilter(_MapDiscoveryFilter.open),
-                ),
-                _MapFilterChip(
-                  label: l10n.mapFilterTopRated,
-                  selected: _activeFilter == _MapDiscoveryFilter.topRated,
-                  onSelected: () => _setFilter(_MapDiscoveryFilter.topRated),
-                ),
-                _MapFilterChip(
-                  label: l10n.mapFilterNearby,
-                  selected: _activeFilter == _MapDiscoveryFilter.nearby,
-                  onSelected: () => _setFilter(_MapDiscoveryFilter.nearby),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  children: <Widget>[
-                    FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
-                        initialCenter: center,
-                        initialZoom: _initialMapZoom,
-                        onTap: (_, __) => _clearSelectedSalon(),
+                const SizedBox(height: 12),
+                AppReveal(
+                  delay: const Duration(milliseconds: 90),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _MapFilterChip(
+                        label: l10n.mapFilterAll,
+                        selected: _activeFilter == _MapDiscoveryFilter.all,
+                        onSelected: () => _setFilter(_MapDiscoveryFilter.all),
                       ),
-                      children: <Widget>[
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'uz.tokhirjon.usta_top',
-                        ),
-                        MarkerLayer(
-                          markers: <Marker>[
-                            ...filteredSalons.map(
-                              (Salon salon) => Marker(
-                                point:
-                                    LatLng(salon.latitude!, salon.longitude!),
-                                width: salon.id == selectedSalon?.id ? 148 : 58,
-                                height: salon.id == selectedSalon?.id ? 98 : 58,
-                                child: GestureDetector(
-                                  onTap: () => _focusSalon(salon),
-                                  child: _MapPin(
-                                    label: salon.name,
-                                    isOpen: salon.isOpen,
-                                    isSelected: salon.id == selectedSalon?.id,
+                      _MapFilterChip(
+                        label: l10n.openNow,
+                        selected: _activeFilter == _MapDiscoveryFilter.open,
+                        onSelected: () => _setFilter(_MapDiscoveryFilter.open),
+                      ),
+                      _MapFilterChip(
+                        label: l10n.mapFilterTopRated,
+                        selected: _activeFilter == _MapDiscoveryFilter.topRated,
+                        onSelected: () => _setFilter(_MapDiscoveryFilter.topRated),
+                      ),
+                      _MapFilterChip(
+                        label: l10n.mapFilterNearby,
+                        selected: _activeFilter == _MapDiscoveryFilter.nearby,
+                        onSelected: () => _setFilter(_MapDiscoveryFilter.nearby),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: mapHeight,
+                  child: AppReveal(
+                    delay: const Duration(milliseconds: 150),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Stack(
+                        children: <Widget>[
+                          FlutterMap(
+                            mapController: _mapController,
+                            options: MapOptions(
+                              initialCenter: center,
+                              initialZoom: _initialMapZoom,
+                              onTap: (_, __) => _clearSelectedSalon(),
+                            ),
+                            children: <Widget>[
+                              TileLayer(
+                                urlTemplate:
+                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'uz.tokhirjon.usta_top',
+                              ),
+                              MarkerLayer(
+                                markers: <Marker>[
+                                  ...filteredSalons.map(
+                                    (Salon salon) => Marker(
+                                      point:
+                                          LatLng(salon.latitude!, salon.longitude!),
+                                      width:
+                                          salon.id == selectedSalon?.id ? 132 : 58,
+                                      height:
+                                          salon.id == selectedSalon?.id ? 92 : 58,
+                                      child: _MapPin(
+                                        label: salon.name,
+                                        isOpen: salon.isOpen,
+                                        isSelected:
+                                            salon.id == selectedSalon?.id,
+                                        onTap: () => _focusSalon(salon),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_userLocation != null)
+                                    Marker(
+                                      point: _userLocation!,
+                                      width: 30,
+                                      height: 30,
+                                      child: const _UserLocationDot(),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      Colors.black.withValues(alpha: 0.02),
+                                      Colors.transparent,
+                                      Colors.black.withValues(alpha: 0.08),
+                                    ],
+                                    stops: const <double>[0, 0.38, 1],
                                   ),
                                 ),
                               ),
                             ),
-                            if (_userLocation != null)
-                              Marker(
-                                point: _userLocation!,
-                                width: 30,
-                                height: 30,
-                                child: const _UserLocationDot(),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                Colors.black.withValues(alpha: 0.02),
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.08),
-                              ],
-                              stops: const <double>[0, 0.38, 1],
+                          ),
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            right: 92,
+                            child: _MapTopInfoBar(
+                              title: l10n.mapTitle,
+                              subtitle: filteredSalons.isEmpty
+                                  ? l10n.mapNoMatches
+                                  : l10n.salonsNearby(filteredSalons.length),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      right: 92,
-                      child: _MapTopInfoBar(
-                        title: l10n.mapTitle,
-                        subtitle: filteredSalons.isEmpty
-                            ? l10n.mapNoMatches
-                            : l10n.salonsNearby(filteredSalons.length),
-                      ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Column(
-                        children: <Widget>[
-                          _MapZoomControls(
-                            zoomInTooltip: l10n.mapZoomIn,
-                            zoomOutTooltip: l10n.mapZoomOut,
-                            onZoomIn: _zoomIn,
-                            onZoomOut: _zoomOut,
+                          Positioned(
+                            top: 12,
+                            right: 12,
+                            child: Column(
+                              children: <Widget>[
+                                _MapZoomControls(
+                                  zoomInTooltip: l10n.mapZoomIn,
+                                  zoomOutTooltip: l10n.mapZoomOut,
+                                  onZoomIn: _zoomIn,
+                                  onZoomOut: _zoomOut,
+                                ),
+                                const SizedBox(height: 8),
+                                _MapActionButton(
+                                  tooltip: l10n.mapMyLocation,
+                                  onPressed: _isLocating
+                                      ? null
+                                      : () => _focusUserLocation(l10n),
+                                  child: _isLocating
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Icon(
+                                          Icons.my_location_rounded,
+                                          color: AppColors.primaryToneOf(context),
+                                        ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          _MapActionButton(
-                            tooltip: l10n.mapMyLocation,
-                            onPressed: _isLocating
-                                ? null
-                                : () => _focusUserLocation(l10n),
-                            child: _isLocating
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                          if (salonsWithCoords.isEmpty)
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surface
+                                    .withValues(alpha: 0.92),
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Text(
+                                      l10n.mapNoCoordinates,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
                                     ),
-                                  )
-                                : Icon(
-                                    Icons.my_location_rounded,
-                                    color: AppColors.primaryToneOf(context),
                                   ),
+                                ),
+                              ),
+                            )
+                          else if (filteredSalons.isEmpty)
+                            Positioned(
+                              left: 16,
+                              right: 16,
+                              bottom: 16,
+                              child: _MapFilterEmptyCard(
+                                title: l10n.mapNoMatches,
+                                subtitle: l10n.tryDifferentSearch,
+                              ),
+                            ),
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 12,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 260),
+                              reverseDuration:
+                                  const Duration(milliseconds: 180),
+                              transitionBuilder:
+                                  (Widget child, Animation<double> animation) {
+                                final Animation<Offset> slide = Tween<Offset>(
+                                  begin: const Offset(0, 0.08),
+                                  end: Offset.zero,
+                                ).animate(
+                                  CurvedAnimation(
+                                    parent: animation,
+                                    curve: Curves.easeOutCubic,
+                                  ),
+                                );
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: slide,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: selectedSalon == null
+                                  ? const SizedBox.shrink()
+                                  : KeyedSubtree(
+                                      key: ValueKey<String>(selectedSalon.id),
+                                      child: _SelectedWorkshopCard(
+                                        salon: selectedSalon,
+                                        l10n: l10n,
+                                        onClose: _clearSelectedSalon,
+                                        onRoute: () =>
+                                            NavigationLauncher.showNavigatorPicker(
+                                          context,
+                                          salon: selectedSalon,
+                                          origin: _userLocation,
+                                        ),
+                                        onOpen: () {
+                                          _clearSelectedSalon();
+                                          widget.onOpenSalon(selectedSalon);
+                                        },
+                                      ),
+                                    ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    if (salonsWithCoords.isEmpty)
-                      Positioned.fill(
-                        child: ColoredBox(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surface
-                              .withValues(alpha: 0.92),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Text(
-                                l10n.mapNoCoordinates,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else if (filteredSalons.isEmpty)
-                      Positioned(
-                        left: 16,
-                        right: 16,
-                        bottom: 16,
-                        child: _MapFilterEmptyCard(
-                          title: l10n.mapNoMatches,
-                          subtitle: l10n.tryDifferentSearch,
-                        ),
-                      )
-                    else if (selectedSalon != null)
-                      Positioned(
-                        left: 12,
-                        right: 12,
-                        bottom: 12,
-                        child: _SelectedWorkshopCard(
-                          salon: selectedSalon,
-                          l10n: l10n,
-                          onClose: _clearSelectedSalon,
-                          onRoute: () => NavigationLauncher.showNavigatorPicker(
-                            context,
-                            salon: selectedSalon,
-                            origin: _userLocation,
-                          ),
-                          onOpen: () => widget.onOpenSalon(selectedSalon),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
+                if (salonsWithCoords.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 12),
+                  _MapSectionHeader(
+                    title: l10n.mapBrowseList,
+                    subtitle: filteredSalons.isEmpty
+                        ? l10n.mapNoMatches
+                        : l10n.mapHint,
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 116,
+                    child: filteredSalons.isEmpty
+                        ? _MapFilterEmptyCard(
+                            title: l10n.mapNoMatches,
+                            subtitle: l10n.tryDifferentSearch,
+                          )
+                        : ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: filteredSalons.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 10),
+                            itemBuilder: (BuildContext context, int index) {
+                              final Salon salon = filteredSalons[index];
+                              return _MapSalonPreviewCard(
+                                salon: salon,
+                                isSelected: salon.id == selectedSalon?.id,
+                                onTap: () => _focusSalon(salon),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ],
             ),
-            if (salonsWithCoords.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 16),
-              _MapSectionHeader(
-                title: l10n.mapBrowseList,
-                subtitle: filteredSalons.isEmpty
-                    ? l10n.mapNoMatches
-                    : l10n.mapHint,
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 124,
-                child: filteredSalons.isEmpty
-                    ? _MapFilterEmptyCard(
-                        title: l10n.mapNoMatches,
-                        subtitle: l10n.tryDifferentSearch,
-                      )
-                    : ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: filteredSalons.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (BuildContext context, int index) {
-                          final Salon salon = filteredSalons[index];
-                          return _MapSalonPreviewCard(
-                            salon: salon,
-                            isSelected: salon.id == selectedSalon?.id,
-                            onTap: () => _focusSalon(salon),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -361,6 +411,10 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _focusSalon(Salon salon) {
+    if (_selectedSalonId == salon.id) {
+      _clearSelectedSalon();
+      return;
+    }
     final LatLng point = LatLng(salon.latitude!, salon.longitude!);
     setState(() {
       _selectedSalonId = salon.id;
@@ -466,7 +520,7 @@ class _MapDiscoveryHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
@@ -494,7 +548,7 @@ class _MapDiscoveryHeroCard extends StatelessWidget {
                   color: AppColors.secondaryTextOf(context),
                 ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Row(
             children: <Widget>[
               Expanded(
@@ -542,7 +596,7 @@ class _MapMetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(18),
@@ -552,7 +606,7 @@ class _MapMetricTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Icon(icon, size: 18, color: AppColors.primaryToneOf(context)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -851,7 +905,7 @@ class _MapSectionHeader extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -928,11 +982,13 @@ class _MapPin extends StatelessWidget {
     required this.label,
     required this.isOpen,
     required this.isSelected,
+    required this.onTap,
   });
 
   final String label;
   final bool isOpen;
   final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -942,52 +998,60 @@ class _MapPin extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         if (isSelected)
-          Container(
-            constraints: const BoxConstraints(maxWidth: 132),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor.withValues(alpha: 0.96),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.borderOf(context)),
-              boxShadow: const <BoxShadow>[
-                BoxShadow(
-                  blurRadius: 12,
-                  offset: Offset(0, 6),
-                  color: Color(0x1A000000),
-                ),
-              ],
-            ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
+          IgnorePointer(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 120),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.borderOf(context)),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    blurRadius: 12,
+                    offset: Offset(0, 6),
+                    color: Color(0x1A000000),
                   ),
+                ],
+              ),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
             ),
           ),
         if (isSelected) const SizedBox(height: 6),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: isSelected ? 46 : 38,
-          height: isSelected ? 46 : 38,
-          decoration: BoxDecoration(
-            color: fillColor,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white,
-              width: isSelected ? 3 : 2.2,
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                blurRadius: isSelected ? 18 : 10,
-                offset: const Offset(0, 4),
-                color: Colors.black.withValues(alpha: isSelected ? 0.26 : 0.2),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: isSelected ? 46 : 38,
+            height: isSelected ? 46 : 38,
+            decoration: BoxDecoration(
+              color: fillColor,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white,
+                width: isSelected ? 3 : 2.2,
               ),
-            ],
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  blurRadius: isSelected ? 18 : 10,
+                  offset: const Offset(0, 4),
+                  color:
+                      Colors.black.withValues(alpha: isSelected ? 0.26 : 0.2),
+                ),
+              ],
+            ),
+            child:
+                const Icon(Icons.build_rounded, color: Colors.white, size: 20),
           ),
-          child: const Icon(Icons.build_rounded, color: Colors.white, size: 20),
         ),
       ],
     );
@@ -1108,7 +1172,7 @@ class _MapSalonPreviewCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -1152,7 +1216,7 @@ class _MapSalonPreviewCard extends StatelessWidget {
                         color: AppColors.secondaryTextOf(context),
                       ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Row(
                   children: <Widget>[
                     Expanded(

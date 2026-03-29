@@ -48,6 +48,22 @@ class WorkshopNotificationsService
         $this->sendToWorkshop($workshop, $this->reviewText($workshop, $review));
     }
 
+    public function sendReviewReplyReminder(array $workshop, array $review): void
+    {
+        $this->sendToWorkshop($workshop, implode("\n", [
+            'Usta Top: sharh javobi eslatmasi',
+            '',
+            'Ustaxona: '.($workshop['name'] ?? ''),
+            'Sharh ID: '.($review['id'] ?? ''),
+            'Mijoz: '.($review['customerName'] ?? '—'),
+            'Xizmat: '.($review['serviceName'] ?? '—'),
+            'Baho: '.($review['rating'] ?? '—').'/5',
+            'Sharh: '.($review['comment'] ?? '—'),
+            '',
+            'Owner paneldan yoki shu xabarga reply yozib javob qoldiring.',
+        ]));
+    }
+
     public function newBookingText(array $workshop, array $booking, bool $includeStatus = false): string
     {
         $lines = [

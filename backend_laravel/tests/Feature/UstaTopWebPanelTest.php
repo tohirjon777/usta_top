@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Support\UstaTop\Money;
 use App\Support\UstaTop\UstaTopRepository;
+use App\Support\UstaTop\VehiclePricingExcelService;
+use Illuminate\Http\UploadedFile;
 use Tests\Concerns\UsesIsolatedUstaTopData;
 use Tests\TestCase;
 
@@ -50,6 +52,10 @@ class UstaTopWebPanelTest extends TestCase
             ->assertHeader('content-type', 'text/csv; charset=UTF-8')
             ->assertSee('booking_id')
             ->assertSee('Turbo Usta Servis');
+
+        $this->get('/admin/workshops/w-1/vehicle-pricing/template.xlsx')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         $this->post('/admin/workshops', [
             'name' => 'Laravel Ustaxona',
@@ -106,10 +112,30 @@ class UstaTopWebPanelTest extends TestCase
             ->assertSee('Zakazlar')
             ->assertSee(Money::formatUzs(120));
 
+        $this->get('/owner/vehicle-pricing/template.xlsx')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
         $this->post('/owner/services/srv-1/price', [
             'price' => '155000',
             'durationMinutes' => '45',
             'prepaymentPercent' => '20',
+        ])->assertRedirect();
+
+        $this->post('/owner/schedule', [
+            'openingTime' => '08:30',
+            'closingTime' => '20:00',
+            'breakStartTime' => '13:00',
+            'breakEndTime' => '14:00',
+            'closedWeekdays' => ['7'],
+        ])->assertRedirect();
+
+        $workshopBeforeImport = app(UstaTopRepository::class)->workshopById('w-1');
+        $workbookBinary = app(VehiclePricingExcelService::class)->buildWorkbook($workshopBeforeImport);
+        $pricingFile = UploadedFile::fake()->createWithContent('pricing.xlsx', $workbookBinary);
+
+        $this->post('/owner/vehicle-pricing/import', [
+            'pricingFile' => $pricingFile,
         ])->assertRedirect();
 
         $this->post('/owner/workshop/image', [
@@ -125,6 +151,8 @@ class UstaTopWebPanelTest extends TestCase
         $this->assertSame(45, (int) ($service['durationMinutes'] ?? 0));
         $this->assertSame(20, (int) ($service['prepaymentPercent'] ?? 0));
         $this->assertSame('https://example.com/owner-updated.jpg', (string) ($workshop['imageUrl'] ?? ''));
+        $this->assertSame('08:30', (string) ($workshop['schedule']['openingTime'] ?? ''));
+        $this->assertGreaterThan(0, count($workshop['vehiclePricingRules'] ?? []));
         $this->assertSame('0002', (string) (app(UstaTopRepository::class)->workshopById('w-2')['ownerAccessCode'] ?? ''));
     }
 }

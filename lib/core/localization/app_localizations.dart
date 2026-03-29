@@ -304,6 +304,37 @@ class AppLocalizations {
       'profileUpdateFailed': 'Profile could not be updated',
       'profileNameUpdated': 'Name updated successfully',
       'profileNameUpdateFailed': 'Name could not be updated',
+      'savedCardsTitle': 'Saved cards',
+      'savedCardsSubtitle': 'Manage your cards for faster demo checkout',
+      'addPaymentCard': 'Add card',
+      'editPaymentCard': 'Edit card',
+      'deletePaymentCard': 'Delete card',
+      'paymentCardHolderName': 'Card holder',
+      'paymentCardHolderHint': 'Enter card holder name',
+      'paymentCardHolderRequired': 'Card holder name is required',
+      'paymentCardHolderShort': 'Card holder name must be at least 2 characters',
+      'paymentCardNumber': 'Card number',
+      'paymentCardNumberHint': '8600 1234 5678 9012',
+      'paymentCardNumberEditHint': 'Leave empty to keep the current card number',
+      'paymentCardRequired': 'Card number is required',
+      'paymentCardInvalid': 'Enter a valid card number',
+      'paymentCardExpiry': 'Expiry date',
+      'paymentCardExpiryHint': 'MM/YY',
+      'paymentCardExpiryRequired': 'Expiry date is required',
+      'paymentCardExpiryInvalid': 'Enter a valid expiry date',
+      'paymentCardDefault': 'Primary card',
+      'paymentCardMarkDefault': 'Use as the main card',
+      'paymentCardSaved': 'Card added successfully',
+      'paymentCardUpdated': 'Card updated successfully',
+      'paymentCardDeleted': 'Card deleted',
+      'paymentCardSaveFailed': 'Card could not be saved',
+      'paymentCardDeleteFailed': 'Card could not be deleted',
+      'noSavedCardsTitle': 'No saved cards yet',
+      'noSavedCardsSubtitle':
+          'Add one demo card so payment selection becomes faster.',
+      'paymentCardDeleteTitle': 'Delete card',
+      'paymentCardDeleteConfirm':
+          'Are you sure you want to remove this card from your profile?',
       'changePassword': 'Change password',
       'currentPassword': 'Current password',
       'newPassword': 'New password',
@@ -632,6 +663,40 @@ class AppLocalizations {
       'profileUpdateFailed': 'Profilni yangilab bo\'lmadi',
       'profileNameUpdated': 'Ism muvaffaqiyatli yangilandi',
       'profileNameUpdateFailed': 'Ismni yangilab bo\'lmadi',
+      'savedCardsTitle': 'Saqlangan kartalar',
+      'savedCardsSubtitle':
+          'Demo to\'lov uchun kartalaringizni shu yerda boshqaring',
+      'addPaymentCard': 'Karta qo\'shish',
+      'editPaymentCard': 'Kartani tahrirlash',
+      'deletePaymentCard': 'Kartani o\'chirish',
+      'paymentCardHolderName': 'Karta egasi',
+      'paymentCardHolderHint': 'Karta egasining ismini kiriting',
+      'paymentCardHolderRequired': 'Karta egasi ismi majburiy',
+      'paymentCardHolderShort':
+          'Karta egasi ismi kamida 2 ta belgidan iborat bo\'lsin',
+      'paymentCardNumber': 'Karta raqami',
+      'paymentCardNumberHint': '8600 1234 5678 9012',
+      'paymentCardNumberEditHint':
+          'Hozirgi raqamni saqlash uchun maydonni bo\'sh qoldiring',
+      'paymentCardRequired': 'Karta raqami majburiy',
+      'paymentCardInvalid': 'To\'g\'ri karta raqamini kiriting',
+      'paymentCardExpiry': 'Amal qilish muddati',
+      'paymentCardExpiryHint': 'MM/YY',
+      'paymentCardExpiryRequired': 'Amal qilish muddati majburiy',
+      'paymentCardExpiryInvalid': 'To\'g\'ri amal qilish muddatini kiriting',
+      'paymentCardDefault': 'Asosiy karta',
+      'paymentCardMarkDefault': 'Asosiy karta sifatida ishlatish',
+      'paymentCardSaved': 'Karta muvaffaqiyatli qo\'shildi',
+      'paymentCardUpdated': 'Karta muvaffaqiyatli yangilandi',
+      'paymentCardDeleted': 'Karta o\'chirildi',
+      'paymentCardSaveFailed': 'Kartani saqlab bo\'lmadi',
+      'paymentCardDeleteFailed': 'Kartani o\'chirib bo\'lmadi',
+      'noSavedCardsTitle': 'Saqlangan kartalar yo\'q',
+      'noSavedCardsSubtitle':
+          'Tezroq demo to\'lov uchun bitta kartani qo\'shib qo\'ying.',
+      'paymentCardDeleteTitle': 'Kartani o\'chirish',
+      'paymentCardDeleteConfirm':
+          'Haqiqatan ham bu kartani profilingizdan olib tashlamoqchimisiz?',
       'changePassword': 'Parolni o\'zgartirish',
       'currentPassword': 'Joriy parol',
       'newPassword': 'Yangi parol',
@@ -957,6 +1022,40 @@ class AppLocalizations {
       'profileUpdateFailed': 'Не удалось обновить профиль',
       'profileNameUpdated': 'Имя успешно обновлено',
       'profileNameUpdateFailed': 'Не удалось обновить имя',
+      'savedCardsTitle': 'Сохранённые карты',
+      'savedCardsSubtitle':
+          'Управляйте картами для более быстрого демо-оплаты',
+      'addPaymentCard': 'Добавить карту',
+      'editPaymentCard': 'Редактировать карту',
+      'deletePaymentCard': 'Удалить карту',
+      'paymentCardHolderName': 'Владелец карты',
+      'paymentCardHolderHint': 'Введите имя владельца карты',
+      'paymentCardHolderRequired': 'Введите имя владельца карты',
+      'paymentCardHolderShort':
+          'Имя владельца карты должно быть не короче 2 символов',
+      'paymentCardNumber': 'Номер карты',
+      'paymentCardNumberHint': '8600 1234 5678 9012',
+      'paymentCardNumberEditHint':
+          'Оставьте пустым, чтобы сохранить текущий номер карты',
+      'paymentCardRequired': 'Введите номер карты',
+      'paymentCardInvalid': 'Введите корректный номер карты',
+      'paymentCardExpiry': 'Срок действия',
+      'paymentCardExpiryHint': 'MM/YY',
+      'paymentCardExpiryRequired': 'Укажите срок действия карты',
+      'paymentCardExpiryInvalid': 'Введите корректный срок действия',
+      'paymentCardDefault': 'Основная карта',
+      'paymentCardMarkDefault': 'Сделать основной картой',
+      'paymentCardSaved': 'Карта успешно добавлена',
+      'paymentCardUpdated': 'Карта успешно обновлена',
+      'paymentCardDeleted': 'Карта удалена',
+      'paymentCardSaveFailed': 'Не удалось сохранить карту',
+      'paymentCardDeleteFailed': 'Не удалось удалить карту',
+      'noSavedCardsTitle': 'Сохранённых карт пока нет',
+      'noSavedCardsSubtitle':
+          'Добавьте демо-карту, чтобы выбор оплаты был быстрее.',
+      'paymentCardDeleteTitle': 'Удалить карту',
+      'paymentCardDeleteConfirm':
+          'Вы уверены, что хотите убрать эту карту из профиля?',
       'changePassword': 'Изменить пароль',
       'currentPassword': 'Текущий пароль',
       'newPassword': 'Новый пароль',
@@ -1375,6 +1474,35 @@ class AppLocalizations {
   String get profileUpdateFailed => _text('profileUpdateFailed');
   String get profileNameUpdated => _text('profileNameUpdated');
   String get profileNameUpdateFailed => _text('profileNameUpdateFailed');
+  String get savedCardsTitle => _text('savedCardsTitle');
+  String get savedCardsSubtitle => _text('savedCardsSubtitle');
+  String get addPaymentCard => _text('addPaymentCard');
+  String get editPaymentCard => _text('editPaymentCard');
+  String get deletePaymentCard => _text('deletePaymentCard');
+  String get paymentCardHolderName => _text('paymentCardHolderName');
+  String get paymentCardHolderHint => _text('paymentCardHolderHint');
+  String get paymentCardHolderRequired => _text('paymentCardHolderRequired');
+  String get paymentCardHolderShort => _text('paymentCardHolderShort');
+  String get paymentCardNumber => _text('paymentCardNumber');
+  String get paymentCardNumberHint => _text('paymentCardNumberHint');
+  String get paymentCardNumberEditHint => _text('paymentCardNumberEditHint');
+  String get paymentCardRequired => _text('paymentCardRequired');
+  String get paymentCardInvalid => _text('paymentCardInvalid');
+  String get paymentCardExpiry => _text('paymentCardExpiry');
+  String get paymentCardExpiryHint => _text('paymentCardExpiryHint');
+  String get paymentCardExpiryRequired => _text('paymentCardExpiryRequired');
+  String get paymentCardExpiryInvalid => _text('paymentCardExpiryInvalid');
+  String get paymentCardDefault => _text('paymentCardDefault');
+  String get paymentCardMarkDefault => _text('paymentCardMarkDefault');
+  String get paymentCardSaved => _text('paymentCardSaved');
+  String get paymentCardUpdated => _text('paymentCardUpdated');
+  String get paymentCardDeleted => _text('paymentCardDeleted');
+  String get paymentCardSaveFailed => _text('paymentCardSaveFailed');
+  String get paymentCardDeleteFailed => _text('paymentCardDeleteFailed');
+  String get noSavedCardsTitle => _text('noSavedCardsTitle');
+  String get noSavedCardsSubtitle => _text('noSavedCardsSubtitle');
+  String get paymentCardDeleteTitle => _text('paymentCardDeleteTitle');
+  String get paymentCardDeleteConfirm => _text('paymentCardDeleteConfirm');
   String get changePassword => _text('changePassword');
   String get currentPassword => _text('currentPassword');
   String get newPassword => _text('newPassword');

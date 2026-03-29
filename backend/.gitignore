@@ -1,6 +1,0 @@
-.dart_tool/
-build/
-pubspec.lock
-.env.local
-logs/
-secrets/*.json

@@ -324,6 +324,186 @@ class RemoteAuthService implements AuthService {
   }
 
   @override
+  Future<AuthUser> addPaymentCard({
+    required String accessToken,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMeCards}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $accessToken',
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, Object>{
+              'holderName': holderName,
+              'cardNumber': cardNumber,
+              'expiryMonth': expiryMonth,
+              'expiryYear': expiryYear,
+              'isDefault': isDefault,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic data = body['data'];
+        if (data is! Map<String, dynamic>) {
+          throw const AuthException('Foydalanuvchi ma\'lumoti formatida xato');
+        }
+        return AuthUser.fromJson(data);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Kartani saqlab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Kartani saqlash vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<AuthUser> updatePaymentCard({
+    required String accessToken,
+    required String cardId,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMeCard(cardId)}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .patch(
+            uri,
+            headers: <String, String>{
+              'authorization': 'Bearer $accessToken',
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, Object>{
+              'holderName': holderName,
+              'cardNumber': cardNumber,
+              'expiryMonth': expiryMonth,
+              'expiryYear': expiryYear,
+              'isDefault': isDefault,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic data = body['data'];
+        if (data is! Map<String, dynamic>) {
+          throw const AuthException('Foydalanuvchi ma\'lumoti formatida xato');
+        }
+        return AuthUser.fromJson(data);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Kartani yangilab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Kartani saqlash vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<AuthUser> deletePaymentCard({
+    required String accessToken,
+    required String cardId,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMeCard(cardId)}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient.delete(
+        uri,
+        headers: <String, String>{
+          'authorization': 'Bearer $accessToken',
+          'content-type': 'application/json; charset=utf-8',
+        },
+      ).timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic data = body['data'];
+        if (data is! Map<String, dynamic>) {
+          throw const AuthException('Foydalanuvchi ma\'lumoti formatida xato');
+        }
+        return AuthUser.fromJson(data);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Kartani o\'chirib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Kartani o\'chirish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
   Future<void> changePassword({
     required String accessToken,
     required String currentPassword,

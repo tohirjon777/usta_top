@@ -17,6 +17,7 @@ import '../models/vehicle_type.dart';
 import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 import '../services/api_exception.dart';
+import '../widgets/app_reveal.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({
@@ -297,44 +298,51 @@ class _BookingScreenState extends State<BookingScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: <Widget>[
-          _BookingHeroCard(
-            salon: widget.salon,
-            l10n: l10n,
-          ),
-          const SizedBox(height: 18),
-          _BookingSectionCard(
-            title: l10n.service,
-            child: DropdownButtonFormField<String>(
-              initialValue: _selectedServiceId,
-              items: widget.salon.services
-                  .map(
-                    (SalonService service) => DropdownMenuItem<String>(
-                      value: service.id,
-                      child: Text(
-                        '${service.name}  •  ${l10n.durationMinutes(service.durationMinutes)}  •  ${AppFormatters.moneyK(service.price)}',
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() {
-                  _selectedServiceId = value;
-                });
-                _refreshAvailabilityCalendar(forceAdjustSelection: true);
-                _schedulePriceQuoteRefresh(immediate: true);
-              },
-              decoration: InputDecoration(labelText: l10n.service),
+          AppReveal(
+            child: _BookingHeroCard(
+              salon: widget.salon,
+              l10n: l10n,
             ),
           ),
           const SizedBox(height: 18),
-          _BookingSectionCard(
-            title: l10n.vehicleSelectionTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
+          AppReveal(
+            delay: const Duration(milliseconds: 90),
+            child: _BookingSectionCard(
+              title: l10n.service,
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedServiceId,
+                items: widget.salon.services
+                    .map(
+                      (SalonService service) => DropdownMenuItem<String>(
+                        value: service.id,
+                        child: Text(
+                          '${service.name}  •  ${l10n.durationMinutes(service.durationMinutes)}  •  ${AppFormatters.moneyK(service.price)}',
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedServiceId = value;
+                  });
+                  _refreshAvailabilityCalendar(forceAdjustSelection: true);
+                  _schedulePriceQuoteRefresh(immediate: true);
+                },
+                decoration: InputDecoration(labelText: l10n.service),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          AppReveal(
+            delay: const Duration(milliseconds: 140),
+            child: _BookingSectionCard(
+              title: l10n.vehicleSelectionTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
           if (savedVehicles.isNotEmpty) ...<Widget>[
             Text(
               l10n.savedVehiclesTitle,
@@ -484,57 +492,61 @@ class _BookingScreenState extends State<BookingScreen> {
             },
             decoration: InputDecoration(labelText: l10n.vehicleTypeField),
           ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () async {
-              if (_isLoadingCalendar) {
-                return;
-              }
-              if (_calendarDaysByDateKey.isEmpty) {
-                await _loadAvailabilityCalendar(
-                  forceAdjustSelection: false,
-                );
-                if (!context.mounted) {
+          AppReveal(
+            delay: const Duration(milliseconds: 190),
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                if (_isLoadingCalendar) {
                   return;
                 }
-              }
+                if (_calendarDaysByDateKey.isEmpty) {
+                  await _loadAvailabilityCalendar(
+                    forceAdjustSelection: false,
+                  );
+                  if (!context.mounted) {
+                    return;
+                  }
+                }
 
-              final DateTime? initialDate = _resolvedPickerInitialDate();
-              if (initialDate == null) {
-                final AppLocalizations postLoadL10n =
-                    AppLocalizations.of(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(postLoadL10n.noAvailableDates)),
+                final DateTime? initialDate = _resolvedPickerInitialDate();
+                if (initialDate == null) {
+                  final AppLocalizations postLoadL10n =
+                      AppLocalizations.of(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(postLoadL10n.noAvailableDates)),
+                  );
+                  return;
+                }
+                final DateTime now = DateTime.now();
+                final DateTime firstDate =
+                    DateTime(now.year, now.month, now.day);
+                final DateTime? picked = await showDatePicker(
+                  context: context,
+                  initialDate: initialDate,
+                  firstDate: firstDate,
+                  lastDate: firstDate.add(
+                    const Duration(days: _calendarWindowDays - 1),
+                  ),
+                  selectableDayPredicate: _isSelectableDay,
                 );
-                return;
-              }
-              final DateTime now = DateTime.now();
-              final DateTime firstDate =
-                  DateTime(now.year, now.month, now.day);
-              final DateTime? picked = await showDatePicker(
-                context: context,
-                initialDate: initialDate,
-                firstDate: firstDate,
-                lastDate: firstDate.add(
-                  const Duration(days: _calendarWindowDays - 1),
-                ),
-                selectableDayPredicate: _isSelectableDay,
-              );
 
-              if (picked == null) {
-                return;
-              }
+                if (picked == null) {
+                  return;
+                }
 
-              setState(() {
-                _selectedDate = picked;
-              });
-              _loadAvailability();
-            },
-            icon: const Icon(Icons.date_range),
-            label: Text(l10n.dateLabel(selectedDateLabel)),
+                setState(() {
+                  _selectedDate = picked;
+                });
+                _loadAvailability();
+              },
+              icon: const Icon(Icons.date_range),
+              label: Text(l10n.dateLabel(selectedDateLabel)),
+            ),
           ),
           if (_calendarError != null) ...<Widget>[
             const SizedBox(height: 10),

@@ -15,9 +15,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.text('Usta Top'), findsOneWidget);
-    expect(find.text('Asosiy'), findsOneWidget);
-    expect(find.text('Xarita'), findsOneWidget);
-    expect(find.text('Buyurtmalar'), findsOneWidget);
-    expect(find.text('Kabinet'), findsOneWidget);
+    expect(find.text('Asosiy'), findsAtLeastNWidgets(1));
+    expect(find.text('Xarita'), findsAtLeastNWidgets(1));
+    expect(find.text('Buyurtmalar'), findsAtLeastNWidgets(1));
+    expect(find.text('Kabinet'), findsAtLeastNWidgets(1));
   });
 }

@@ -102,6 +102,64 @@ class AuthController extends Controller
         }
     }
 
+    public function addPaymentCard(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->addPaymentCard(
+                    (string) $user['id'],
+                    $request->all()
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function updatePaymentCard(Request $request, string $cardId)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->updatePaymentCard(
+                    (string) $user['id'],
+                    $cardId,
+                    $request->all()
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function deletePaymentCard(Request $request, string $cardId)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            return response()->json([
+                'data' => $this->repository->deletePaymentCard(
+                    (string) $user['id'],
+                    $cardId
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
     public function updatePassword(Request $request)
     {
         $user = $this->userFromRequest($request);

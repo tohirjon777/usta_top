@@ -7,6 +7,7 @@ import '../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../ui/app_spacing.dart';
 import '../widgets/app_primary_button.dart';
+import '../widgets/app_reveal.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,146 +41,156 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: <Widget>[
-              _AuthHeroCard(
-                title: l10n.appTitle,
-                subtitle: l10n.signInDescription,
+              AppReveal(
+                child: _AuthHeroCard(
+                  title: l10n.appTitle,
+                  subtitle: l10n.signInDescription,
+                ),
               ),
               const SizedBox(height: 18),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Center(
-                        child: Column(
+              AppReveal(
+                delay: const Duration(milliseconds: 100),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Center(
+                          child: Column(
+                            children: <Widget>[
+                              Image.asset(
+                                AppAssets.logo,
+                                width: 110,
+                                height: 110,
+                                fit: BoxFit.contain,
+                              ),
+                              AppSpacing.h12,
+                              Text(
+                                l10n.welcomeBack,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              AppSpacing.h4,
+                              Text(
+                                l10n.findTrustedMasters,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: AppColors.secondaryTextOf(context),
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AppSpacing.h20,
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: <Widget>[
-                            Image.asset(
-                              AppAssets.logo,
-                              width: 110,
-                              height: 110,
-                              fit: BoxFit.contain,
+                            _AuthFeaturePill(
+                              icon: Icons.flash_on_rounded,
+                              label: l10n.fastConfirmation,
                             ),
-                            AppSpacing.h12,
-                            Text(
-                              l10n.welcomeBack,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                            AppSpacing.h4,
-                            Text(
-                              l10n.findTrustedMasters,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: AppColors.secondaryTextOf(context),
-                                  ),
+                            _AuthFeaturePill(
+                              icon: Icons.verified_outlined,
+                              label: l10n.verifiedMasters,
                             ),
                           ],
                         ),
-                      ),
-                      AppSpacing.h20,
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          _AuthFeaturePill(
-                            icon: Icons.flash_on_rounded,
-                            label: l10n.fastConfirmation,
+                        AppSpacing.h20,
+                        TextFormField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: InputDecoration(
+                            labelText: l10n.phoneNumber,
+                            hintText: l10n.phoneHint,
+                            prefixIcon: const Icon(Icons.phone_rounded),
                           ),
-                          _AuthFeaturePill(
-                            icon: Icons.verified_outlined,
-                            label: l10n.verifiedMasters,
-                          ),
-                        ],
-                      ),
-                      AppSpacing.h20,
-                      TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: InputDecoration(
-                          labelText: l10n.phoneNumber,
-                          hintText: l10n.phoneHint,
-                          prefixIcon: const Icon(Icons.phone_rounded),
+                          validator: (String? value) =>
+                              _validatePhone(value, l10n),
                         ),
-                        validator: (String? value) => _validatePhone(value, l10n),
-                      ),
-                      AppSpacing.h12,
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: l10n.password,
-                          prefixIcon: const Icon(Icons.lock_outline_rounded),
-                          suffixIcon: IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: l10n.password,
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
                             ),
                           ),
+                          validator: (String? value) => _validatePassword(
+                            value,
+                            l10n,
+                            requiredMessage: l10n.passwordRequired,
+                          ),
                         ),
-                        validator: (String? value) => _validatePassword(
-                          value,
-                          l10n,
-                          requiredMessage: l10n.passwordRequired,
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed:
+                                _isSubmitting ? null : _showForgotPasswordSheet,
+                            child: Text(l10n.forgotPassword),
+                          ),
                         ),
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed:
-                              _isSubmitting ? null : _showForgotPasswordSheet,
-                          child: Text(l10n.forgotPassword),
+                        AppSpacing.h8,
+                        AppPrimaryButton(
+                          label: l10n.signIn,
+                          isLoading: _isSubmitting,
+                          onPressed: _isSubmitting ? null : _submit,
                         ),
-                      ),
-                      AppSpacing.h8,
-                      AppPrimaryButton(
-                        label: l10n.signIn,
-                        isLoading: _isSubmitting,
-                        onPressed: _isSubmitting ? null : _submit,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
               AppSpacing.h20,
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        l10n.noAccountYet,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      AppSpacing.h4,
-                      Text(
-                        l10n.signUpDescription,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.secondaryTextOf(context),
-                            ),
-                      ),
-                      AppSpacing.h12,
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed:
-                              _isSubmitting ? null : _showRegistrationSheet,
-                          child: Text(l10n.createAccount),
+              AppReveal(
+                delay: const Duration(milliseconds: 180),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          l10n.noAccountYet,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
-                    ],
+                        AppSpacing.h4,
+                        Text(
+                          l10n.signUpDescription,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.secondaryTextOf(context),
+                                  ),
+                        ),
+                        AppSpacing.h12,
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed:
+                                _isSubmitting ? null : _showRegistrationSheet,
+                            child: Text(l10n.createAccount),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

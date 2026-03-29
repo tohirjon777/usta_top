@@ -37,5 +37,4 @@ Telegram bot:
 Shundan keyin yangi zakaz va status o‘zgarishlari shu Telegram chatga yuboriladi.
 
 Eslatma:
-- `../backend/` papkasi legacy arxiv sifatida qoldirilgan
 - root-level `../backend_service.sh` va `../run_dev.sh` faqat Laravel backendni ishga tushiradi

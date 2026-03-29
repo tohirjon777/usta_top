@@ -10,6 +10,7 @@ import 'package:usta_top/core/storage/auth_token_storage.dart';
 import 'package:usta_top/core/storage/notification_settings_storage.dart';
 import 'package:usta_top/core/storage/theme_mode_storage.dart';
 import 'package:usta_top/models/booking_item.dart';
+import 'package:usta_top/models/saved_payment_card.dart';
 import 'package:usta_top/providers/app_navigation_provider.dart';
 import 'package:usta_top/providers/auth_provider.dart';
 import 'package:usta_top/providers/booking_provider.dart';
@@ -140,6 +141,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.widgetWithText(FilledButton, 'Saqlash'), findsOneWidget);
   });
+
 }
 
 class FakeAuthService implements AuthService {
@@ -164,6 +166,74 @@ class FakeAuthService implements AuthService {
     required String currentPassword,
     required String newPassword,
   }) async {}
+
+  @override
+  Future<AuthUser> addPaymentCard({
+    required String accessToken,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final String digits = SavedPaymentCard.normalizeDigits(cardNumber);
+    final SavedPaymentCard nextCard = SavedPaymentCard(
+      id: 'card-1',
+      holderName: holderName.trim(),
+      brand: SavedPaymentCard.detectBrand(digits),
+      maskedNumber: SavedPaymentCard.maskDigits(digits),
+      last4: digits.substring(digits.length - 4),
+      expiryMonth: expiryMonth,
+      expiryYear: expiryYear,
+      isDefault: isDefault || user.savedPaymentCards.isEmpty,
+      updatedAt: DateTime.now(),
+    );
+    user = user.copyWith(
+      savedPaymentCards: <SavedPaymentCard>[nextCard],
+    );
+    return user;
+  }
+
+  @override
+  Future<AuthUser> updatePaymentCard({
+    required String accessToken,
+    required String cardId,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final SavedPaymentCard existing = user.savedPaymentCards.firstWhere(
+      (SavedPaymentCard card) => card.id == cardId,
+    );
+    final String digits = SavedPaymentCard.normalizeDigits(cardNumber);
+    final SavedPaymentCard updatedCard = existing.copyWith(
+      holderName: holderName.trim(),
+      brand: digits.isEmpty ? existing.brand : SavedPaymentCard.detectBrand(digits),
+      maskedNumber: digits.isEmpty ? existing.maskedNumber : SavedPaymentCard.maskDigits(digits),
+      last4: digits.isEmpty ? existing.last4 : digits.substring(digits.length - 4),
+      expiryMonth: expiryMonth,
+      expiryYear: expiryYear,
+      isDefault: isDefault,
+      updatedAt: DateTime.now(),
+    );
+    user = user.copyWith(savedPaymentCards: <SavedPaymentCard>[updatedCard]);
+    return user;
+  }
+
+  @override
+  Future<AuthUser> deletePaymentCard({
+    required String accessToken,
+    required String cardId,
+  }) async {
+    user = user.copyWith(
+      savedPaymentCards: user.savedPaymentCards
+          .where((SavedPaymentCard card) => card.id != cardId)
+          .toList(growable: false),
+    );
+    return user;
+  }
 
   @override
   Future<void> registerPushToken({

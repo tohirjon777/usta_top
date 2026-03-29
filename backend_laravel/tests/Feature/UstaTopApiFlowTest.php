@@ -266,4 +266,52 @@ class UstaTopApiFlowTest extends TestCase
             ->assertJsonPath('data.acceptedAt', fn ($value) => is_string($value) && $value !== '')
             ->assertJsonPath('data.rescheduledByRole', 'admin');
     }
+
+    public function test_customer_can_manage_saved_payment_cards(): void
+    {
+        $phone = '+99890'.random_int(1000000, 9999999);
+
+        $registerResponse = $this->postJson('/auth/register', [
+            'fullName' => 'Card Flow',
+            'phone' => $phone,
+            'password' => 'secret123',
+        ]);
+        $registerResponse->assertOk();
+
+        $token = (string) $registerResponse->json('data.token');
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $createResponse = $this->withHeaders($headers)->postJson('/auth/me/cards', [
+            'holderName' => 'Tokhirjon U',
+            'cardNumber' => '8600123456789012',
+            'expiryMonth' => 12,
+            'expiryYear' => 2028,
+            'isDefault' => true,
+        ]);
+
+        $createResponse
+            ->assertOk()
+            ->assertJsonPath('data.savedPaymentCards.0.brand', 'Uzcard')
+            ->assertJsonPath('data.savedPaymentCards.0.last4', '9012')
+            ->assertJsonPath('data.savedPaymentCards.0.isDefault', true);
+
+        $cardId = (string) $createResponse->json('data.savedPaymentCards.0.id');
+        $this->assertNotSame('', $cardId);
+
+        $this->withHeaders($headers)->patchJson('/auth/me/cards/'.$cardId, [
+            'holderName' => 'Tokhirjon Updated',
+            'cardNumber' => '',
+            'expiryMonth' => 1,
+            'expiryYear' => 2029,
+            'isDefault' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.savedPaymentCards.0.holderName', 'Tokhirjon Updated')
+            ->assertJsonPath('data.savedPaymentCards.0.expiryMonth', 1)
+            ->assertJsonPath('data.savedPaymentCards.0.expiryYear', 2029);
+
+        $this->withHeaders($headers)->deleteJson('/auth/me/cards/'.$cardId)
+            ->assertOk()
+            ->assertJsonPath('data.savedPaymentCards', []);
+    }
 }

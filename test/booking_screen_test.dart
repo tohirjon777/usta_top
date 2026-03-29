@@ -325,11 +325,31 @@ class FakeBookingService implements BookingService {
 
 class FakeAuthService implements AuthService {
   @override
+  Future<AuthUser> addPaymentCard({
+    required String accessToken,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> changePassword({
     required String accessToken,
     required String currentPassword,
     required String newPassword,
   }) async {}
+
+  @override
+  Future<AuthUser> deletePaymentCard({
+    required String accessToken,
+    required String cardId,
+  }) {
+    throw UnimplementedError();
+  }
 
   @override
   Future<AuthUser> getCurrentUser({
@@ -382,6 +402,19 @@ class FakeAuthService implements AuthService {
   Future<void> sendTestPush({
     required String accessToken,
   }) async {}
+
+  @override
+  Future<AuthUser> updatePaymentCard({
+    required String accessToken,
+    required String cardId,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) {
+    throw UnimplementedError();
+  }
 
   @override
   Future<AuthUser> updateCurrentUserProfile({

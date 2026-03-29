@@ -1,6 +1,6 @@
 # Laravel Backend Scope
 
-Current Dart backend surface to port:
+Laravel backendga ko'chirilgan surface:
 - Health route
 - Admin auth + workshops + bookings + reviews pages/actions
 - Owner auth + bookings + pricing + schedule + telegram + reviews pages/actions
@@ -9,7 +9,7 @@ Current Dart backend surface to port:
 - Booking API: list/create/reschedule/cancel
 - Background jobs: booking reminders, review reminders, telegram sync
 - Notifications: Telegram + Firebase push
-- Data storage currently JSON files under backend/data
+- Data storage currently JSON files under backend_laravel/data
 
 Migration strategy:
 1. Bootstrap Laravel app alongside current backend.

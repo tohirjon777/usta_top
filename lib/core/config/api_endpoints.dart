@@ -35,6 +35,8 @@ abstract final class ApiEndpoints {
   //   }
   // }
   static const String authMe = '/auth/me';
+  static const String authMeCards = '/auth/me/cards';
+  static String authMeCard(String cardId) => '/auth/me/cards/$cardId';
   // TODO(API): PATCH /auth/me
   // Header: Authorization: Bearer <accessToken>
   // Request sample:

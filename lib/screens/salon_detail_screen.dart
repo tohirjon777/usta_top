@@ -14,6 +14,7 @@ import '../providers/saved_workshops_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../services/navigation_launcher.dart';
 import '../ui/review_composer_sheet.dart';
+import '../widgets/app_reveal.dart';
 import '../widgets/workshop_image_view.dart';
 import 'booking_screen.dart';
 
@@ -365,68 +366,76 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
           children: <Widget>[
-            _DetailHeroCard(
-              salon: _salon,
-              l10n: l10n,
-              heroStart: heroStart,
-              heroEnd: heroEnd,
+            AppReveal(
+              child: _DetailHeroCard(
+                salon: _salon,
+                l10n: l10n,
+                heroStart: heroStart,
+                heroEnd: heroEnd,
+              ),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: _InsightTile(
-                    label: l10n.reviewAverageLabel,
-                    value: _salon.rating.toStringAsFixed(1),
-                    icon: Icons.star_rounded,
+            AppReveal(
+              delay: const Duration(milliseconds: 90),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _InsightTile(
+                      label: l10n.reviewAverageLabel,
+                      value: _salon.rating.toStringAsFixed(1),
+                      icon: Icons.star_rounded,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _InsightTile(
-                    label: l10n.services,
-                    value: '${_salon.services.length}',
-                    icon: Icons.tune_outlined,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _InsightTile(
+                      label: l10n.services,
+                      value: '${_salon.services.length}',
+                      icon: Icons.tune_outlined,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _InsightTile(
-                    label: l10n.bookAppointment,
-                    value: AppFormatters.moneyK(_salon.startingPrice),
-                    icon: Icons.payments_outlined,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _InsightTile(
+                      label: l10n.bookAppointment,
+                      value: AppFormatters.moneyK(_salon.startingPrice),
+                      icon: Icons.payments_outlined,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 20),
-            _SectionCard(
-              title: l10n.services,
-              trailing: TextButton.icon(
-                onPressed: () => _openReviewComposer(),
-                icon: const Icon(Icons.rate_review_outlined),
-                label: Text(l10n.writeReview),
-              ),
-              child: Column(
-                children: _salon.services.map(
-                  (SalonService service) => Padding(
-                    padding: EdgeInsets.only(
-                      bottom: service == _salon.services.last ? 0 : 12,
-                    ),
-                    child: _ServiceActionCard(
-                      l10n: l10n,
-                      salon: _salon,
-                      service: service,
-                      onBook: () => _openBooking(
-                        context: context,
-                        preselected: service,
+            AppReveal(
+              delay: const Duration(milliseconds: 140),
+              child: _SectionCard(
+                title: l10n.services,
+                trailing: TextButton.icon(
+                  onPressed: () => _openReviewComposer(),
+                  icon: const Icon(Icons.rate_review_outlined),
+                  label: Text(l10n.writeReview),
+                ),
+                child: Column(
+                  children: _salon.services.map(
+                    (SalonService service) => Padding(
+                      padding: EdgeInsets.only(
+                        bottom: service == _salon.services.last ? 0 : 12,
                       ),
-                      onReview: () => _openReviewComposer(
-                        preselectedService: service,
+                      child: _ServiceActionCard(
+                        l10n: l10n,
+                        salon: _salon,
+                        service: service,
+                        onBook: () => _openBooking(
+                          context: context,
+                          preselected: service,
+                        ),
+                        onReview: () => _openReviewComposer(
+                          preselectedService: service,
+                        ),
                       ),
                     ),
-                  ),
-                ).toList(),
+                  ).toList(),
+                ),
               ),
             ),
             const SizedBox(height: 20),

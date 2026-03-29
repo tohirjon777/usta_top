@@ -76,8 +76,7 @@ php artisan serve --host=127.0.0.1 --port=8080
 ```
 
 Laravel backend endi o'z ma'lumotlarini `backend_laravel/data` ichidan oladi.
-Eski `backend/` papkasi legacy arxiv sifatida qoldirilgan, lekin app va service
-oqimi unga suyanmaydi.
+App, service va dev oqimi to'liq Laravel backendga ulangan.
 
 Batafsil Laravel backend izohi:
 

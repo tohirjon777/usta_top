@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/storage/auth_token_storage.dart';
+import '../models/saved_payment_card.dart';
 import '../models/saved_vehicle_profile.dart';
 import '../services/auth_service.dart';
 
@@ -219,6 +220,135 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> addPaymentCard({
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authService.addPaymentCard(
+        accessToken: token,
+        holderName: holderName,
+        cardNumber: cardNumber,
+        expiryMonth: expiryMonth,
+        expiryYear: expiryYear,
+        isDefault: isDefault,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _isLoggedIn = false;
+        _accessToken = null;
+        _currentUser = null;
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Kartani saqlashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updatePaymentCard({
+    required String cardId,
+    required String holderName,
+    required String cardNumber,
+    required int expiryMonth,
+    required int expiryYear,
+    required bool isDefault,
+  }) async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authService.updatePaymentCard(
+        accessToken: token,
+        cardId: cardId,
+        holderName: holderName,
+        cardNumber: cardNumber,
+        expiryMonth: expiryMonth,
+        expiryYear: expiryYear,
+        isDefault: isDefault,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _isLoggedIn = false;
+        _accessToken = null;
+        _currentUser = null;
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Kartani yangilashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deletePaymentCard({
+    required String cardId,
+  }) async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authService.deletePaymentCard(
+        accessToken: token,
+        cardId: cardId,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _isLoggedIn = false;
+        _accessToken = null;
+        _currentUser = null;
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Kartani o\'chirishda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -304,6 +434,36 @@ class AuthProvider extends ChangeNotifier {
         currentUser.savedVehicles,
         vehicle: vehicle,
       ),
+    );
+    notifyListeners();
+  }
+
+  void rememberPaymentCard(SavedPaymentCard card) {
+    final AuthUser? currentUser = _currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    final List<SavedPaymentCard> nextCards = <SavedPaymentCard>[
+      ...currentUser.savedPaymentCards.where(
+        (SavedPaymentCard item) => item.id != card.id,
+      ),
+      card,
+    ];
+    nextCards.sort((SavedPaymentCard a, SavedPaymentCard b) {
+      if (a.isDefault && !b.isDefault) {
+        return -1;
+      }
+      if (!a.isDefault && b.isDefault) {
+        return 1;
+      }
+      final DateTime aTime = a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime bTime = b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+
+    _currentUser = currentUser.copyWith(
+      savedPaymentCards: List<SavedPaymentCard>.unmodifiable(nextCards),
     );
     notifyListeners();
   }

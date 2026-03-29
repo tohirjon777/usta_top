@@ -9,6 +9,7 @@ import '../providers/saved_workshops_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../ui/app_loading_view.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/app_reveal.dart';
 import '../widgets/workshop_image_view.dart';
 
 class SavedSalonsScreen extends StatelessWidget {
@@ -62,22 +63,28 @@ class SavedSalonsScreen extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: <Widget>[
-                _SavedHeroCard(
-                  l10n: l10n,
-                  title: l10n.savedWorkshopsTitle,
-                  subtitle: l10n.savedWorkshopsEmptyHint,
-                  savedCount: savedSalons.length,
-                  openCount: openCount,
+                AppReveal(
+                  child: _SavedHeroCard(
+                    l10n: l10n,
+                    title: l10n.savedWorkshopsTitle,
+                    subtitle: l10n.savedWorkshopsEmptyHint,
+                    savedCount: savedSalons.length,
+                    openCount: openCount,
+                  ),
                 ),
                 const SizedBox(height: 18),
-                ...savedSalons.map(
-                  (Salon salon) => Padding(
+                ...savedSalons.asMap().entries.map(
+                  (MapEntry<int, Salon> entry) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
-                    child: _SavedWorkshopCard(
-                      salon: salon,
-                      l10n: l10n,
-                      onTap: () => onOpenSalon(salon),
-                      onToggleSaved: () => _toggleSaved(context, salon: salon),
+                    child: AppReveal(
+                      delay: Duration(milliseconds: 90 + (entry.key * 50)),
+                      child: _SavedWorkshopCard(
+                        salon: entry.value,
+                        l10n: l10n,
+                        onTap: () => onOpenSalon(entry.value),
+                        onToggleSaved: () =>
+                            _toggleSaved(context, salon: entry.value),
+                      ),
                     ),
                   ),
                 ),

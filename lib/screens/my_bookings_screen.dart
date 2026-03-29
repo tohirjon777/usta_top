@@ -13,6 +13,7 @@ import '../providers/workshop_provider.dart';
 import '../ui/app_loading_view.dart';
 import '../ui/booking_reschedule_sheet.dart';
 import '../ui/review_composer_sheet.dart';
+import '../widgets/app_reveal.dart';
 
 class MyBookingsScreen extends StatelessWidget {
   const MyBookingsScreen({super.key});
@@ -112,15 +113,17 @@ class MyBookingsScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: <Widget>[
-            _BookingsHeroCard(
-              l10n: l10n,
-              title: l10n.navBookings,
-              subtitle: l10n.bookingHistorySubtitle,
-              totalCount: bookings.length,
-              activeCount: activeCount,
-              completedCount: completedCount,
-              onRefresh: isLoading ? null : bookingProvider.loadBookings,
-              refreshTooltip: l10n.refresh,
+            AppReveal(
+              child: _BookingsHeroCard(
+                l10n: l10n,
+                title: l10n.navBookings,
+                subtitle: l10n.bookingHistorySubtitle,
+                totalCount: bookings.length,
+                activeCount: activeCount,
+                completedCount: completedCount,
+                onRefresh: isLoading ? null : bookingProvider.loadBookings,
+                refreshTooltip: l10n.refresh,
+              ),
             ),
             if (errorMessage != null && bookings.isNotEmpty) ...<Widget>[
               const SizedBox(height: 12),
@@ -132,63 +135,71 @@ class MyBookingsScreen extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 18),
-            _BookingsSectionHeader(
-              title: l10n.bookingHistory,
-              subtitle: bookings.isEmpty
-                  ? l10n.bookingsEmptyHint
-                  : '${bookings.length}',
+            AppReveal(
+              delay: const Duration(milliseconds: 90),
+              child: _BookingsSectionHeader(
+                title: l10n.bookingHistory,
+                subtitle:
+                    bookings.isEmpty ? l10n.bookingsEmptyHint : '${bookings.length}',
+              ),
             ),
             const SizedBox(height: 12),
             if (bookings.isEmpty)
-              _EmptyBookingsState(
-                l10n: l10n,
-                subtitle: errorMessage ?? l10n.bookingsEmptyHint,
-                isError: errorMessage != null,
+              AppReveal(
+                delay: const Duration(milliseconds: 150),
+                child: _EmptyBookingsState(
+                  l10n: l10n,
+                  subtitle: errorMessage ?? l10n.bookingsEmptyHint,
+                  isError: errorMessage != null,
+                ),
               )
             else
               ...bookings.map((BookingItem booking) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: _BookingCard(
-                    l10n: l10n,
-                    booking: booking,
-                    onCancel: () async {
-                      final bool changed = await bookingProvider
-                          .cancelBookingRequest(booking.id);
-                      if (!changed) {
+                  child: AppReveal(
+                    delay: Duration(milliseconds: 150 + (bookings.indexOf(booking) * 45)),
+                    child: _BookingCard(
+                      l10n: l10n,
+                      booking: booking,
+                      onCancel: () async {
+                        final bool changed = await bookingProvider
+                            .cancelBookingRequest(booking.id);
+                        if (!changed) {
+                          if (!context.mounted) {
+                            return;
+                          }
+                          final String message = bookingProvider.errorMessage ??
+                              'Buyurtmani bekor qilib bo\'lmadi';
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(message)),
+                          );
+                          return;
+                        }
                         if (!context.mounted) {
                           return;
                         }
-                        final String message = bookingProvider.errorMessage ??
-                            'Buyurtmani bekor qilib bo\'lmadi';
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(message)),
+                          SnackBar(content: Text(l10n.bookingCancelled)),
                         );
-                        return;
-                      }
-                      if (!context.mounted) {
-                        return;
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.bookingCancelled)),
-                      );
-                    },
-                    onReschedule: () {
-                      openRescheduleForBooking(booking);
-                    },
-                    onAcceptRescheduled:
-                        booking.status == BookingStatus.rescheduled &&
-                                booking.rescheduledByRole != 'customer'
-                            ? () {
-                                acceptRescheduledBooking(booking);
-                              }
-                            : null,
-                    onWriteReview: booking.status == BookingStatus.completed &&
-                            !booking.hasReview
-                        ? () {
-                            openReviewForBooking(booking);
-                          }
-                        : null,
+                      },
+                      onReschedule: () {
+                        openRescheduleForBooking(booking);
+                      },
+                      onAcceptRescheduled:
+                          booking.status == BookingStatus.rescheduled &&
+                                  booking.rescheduledByRole != 'customer'
+                              ? () {
+                                  acceptRescheduledBooking(booking);
+                                }
+                              : null,
+                      onWriteReview: booking.status == BookingStatus.completed &&
+                              !booking.hasReview
+                          ? () {
+                              openReviewForBooking(booking);
+                            }
+                          : null,
+                    ),
                   ),
                 );
               }),

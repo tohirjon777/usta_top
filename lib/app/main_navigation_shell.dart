@@ -129,8 +129,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     bool lockInitialReviewServiceSelection = false,
   }) {
     return Navigator.of(context).push<BookingItem>(
-      MaterialPageRoute<BookingItem>(
-        builder: (_) => SalonDetailScreen(
+      _buildElevatedRoute<BookingItem>(
+        SalonDetailScreen(
           salon: salon,
           initialReviewServiceId: initialReviewServiceId,
           highlightedReviewId: highlightedReviewId,
@@ -173,9 +173,32 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   Future<void> _openSavedSalons() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => SavedSalonsScreen(onOpenSalon: _openSalonDetail),
+      _buildElevatedRoute<void>(
+        SavedSalonsScreen(onOpenSalon: _openSalonDetail),
       ),
+    );
+  }
+
+  PageRoute<T> _buildElevatedRoute<T>(Widget child) {
+    return PageRouteBuilder<T>(
+      pageBuilder: (_, __, ___) => child,
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      transitionsBuilder: (
+        BuildContext context,
+        Animation<double> animation,
+        Animation<double> secondaryAnimation,
+        Widget routeChild,
+      ) {
+        final Animation<double> fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        );
+        return FadeTransition(
+          opacity: fade,
+          child: routeChild,
+        );
+      },
     );
   }
 

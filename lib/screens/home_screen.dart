@@ -9,6 +9,7 @@ import '../models/salon.dart';
 import '../providers/saved_workshops_provider.dart';
 import '../providers/workshop_provider.dart';
 import '../ui/app_loading_view.dart';
+import '../widgets/app_reveal.dart';
 import '../widgets/workshop_image_view.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -60,75 +61,96 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
           children: <Widget>[
-            _HomeHeroCard(
-              l10n: l10n,
-              controller: _searchController,
-              workshopCount: workshopProvider.totalCount,
-              totalServices: totalServices,
-              averageRating: averageRating,
-              onChanged: (String value) {
-                context.read<WorkshopProvider>().setQuery(value.trim());
-              },
-              onClear: query.isEmpty
-                  ? null
-                  : () {
-                      _searchController.clear();
-                      context.read<WorkshopProvider>().setQuery('');
-                    },
+            AppReveal(
+              child: _HomeHeroCard(
+                l10n: l10n,
+                controller: _searchController,
+                workshopCount: workshopProvider.totalCount,
+                totalServices: totalServices,
+                averageRating: averageRating,
+                onChanged: (String value) {
+                  context.read<WorkshopProvider>().setQuery(value.trim());
+                },
+                onClear: query.isEmpty
+                    ? null
+                    : () {
+                        _searchController.clear();
+                        context.read<WorkshopProvider>().setQuery('');
+                      },
+              ),
             ),
             const SizedBox(height: 18),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: <Widget>[
-                  _QuickBadge(
-                    icon: Icons.near_me_outlined,
-                    text: l10n.salonsNearby(workshopProvider.totalCount),
-                  ),
-                  const SizedBox(width: 8),
-                  _QuickBadge(
-                    icon: Icons.flash_on_outlined,
-                    text: l10n.fastConfirmation,
-                  ),
-                  const SizedBox(width: 8),
-                  _QuickBadge(
-                    icon: Icons.verified_outlined,
-                    text: l10n.verifiedMasters,
-                  ),
-                ],
+            AppReveal(
+              delay: const Duration(milliseconds: 90),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: <Widget>[
+                    _QuickBadge(
+                      icon: Icons.near_me_outlined,
+                      text: l10n.salonsNearby(workshopProvider.totalCount),
+                    ),
+                    const SizedBox(width: 8),
+                    _QuickBadge(
+                      icon: Icons.flash_on_outlined,
+                      text: l10n.fastConfirmation,
+                    ),
+                    const SizedBox(width: 8),
+                    _QuickBadge(
+                      icon: Icons.verified_outlined,
+                      text: l10n.verifiedMasters,
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 22),
-            _SectionHeader(
-              title: query.isEmpty ? l10n.findTrustedMasters : l10n.searchHint,
-              subtitle: query.isEmpty
-                  ? l10n.salonsNearby(salons.length)
-                  : '${salons.length}',
+            AppReveal(
+              delay: const Duration(milliseconds: 140),
+              child: _SectionHeader(
+                title:
+                    query.isEmpty ? l10n.findTrustedMasters : l10n.searchHint,
+                subtitle: query.isEmpty
+                    ? l10n.salonsNearby(salons.length)
+                    : '${salons.length}',
+              ),
             ),
             const SizedBox(height: 12),
             if (isLoading && salons.isEmpty)
-              const SizedBox(height: 260, child: AppLoadingView())
+              const AppReveal(
+                delay: Duration(milliseconds: 180),
+                child: SizedBox(height: 260, child: AppLoadingView()),
+              )
             else if (errorMessage != null && salons.isEmpty)
-              _EmptySearchState(
-                title: l10n.noSalonsFound,
-                subtitle: errorMessage,
+              AppReveal(
+                delay: const Duration(milliseconds: 180),
+                child: _EmptySearchState(
+                  title: l10n.noSalonsFound,
+                  subtitle: errorMessage,
+                ),
               )
             else if (salons.isEmpty)
-              _EmptySearchState(
-                title: l10n.noSalonsFound,
-                subtitle: l10n.tryDifferentSearch,
+              AppReveal(
+                delay: const Duration(milliseconds: 180),
+                child: _EmptySearchState(
+                  title: l10n.noSalonsFound,
+                  subtitle: l10n.tryDifferentSearch,
+                ),
               )
             else
               ...salons.asMap().entries.map(
                 (MapEntry<int, Salon> entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: _SalonCard(
-                    l10n: l10n,
-                    salon: entry.value,
-                    rank: entry.key + 1,
-                    isSaved: savedProvider.isSaved(entry.value.id),
-                    onTap: () => widget.onOpenSalon(entry.value),
-                    onToggleSaved: () => _toggleSaved(entry.value),
+                  child: AppReveal(
+                    delay: Duration(milliseconds: 180 + (entry.key * 55)),
+                    child: _SalonCard(
+                      l10n: l10n,
+                      salon: entry.value,
+                      rank: entry.key + 1,
+                      isSaved: savedProvider.isSaved(entry.value.id),
+                      onTap: () => widget.onOpenSalon(entry.value),
+                      onToggleSaved: () => _toggleSaved(entry.value),
+                    ),
                   ),
                 ),
               ),
