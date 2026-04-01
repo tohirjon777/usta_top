@@ -275,9 +275,53 @@ class FakeAuthService implements AuthService {
   }
 
   @override
+  Future<AuthOtpChallenge> sendSignUpCode({
+    required String phone,
+  }) async {
+    return const AuthOtpChallenge(
+      expiresAt: null,
+      resendAvailableAt: null,
+      channel: 'sms',
+      debugCode: '123456',
+    );
+  }
+
+  @override
+  Future<AuthSession> verifySignUpCode({
+    required String fullName,
+    required String phone,
+    required String password,
+    required String code,
+  }) async {
+    return AuthSession(
+      accessToken: 'token-1',
+      expiresAt: DateTime.now().add(const Duration(days: 30)),
+    );
+  }
+
+  @override
   Future<void> resetPassword({
     required String phone,
     required String newPassword,
+  }) async {}
+
+  @override
+  Future<AuthOtpChallenge> sendPasswordResetCode({
+    required String phone,
+  }) async {
+    return const AuthOtpChallenge(
+      expiresAt: null,
+      resendAvailableAt: null,
+      channel: 'sms',
+      debugCode: '123456',
+    );
+  }
+
+  @override
+  Future<void> verifyPasswordResetCode({
+    required String phone,
+    required String newPassword,
+    required String code,
   }) async {}
 
   @override

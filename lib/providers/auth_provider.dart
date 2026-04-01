@@ -142,6 +142,77 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<AuthOtpChallenge?> requestSignUpCode({
+    required String phone,
+  }) async {
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final AuthOtpChallenge challenge = await _authService.sendSignUpCode(
+        phone: phone,
+      );
+      _errorMessage = null;
+      return challenge;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      return null;
+    } catch (_) {
+      _errorMessage = 'Tasdiqlash kodini yuborishda xatolik yuz berdi';
+      return null;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> verifySignUpCode({
+    required String fullName,
+    required String phone,
+    required String password,
+    required String code,
+  }) async {
+    try {
+      _errorMessage = null;
+      final AuthSession session = await _authService.verifySignUpCode(
+        fullName: fullName,
+        phone: phone,
+        password: password,
+        code: code,
+      );
+
+      await _tokenStorage.saveSession(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        expiresAt: session.expiresAt,
+      );
+
+      _isLoggedIn = true;
+      _accessToken = session.accessToken;
+      notifyListeners();
+      await _fetchCurrentUser(
+        accessToken: session.accessToken,
+        setProfileLoading: false,
+      );
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      _isLoggedIn = false;
+      _accessToken = null;
+      _currentUser = null;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Akkauntni tasdiqlashda xatolik yuz berdi';
+      _isLoggedIn = false;
+      _accessToken = null;
+      _currentUser = null;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> resetPassword({
     required String phone,
     required String newPassword,
@@ -162,6 +233,61 @@ class AuthProvider extends ChangeNotifier {
       return false;
     } catch (_) {
       _errorMessage = 'Parolni tiklashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<AuthOtpChallenge?> requestPasswordResetCode({
+    required String phone,
+  }) async {
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final AuthOtpChallenge challenge =
+          await _authService.sendPasswordResetCode(
+        phone: phone,
+      );
+      _errorMessage = null;
+      return challenge;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      return null;
+    } catch (_) {
+      _errorMessage = 'Tasdiqlash kodini yuborishda xatolik yuz berdi';
+      return null;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> verifyPasswordResetCode({
+    required String phone,
+    required String newPassword,
+    required String code,
+  }) async {
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.verifyPasswordResetCode(
+        phone: phone,
+        newPassword: newPassword,
+        code: code,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      return false;
+    } catch (_) {
+      _errorMessage = 'Parolni tasdiqlashda xatolik yuz berdi';
       return false;
     } finally {
       _isLoadingProfile = false;

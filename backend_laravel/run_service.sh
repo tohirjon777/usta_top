@@ -4,14 +4,8 @@ set -euo pipefail
 
 BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$BACKEND_DIR/.env.local"
+SECRETS_ENV_FILE="$BACKEND_DIR/secrets/local.env"
 LOG_DIR="$BACKEND_DIR/storage/logs"
-
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-fi
 
 mkdir -p "$LOG_DIR" "$BACKEND_DIR/storage/app/ustatop"
 
@@ -31,16 +25,26 @@ if [[ ! -f ".env" ]]; then
   cp .env.example .env
 fi
 
+set -a
+# shellcheck disable=SC1091
+source ".env"
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+fi
+if [[ -f "$SECRETS_ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$SECRETS_ENV_FILE"
+fi
+set +a
+
 if [[ ! -d "vendor" || "composer.json" -nt "vendor" || "composer.lock" -nt "vendor" ]]; then
   composer install --no-interaction --prefer-dist
 fi
 
 php artisan key:generate --force >/dev/null 2>&1 || true
-
-set -a
-# shellcheck disable=SC1091
-source ".env"
-set +a
+php artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
+php artisan migrate --force >/dev/null 2>&1 || true
 
 export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}"
 

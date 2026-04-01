@@ -1129,18 +1129,37 @@ class _ProfileHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            AppColors.primarySoftOf(context),
-            AppColors.accentSoftOf(context),
-          ],
+          colors: isDark
+              ? <Color>[
+                  Color.lerp(AppColors.primaryToneOf(context), Colors.black, 0.16)!,
+                  Color.lerp(
+                    AppColors.accentOf(context),
+                    AppColors.primaryToneOf(context),
+                    0.42,
+                  )!,
+                ]
+              : <Color>[
+                  AppColors.primarySoftOf(context),
+                  AppColors.accentSoftOf(context),
+                ],
         ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryToneOf(context).withValues(
+              alpha: isDark ? 0.18 : 0.12,
+            ),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1149,13 +1168,18 @@ class _ProfileHeroCard extends StatelessWidget {
             width: 74,
             height: 74,
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(22),
+              color: Theme.of(context).cardColor.withValues(alpha: isDark ? 0.20 : 0.9),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.14)
+                    : AppColors.borderOf(context),
+              ),
             ),
             child: Icon(
               Icons.person_rounded,
               size: 42,
-              color: AppColors.primaryToneOf(context),
+              color: isDark ? Colors.white : AppColors.primaryToneOf(context),
             ),
           ),
           const SizedBox(width: 14),
@@ -1165,7 +1189,8 @@ class _ProfileHeroCard extends StatelessWidget {
               children: <Widget>[
                 Text(
                   fullName,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        color: isDark ? Colors.white : null,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
@@ -1173,7 +1198,9 @@ class _ProfileHeroCard extends StatelessWidget {
                 Text(
                   phone,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.secondaryTextOf(context),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.84)
+                            : AppColors.secondaryTextOf(context),
                       ),
                 ),
                 const SizedBox(height: 10),
@@ -1200,6 +1227,7 @@ class _ProfileHeroCard extends StatelessWidget {
             onPressed: isLoadingProfile ? null : onRefresh,
             icon: const Icon(Icons.refresh_rounded),
             tooltip: refreshTooltip,
+            color: isDark ? Colors.white : null,
           ),
         ],
       ),
@@ -1220,23 +1248,34 @@ class _HeroActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(16),
+          color: Theme.of(context).cardColor.withValues(alpha: isDark ? 0.20 : 0.9),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.14)
+                : AppColors.borderOf(context),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, size: 16, color: AppColors.primaryToneOf(context)),
+            Icon(
+              icon,
+              size: 16,
+              color: isDark ? Colors.white : AppColors.primaryToneOf(context),
+            ),
             const SizedBox(width: 6),
             Text(
               label,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: isDark ? Colors.white : null,
                     fontWeight: FontWeight.w700,
                   ),
             ),
@@ -1583,20 +1622,21 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Container(
-              width: 42,
-              height: 42,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: AppColors.primarySoftOf(context),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.borderOf(context)),
               ),
               child: Icon(icon, color: AppColors.primaryToneOf(context)),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               value,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -1635,17 +1675,18 @@ class _MenuTile extends StatelessWidget {
     return Card(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Row(
             children: <Widget>[
               Container(
-                width: 46,
-                height: 46,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
                   color: AppColors.primarySoftOf(context),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.borderOf(context)),
                 ),
                 child: Icon(icon, color: AppColors.primaryToneOf(context)),
               ),

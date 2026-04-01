@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\UstaTop\SmsVerificationService;
 use App\Support\UstaTop\UstaTopRepository;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -11,6 +12,7 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly UstaTopRepository $repository,
+        private readonly SmsVerificationService $smsVerificationService,
     ) {
     }
 
@@ -58,6 +60,35 @@ class AuthController extends Controller
         }
     }
 
+    public function sendRegisterCode(Request $request)
+    {
+        try {
+            return response()->json([
+                'data' => $this->smsVerificationService->sendRegistrationCode(
+                    trim((string) $request->input('phone'))
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function verifyRegisterCode(Request $request)
+    {
+        try {
+            return response()->json([
+                'data' => $this->smsVerificationService->verifyRegistrationCode(
+                    trim((string) $request->input('fullName')),
+                    trim((string) $request->input('phone')),
+                    (string) $request->input('password'),
+                    trim((string) $request->input('code'))
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
     public function me(Request $request)
     {
         $user = $this->userFromRequest($request);
@@ -74,6 +105,34 @@ class AuthController extends Controller
             $this->repository->resetPassword(
                 trim((string) $request->input('phone')),
                 (string) $request->input('newPassword')
+            );
+
+            return response()->json(['data' => ['ok' => true]]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function sendPasswordResetCode(Request $request)
+    {
+        try {
+            return response()->json([
+                'data' => $this->smsVerificationService->sendPasswordResetCode(
+                    trim((string) $request->input('phone'))
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function verifyPasswordResetCode(Request $request)
+    {
+        try {
+            $this->smsVerificationService->verifyPasswordResetCode(
+                trim((string) $request->input('phone')),
+                (string) $request->input('newPassword'),
+                trim((string) $request->input('code'))
             );
 
             return response()->json(['data' => ['ok' => true]]);

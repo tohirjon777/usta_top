@@ -10,7 +10,11 @@ Route::get('/health', HealthController::class);
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/register/send-code', [AuthController::class, 'sendRegisterCode']);
+Route::post('/auth/register/verify-code', [AuthController::class, 'verifyRegisterCode']);
 Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/password/send-code', [AuthController::class, 'sendPasswordResetCode']);
+Route::post('/auth/password/verify-code', [AuthController::class, 'verifyPasswordResetCode']);
 Route::post('/auth/push-token', [AuthController::class, 'registerPushToken']);
 Route::post('/auth/push-token/remove', [AuthController::class, 'unregisterPushToken']);
 Route::post('/auth/push-token/test', [AuthController::class, 'sendTestPush']);

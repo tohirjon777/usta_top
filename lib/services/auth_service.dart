@@ -71,6 +71,33 @@ class AuthSession {
   final DateTime? expiresAt;
 }
 
+class AuthOtpChallenge {
+  const AuthOtpChallenge({
+    required this.expiresAt,
+    required this.resendAvailableAt,
+    required this.channel,
+    this.debugCode,
+  });
+
+  final DateTime? expiresAt;
+  final DateTime? resendAvailableAt;
+  final String channel;
+  final String? debugCode;
+
+  factory AuthOtpChallenge.fromJson(Map<String, dynamic> json) {
+    return AuthOtpChallenge(
+      expiresAt: DateTime.tryParse((json['expiresAt'] ?? '').toString()),
+      resendAvailableAt: DateTime.tryParse(
+        (json['resendAvailableAt'] ?? '').toString(),
+      ),
+      channel: (json['channel'] ?? 'sms').toString(),
+      debugCode: (json['debugCode'] ?? '').toString().trim().isEmpty
+          ? null
+          : (json['debugCode'] ?? '').toString(),
+    );
+  }
+}
+
 class AuthException implements Exception {
   const AuthException(this.message, {this.statusCode});
 
@@ -93,9 +120,30 @@ abstract interface class AuthService {
     required String password,
   });
 
+  Future<AuthOtpChallenge> sendSignUpCode({
+    required String phone,
+  });
+
+  Future<AuthSession> verifySignUpCode({
+    required String fullName,
+    required String phone,
+    required String password,
+    required String code,
+  });
+
   Future<void> resetPassword({
     required String phone,
     required String newPassword,
+  });
+
+  Future<AuthOtpChallenge> sendPasswordResetCode({
+    required String phone,
+  });
+
+  Future<void> verifyPasswordResetCode({
+    required String phone,
+    required String newPassword,
+    required String code,
   });
 
   Future<AuthUser> getCurrentUser({

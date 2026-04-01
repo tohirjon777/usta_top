@@ -53,8 +53,8 @@ mumkin:
 ```
 
 Bu script backendni ko'taradi, health'ni kutadi, keyin appni backend bilan
-`flutter run` orqali ishga tushiradi. Admin panel `http://127.0.0.1:8080/admin/login`
-va owner panel `http://127.0.0.1:8080/owner/login` da ochiladi.
+`flutter run` orqali ishga tushiradi. Customer website `http://127.0.0.1:8080/`
+da ochiladi.
 
 Backend service hozir lokal tarmoqdan ham ochiladi. Shu sabab bir tarmoqdagi
 telefon brauzerida yoki ilovada quyidagi manzil ishlaydi:
@@ -93,9 +93,10 @@ Telefonni USBsiz ishlatish uchun tayyor APK ham yig'ish mumkin:
 Bu script joriy lokal IP bilan APK yig'adi va uni `~/Downloads/UstaTop-phone-debug.apk`
  sifatida tayyorlaydi.
 
-Telegram bot yoqilgan bo'lsa, owner panel ichidan `API  keyni yaratish`
-orqali ustaxona profilini o'z Telegram chatiga ulash mumkin.
-Token Laravel backend uchun [backend_laravel/.env.local](/Users/tokhiriy/Downloads/mobile_apps/usta_top/backend_laravel/.env.local)
+Telegram bot yoqilgan bo'lsa, ustaxona Telegram sozlamalari runtime ma'lumotda
+saqlanadi va yangi zakaz/status xabarlari yuboriladi.
+Tokenlar Laravel backend uchun
+[secrets/local.env](/Users/tokhiriy/Downloads/mobile_apps/usta_top/backend_laravel/secrets/local.env)
 ichiga yoziladi.
 
 Backendni terminalsiz avtomatik ishlatish uchun:
@@ -104,6 +105,9 @@ Backendni terminalsiz avtomatik ishlatish uchun:
 ./backend_service.sh install
 ./backend_service.sh status
 ./backend_service.sh logs
+./backend_service.sh backup
+./backend_service.sh backups
+./backend_service.sh restore <backup_path>
 ```
 
 Bu service macOS `launchd` orqali ishlaydi va login qilganingizda o'zi
@@ -129,8 +133,15 @@ php artisan key:generate
 php artisan serve --host=127.0.0.1 --port=8080
 ```
 
-Laravel backend endi o'z ma'lumotlarini `backend_laravel/data` ichidan oladi.
-App, service va dev oqimi to'liq Laravel backendga ulangan.
+Laravel backend endi lokal `SQLite` bazada ishlaydi:
+- DB fayl: `backend_laravel/storage/app/ustatop/ustatop.sqlite`
+- mavjud `backend_laravel/data` JSON fayllari bir martalik seed/import manbasi sifatida ishlatiladi
+
+App, service va dev oqimi to'liq Laravel backendga ulangan va keyingi yozuvlar
+shu SQLite bazaga saqlanadi.
+
+Mac service ishlayotgan bo'lsa backup fayllar shu yerga tushadi:
+- `~/Library/Application Support/UstaTopBackend/backups`
 
 Batafsil Laravel backend izohi:
 

@@ -1,8 +1,12 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:yandex_mapkit/yandex_mapkit.dart';
 
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
@@ -30,15 +34,37 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  static const LatLng _tashkentCenter = LatLng(41.3111, 69.2797);
+  static const Point _tashkentCenter = Point(latitude: 41.3111, longitude: 69.2797);
   static const double _initialMapZoom = 12.4;
+  static const double _selectedSalonZoom = 14.2;
+  static const double _userLocationZoom = 14.8;
   static const double _zoomStep = 1;
+  static const double _minMapZoom = 3;
+  static const double _maxMapZoom = 18.5;
 
-  final MapController _mapController = MapController();
-  LatLng? _userLocation;
+  final Set<Factory<OneSequenceGestureRecognizer>> _gestureRecognizers =
+      <Factory<OneSequenceGestureRecognizer>>{
+    Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+  };
+
+  YandexMapController? _mapController;
+  Point? _userLocation;
   bool _isLocating = false;
   _MapDiscoveryFilter _activeFilter = _MapDiscoveryFilter.all;
   String? _selectedSalonId;
+  double _currentZoom = _initialMapZoom;
+  Brightness? _markerBrightness;
+  BitmapDescriptor? _openMarkerIcon;
+  BitmapDescriptor? _closedMarkerIcon;
+  BitmapDescriptor? _selectedOpenMarkerIcon;
+  BitmapDescriptor? _selectedClosedMarkerIcon;
+  BitmapDescriptor? _userMarkerIcon;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureMarkerIcons();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,14 +102,17 @@ class _MapScreenState extends State<MapScreen> {
               (double sum, Salon salon) => sum + salon.rating,
             ) /
             salonsWithCoords.length;
-    final LatLng center = _userLocation ??
+    final Point center = _userLocation ??
         (selectedSalon != null
-            ? LatLng(selectedSalon.latitude!, selectedSalon.longitude!)
+            ? Point(
+                latitude: selectedSalon.latitude!,
+                longitude: selectedSalon.longitude!,
+              )
             : (salonsWithCoords.isEmpty
                 ? _tashkentCenter
-                : LatLng(
-                    salonsWithCoords.first.latitude!,
-                    salonsWithCoords.first.longitude!,
+                : Point(
+                    latitude: salonsWithCoords.first.latitude!,
+                    longitude: salonsWithCoords.first.longitude!,
                   )));
 
     return SafeArea(
@@ -141,48 +170,29 @@ class _MapScreenState extends State<MapScreen> {
                       borderRadius: BorderRadius.circular(24),
                       child: Stack(
                         children: <Widget>[
-                          FlutterMap(
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter: center,
-                              initialZoom: _initialMapZoom,
-                              onTap: (_, __) => _clearSelectedSalon(),
-                            ),
-                            children: <Widget>[
-                              TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'uz.tokhirjon.usta_top',
-                              ),
-                              MarkerLayer(
-                                markers: <Marker>[
-                                  ...filteredSalons.map(
-                                    (Salon salon) => Marker(
-                                      point:
-                                          LatLng(salon.latitude!, salon.longitude!),
-                                      width:
-                                          salon.id == selectedSalon?.id ? 132 : 58,
-                                      height:
-                                          salon.id == selectedSalon?.id ? 92 : 58,
-                                      child: _MapPin(
-                                        label: salon.name,
-                                        isOpen: salon.isOpen,
-                                        isSelected:
-                                            salon.id == selectedSalon?.id,
-                                        onTap: () => _focusSalon(salon),
-                                      ),
-                                    ),
-                                  ),
-                                  if (_userLocation != null)
-                                    Marker(
-                                      point: _userLocation!,
-                                      width: 30,
-                                      height: 30,
-                                      child: const _UserLocationDot(),
-                                    ),
-                                ],
-                              ),
-                            ],
+                          YandexMap(
+                            gestureRecognizers: _gestureRecognizers,
+                            fastTapEnabled: true,
+                            nightModeEnabled:
+                                Theme.of(context).brightness == Brightness.dark,
+                            mapObjects:
+                                _buildMapObjects(context, filteredSalons, selectedSalon),
+                            onMapCreated: (YandexMapController controller) async {
+                              _mapController = controller;
+                              await _moveCamera(
+                                center,
+                                zoom: _currentZoom,
+                                animated: false,
+                              );
+                            },
+                            onMapTap: (_) => _clearSelectedSalon(),
+                            onCameraPositionChanged: (
+                              CameraPosition position,
+                              CameraUpdateReason _,
+                              bool __,
+                            ) {
+                              _currentZoom = position.zoom;
+                            },
                           ),
                           Positioned.fill(
                             child: IgnorePointer(
@@ -316,7 +326,12 @@ class _MapScreenState extends State<MapScreen> {
                                             NavigationLauncher.showNavigatorPicker(
                                           context,
                                           salon: selectedSalon,
-                                          origin: _userLocation,
+                                          origin: _userLocation == null
+                                              ? null
+                                              : LatLng(
+                                                  _userLocation!.latitude,
+                                                  _userLocation!.longitude,
+                                                ),
                                         ),
                                         onOpen: () {
                                           _clearSelectedSalon();
@@ -371,6 +386,87 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  List<MapObject> _buildMapObjects(
+    BuildContext context,
+    List<Salon> salons,
+    Salon? selectedSalon,
+  ) {
+    final List<MapObject> objects = <MapObject>[];
+    final Color textColor = AppColors.textOf(context);
+    final Color outlineColor = Theme.of(context).scaffoldBackgroundColor;
+
+    for (final Salon salon in salons) {
+      final bool isSelected = salon.id == selectedSalon?.id;
+      final BitmapDescriptor? icon = switch ((salon.isOpen, isSelected)) {
+        (true, true) => _selectedOpenMarkerIcon,
+        (false, true) => _selectedClosedMarkerIcon,
+        (true, false) => _openMarkerIcon,
+        (false, false) => _closedMarkerIcon,
+      };
+
+      if (icon == null) {
+        continue;
+      }
+
+      objects.add(
+        PlacemarkMapObject(
+          mapId: MapObjectId('salon_${salon.id}'),
+          point: Point(latitude: salon.latitude!, longitude: salon.longitude!),
+          zIndex: isSelected ? 30 : 10,
+          consumeTapEvents: true,
+          opacity: 1,
+          icon: PlacemarkIcon.single(
+            PlacemarkIconStyle(
+              image: icon,
+              anchor: const Offset(0.5, 0.5),
+            ),
+          ),
+          text: isSelected
+              ? PlacemarkText(
+                  text: _markerLabel(salon.name),
+                  style: PlacemarkTextStyle(
+                    placement: TextStylePlacement.top,
+                    offset: 1.6,
+                    size: 13,
+                    color: textColor,
+                    outlineColor: outlineColor,
+                  ),
+                )
+              : null,
+          onTap: (_, __) => _focusSalon(salon),
+        ),
+      );
+    }
+
+    if (_userLocation != null && _userMarkerIcon != null) {
+      objects.add(
+        PlacemarkMapObject(
+          mapId: const MapObjectId('user_location'),
+          point: _userLocation!,
+          zIndex: 50,
+          consumeTapEvents: false,
+          opacity: 1,
+          icon: PlacemarkIcon.single(
+            PlacemarkIconStyle(
+              image: _userMarkerIcon!,
+              anchor: const Offset(0.5, 0.5),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return objects;
+  }
+
+  String _markerLabel(String value) {
+    const int maxLength = 18;
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return '${value.substring(0, maxLength - 1)}…';
+  }
+
   List<Salon> _applyFilter(List<Salon> salons) {
     switch (_activeFilter) {
       case _MapDiscoveryFilter.all:
@@ -415,13 +511,16 @@ class _MapScreenState extends State<MapScreen> {
       _clearSelectedSalon();
       return;
     }
-    final LatLng point = LatLng(salon.latitude!, salon.longitude!);
+    final Point point = Point(
+      latitude: salon.latitude!,
+      longitude: salon.longitude!,
+    );
     setState(() {
       _selectedSalonId = salon.id;
     });
     final double nextZoom =
-        _mapController.camera.zoom < 14.2 ? 14.2 : _mapController.camera.zoom;
-    _mapController.move(point, nextZoom);
+        _currentZoom < _selectedSalonZoom ? _selectedSalonZoom : _currentZoom;
+    _moveCamera(point, zoom: nextZoom);
   }
 
   void _clearSelectedSalon() {
@@ -460,7 +559,10 @@ class _MapScreenState extends State<MapScreen> {
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.best),
       );
-      final LatLng point = LatLng(position.latitude, position.longitude);
+      final Point point = Point(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
 
       if (!mounted) {
         return;
@@ -469,7 +571,7 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _userLocation = point;
       });
-      _mapController.move(point, 14.8);
+      await _moveCamera(point, zoom: _userLocationZoom);
     } catch (_) {
       _showMessage(l10n.mapLocationError);
     } finally {
@@ -485,13 +587,148 @@ class _MapScreenState extends State<MapScreen> {
 
   void _zoomOut() => _changeZoom(-_zoomStep);
 
-  void _changeZoom(double delta) {
-    final MapCamera camera = _mapController.camera;
-    final double nextZoom = camera.clampZoom(camera.zoom + delta);
-    if (nextZoom == camera.zoom) {
+  Future<void> _changeZoom(double delta) async {
+    final YandexMapController? controller = _mapController;
+    if (controller == null) {
       return;
     }
-    _mapController.move(camera.center, nextZoom);
+    final double nextZoom = (_currentZoom + delta).clamp(_minMapZoom, _maxMapZoom);
+    if ((nextZoom - _currentZoom).abs() < 0.001) {
+      return;
+    }
+    _currentZoom = nextZoom;
+    await controller.moveCamera(
+      CameraUpdate.zoomTo(nextZoom),
+      animation: const MapAnimation(
+        type: MapAnimationType.smooth,
+        duration: 0.22,
+      ),
+    );
+  }
+
+  Future<void> _moveCamera(
+    Point target, {
+    required double zoom,
+    bool animated = true,
+  }) async {
+    final YandexMapController? controller = _mapController;
+    if (controller == null) {
+      return;
+    }
+    final double nextZoom = zoom.clamp(_minMapZoom, _maxMapZoom);
+    _currentZoom = nextZoom;
+    await controller.moveCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: target, zoom: nextZoom),
+      ),
+      animation: animated
+          ? const MapAnimation(
+              type: MapAnimationType.smooth,
+              duration: 0.28,
+            )
+          : null,
+    );
+  }
+
+  Future<void> _ensureMarkerIcons() async {
+    final Brightness brightness = Theme.of(context).brightness;
+    if (_markerBrightness == brightness &&
+        _openMarkerIcon != null &&
+        _closedMarkerIcon != null &&
+        _selectedOpenMarkerIcon != null &&
+        _selectedClosedMarkerIcon != null &&
+        _userMarkerIcon != null) {
+      return;
+    }
+
+    final Color openColor = AppColors.primaryToneOf(context);
+    final Color closedColor = AppColors.warning;
+    final Color userColor = AppColors.accentOf(context);
+
+    final BitmapDescriptor openMarkerIcon = BitmapDescriptor.fromBytes(
+      await _buildMarkerBytes(fillColor: openColor),
+    );
+    final BitmapDescriptor closedMarkerIcon = BitmapDescriptor.fromBytes(
+      await _buildMarkerBytes(fillColor: closedColor),
+    );
+    final BitmapDescriptor selectedOpenMarkerIcon = BitmapDescriptor.fromBytes(
+      await _buildMarkerBytes(fillColor: openColor, selected: true),
+    );
+    final BitmapDescriptor selectedClosedMarkerIcon = BitmapDescriptor.fromBytes(
+      await _buildMarkerBytes(fillColor: closedColor, selected: true),
+    );
+    final BitmapDescriptor userMarkerIcon = BitmapDescriptor.fromBytes(
+      await _buildUserMarkerBytes(fillColor: userColor),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _markerBrightness = brightness;
+      _openMarkerIcon = openMarkerIcon;
+      _closedMarkerIcon = closedMarkerIcon;
+      _selectedOpenMarkerIcon = selectedOpenMarkerIcon;
+      _selectedClosedMarkerIcon = selectedClosedMarkerIcon;
+      _userMarkerIcon = userMarkerIcon;
+    });
+  }
+
+  Future<Uint8List> _buildMarkerBytes({
+    required Color fillColor,
+    bool selected = false,
+  }) async {
+    final double size = selected ? 78 : 62;
+    final ui.PictureRecorder recorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(recorder);
+    final Offset center = Offset(size / 2, size / 2);
+    final Paint shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: selected ? 0.22 : 0.16)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 10);
+    final Paint outerPaint = Paint()..color = Colors.white;
+    final Paint innerPaint = Paint()..color = fillColor;
+    final Paint corePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.95);
+
+    canvas.drawCircle(
+      Offset(center.dx, center.dy + 3),
+      selected ? 22 : 18,
+      shadowPaint,
+    );
+    canvas.drawCircle(center, selected ? 22 : 18, outerPaint);
+    canvas.drawCircle(center, selected ? 17 : 14, innerPaint);
+    canvas.drawCircle(center, selected ? 5.2 : 4.4, corePaint);
+
+    final ui.Image image = await recorder
+        .endRecording()
+        .toImage(size.toInt(), size.toInt());
+    final ByteData? byteData =
+        await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _buildUserMarkerBytes({
+    required Color fillColor,
+  }) async {
+    const double size = 54;
+    final ui.PictureRecorder recorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(recorder);
+    const Offset center = Offset(size / 2, size / 2);
+    final Paint outerPaint = Paint()..color = Colors.white;
+    final Paint ringPaint = Paint()..color = fillColor.withValues(alpha: 0.28);
+    final Paint innerPaint = Paint()..color = fillColor;
+
+    canvas.drawCircle(center, 16, ringPaint);
+    canvas.drawCircle(center, 11, outerPaint);
+    canvas.drawCircle(center, 7, innerPaint);
+
+    final ui.Image image = await recorder
+        .endRecording()
+        .toImage(size.toInt(), size.toInt());
+    final ByteData? byteData =
+        await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   void _showMessage(String message) {
@@ -519,18 +756,37 @@ class _MapDiscoveryHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(26),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            AppColors.primarySoftOf(context),
-            AppColors.accentSoftOf(context),
-          ],
+          colors: isDark
+              ? <Color>[
+                  Color.lerp(AppColors.primaryToneOf(context), Colors.black, 0.18)!,
+                  Color.lerp(
+                    AppColors.accentOf(context),
+                    AppColors.primaryToneOf(context),
+                    0.40,
+                  )!,
+                ]
+              : <Color>[
+                  AppColors.primarySoftOf(context),
+                  AppColors.accentSoftOf(context),
+                ],
         ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryToneOf(context).withValues(
+              alpha: isDark ? 0.18 : 0.12,
+            ),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -596,10 +852,10 @@ class _MapMetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Column(
@@ -653,8 +909,8 @@ class _MapFilterChip extends StatelessWidget {
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
           ),
       side: BorderSide(color: AppColors.borderOf(context)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
     );
   }
 }
@@ -671,11 +927,18 @@ class _MapTopInfoBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.borderOf(context)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,16 +980,16 @@ class _SelectedWorkshopCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.borderOf(context)),
-        boxShadow: const <BoxShadow>[
+        boxShadow: <BoxShadow>[
           BoxShadow(
-            blurRadius: 18,
-            offset: Offset(0, 10),
-            color: Color(0x16000000),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.10),
           ),
         ],
       ),
@@ -977,87 +1240,6 @@ class _MapFilterEmptyCard extends StatelessWidget {
   }
 }
 
-class _MapPin extends StatelessWidget {
-  const _MapPin({
-    required this.label,
-    required this.isOpen,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isOpen;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color fillColor =
-        isOpen ? AppColors.primaryToneOf(context) : AppColors.warning;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        if (isSelected)
-          IgnorePointer(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 120),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor.withValues(alpha: 0.96),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.borderOf(context)),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    blurRadius: 12,
-                    offset: Offset(0, 6),
-                    color: Color(0x1A000000),
-                  ),
-                ],
-              ),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ),
-          ),
-        if (isSelected) const SizedBox(height: 6),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: isSelected ? 46 : 38,
-            height: isSelected ? 46 : 38,
-            decoration: BoxDecoration(
-              color: fillColor,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white,
-                width: isSelected ? 3 : 2.2,
-              ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  blurRadius: isSelected ? 18 : 10,
-                  offset: const Offset(0, 4),
-                  color:
-                      Colors.black.withValues(alpha: isSelected ? 0.26 : 0.2),
-                ),
-              ],
-            ),
-            child:
-                const Icon(Icons.build_rounded, color: Colors.white, size: 20),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _MapActionButton extends StatelessWidget {
   const _MapActionButton({
     required this.tooltip,
@@ -1073,11 +1255,24 @@ class _MapActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: IconButton(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        icon: child,
+      borderRadius: BorderRadius.circular(18),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderOf(context)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: IconButton(
+          onPressed: onPressed,
+          tooltip: tooltip,
+          icon: child,
+        ),
       ),
     );
   }
@@ -1103,7 +1298,7 @@ class _MapZoomControls extends StatelessWidget {
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1129,21 +1324,6 @@ class _MapZoomControls extends StatelessWidget {
   }
 }
 
-class _UserLocationDot extends StatelessWidget {
-  const _UserLocationDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.primaryToneOf(context),
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-    );
-  }
-}
-
 class _MapSalonPreviewCard extends StatelessWidget {
   const _MapSalonPreviewCard({
     required this.salon,
@@ -1161,7 +1341,7 @@ class _MapSalonPreviewCard extends StatelessWidget {
       width: 260,
       child: Card(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           side: BorderSide(
             color: isSelected
                 ? AppColors.primaryToneOf(context)
@@ -1170,9 +1350,9 @@ class _MapSalonPreviewCard extends StatelessWidget {
         ),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[

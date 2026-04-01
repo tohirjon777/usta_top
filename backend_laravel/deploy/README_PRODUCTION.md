@@ -6,7 +6,7 @@ Nega:
 - public URL o'zgarmaydi
 - telefon internet orqali doim ulanadi
 - Mac yoqilib turishi shart emas
-- workshop rasmlari, bookinglar va JSON data bir joyda saqlanadi
+- workshop rasmlari, bookinglar va lokal SQLite data bir joyda saqlanadi
 
 Tavsiya etilgan arxitektura:
 - 1 ta Ubuntu VPS
@@ -17,7 +17,8 @@ Tavsiya etilgan arxitektura:
 - bitta persistent disk yoki serverning o'z local diskida ma'lumotlar
 
 Muhim:
-- backend hozir JSON fayllar bilan ishlaydi
+- backend hozir lokal SQLite bilan ishlaydi
+- boshlang'ich seed/import manbasi sifatida JSON fayllar ishlatiladi
 - shu sabab eng barqaror variant: bitta server
 - multi-instance autoscaling hozircha tavsiya qilinmaydi
 
@@ -25,6 +26,7 @@ Muhim:
 
 - Kod: `/var/www/ustatop/backend_laravel`
 - Data: `/var/lib/ustatop/data`
+- SQLite DB: `/var/lib/ustatop/storage/ustatop.sqlite`
 - Workshop rasmlar: `/var/lib/ustatop/workshop-images`
 - Auth session storage: `/var/lib/ustatop/storage/auth_sessions.json`
 - Telegram sync state: `/var/lib/ustatop/storage/telegram_sync_state.json`
@@ -55,6 +57,10 @@ So'ng `.env` ichida:
 - `APP_ENV=production`
 - `APP_DEBUG=false`
 - `APP_URL=https://api.sizning-domain.uz`
+- `DB_CONNECTION=sqlite`
+- `DB_DATABASE=/var/lib/ustatop/storage/ustatop.sqlite`
+- `USTATOP_STORAGE_DRIVER=sqlite`
+- `USTATOP_SQLITE_FILE=/var/lib/ustatop/storage/ustatop.sqlite`
 - `USTATOP_DATA_DIR=/var/lib/ustatop/data`
 - `USTATOP_USERS_FILE=/var/lib/ustatop/data/users.json`
 - `USTATOP_WORKSHOPS_FILE=/var/lib/ustatop/data/workshops.json`
@@ -72,6 +78,8 @@ So'ng `.env` ichida:
 Keyin:
 
 ```bash
+php artisan ustatop:bootstrap-storage
+php artisan migrate --force
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
@@ -131,4 +139,3 @@ https://api.sizning-domain.uz
 ```
 
 Tunnel kerak bo'lmaydi.
-

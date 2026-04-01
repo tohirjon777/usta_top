@@ -122,8 +122,9 @@ class UstaTopRepository
     public function createUser(string $fullName, string $phone, string $password): array
     {
         $normalizedPhone = trim($phone);
+        $phoneKey = $this->normalizePhoneKey($normalizedPhone);
         foreach ($this->users() as $user) {
-            if (($user['phone'] ?? '') === $normalizedPhone) {
+            if ($this->normalizePhoneKey((string) ($user['phone'] ?? '')) === $phoneKey) {
                 throw new RuntimeException('Bu telefon raqam bilan akkaunt allaqachon mavjud');
             }
         }
@@ -147,8 +148,12 @@ class UstaTopRepository
 
     public function login(string $phone, string $password): ?array
     {
+        $phoneKey = $this->normalizePhoneKey($phone);
         foreach ($this->users() as $user) {
-            if (($user['phone'] ?? '') !== trim($phone) || ($user['password'] ?? '') !== $password) {
+            if (
+                $this->normalizePhoneKey((string) ($user['phone'] ?? '')) !== $phoneKey
+                || ($user['password'] ?? '') !== $password
+            ) {
                 continue;
             }
 
@@ -172,9 +177,10 @@ class UstaTopRepository
 
     public function resetPassword(string $phone, string $newPassword): void
     {
+        $phoneKey = $this->normalizePhoneKey($phone);
         $users = $this->users();
         foreach ($users as $index => $user) {
-            if (($user['phone'] ?? '') !== trim($phone)) {
+            if ($this->normalizePhoneKey((string) ($user['phone'] ?? '')) !== $phoneKey) {
                 continue;
             }
 
@@ -192,13 +198,14 @@ class UstaTopRepository
     {
         $users = $this->users();
         $normalizedPhone = trim($phone);
+        $phoneKey = $this->normalizePhoneKey($normalizedPhone);
 
         foreach ($users as $user) {
             if (($user['id'] ?? '') === $userId) {
                 continue;
             }
 
-            if (($user['phone'] ?? '') === $normalizedPhone) {
+            if ($this->normalizePhoneKey((string) ($user['phone'] ?? '')) === $phoneKey) {
                 throw new RuntimeException('Bu telefon raqam boshqa akkauntga biriktirilgan');
             }
         }
@@ -216,6 +223,19 @@ class UstaTopRepository
         }
 
         throw new RuntimeException('Foydalanuvchi topilmadi');
+    }
+
+    public function hasUserWithPhone(string $phone): bool
+    {
+        $phoneKey = $this->normalizePhoneKey($phone);
+
+        foreach ($this->users() as $user) {
+            if ($this->normalizePhoneKey((string) ($user['phone'] ?? '')) === $phoneKey) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function addPaymentCard(string $userId, array $payload): array
@@ -1930,6 +1950,11 @@ class UstaTopRepository
         ));
 
         $this->saveAuthSessions($sessions);
+    }
+
+    private function normalizePhoneKey(string $phone): string
+    {
+        return preg_replace('/\s+/', '', trim($phone)) ?? '';
     }
 
     private function dayTime(CarbonImmutable $day, string $time): CarbonImmutable

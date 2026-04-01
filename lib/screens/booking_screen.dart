@@ -247,12 +247,19 @@ class _BookingScreenState extends State<BookingScreen> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            border: Border(
-              top: BorderSide(color: AppColors.borderOf(context)),
-            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.borderOf(context)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Row(
             children: <Widget>[
@@ -1432,6 +1439,7 @@ class _BookingHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
@@ -1439,10 +1447,27 @@ class _BookingHeroCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            AppColors.primarySoftOf(context),
-            AppColors.accentSoftOf(context),
+            if (isDark)
+              Color.lerp(AppColors.primaryToneOf(context), Colors.black, 0.14)!,
+            if (isDark)
+              Color.lerp(
+                AppColors.accentOf(context),
+                AppColors.primaryToneOf(context),
+                0.38,
+              )!,
+            if (!isDark) AppColors.primarySoftOf(context),
+            if (!isDark) AppColors.accentSoftOf(context),
           ],
         ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryToneOf(context).withValues(
+              alpha: isDark ? 0.18 : 0.14,
+            ),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -1457,6 +1482,9 @@ class _BookingHeroCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Theme.of(context).cardColor.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor.withValues(alpha: 0.7),
+                    ),
                   ),
                   child: Icon(
                     Icons.event_available_outlined,
@@ -1526,17 +1554,30 @@ class _BookingSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryToneOf(context),
+                    borderRadius: BorderRadius.circular(999),
                   ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             child,
           ],
         ),
@@ -1557,10 +1598,11 @@ class _BookingTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1592,7 +1634,7 @@ class _AvailabilityMessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

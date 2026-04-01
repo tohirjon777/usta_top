@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/config/app_assets.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../models/salon.dart';
@@ -66,13 +67,7 @@ class NavigationLauncher {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Card(
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              AppColors.primarySoftOf(sheetContext),
-                          foregroundColor:
-                              AppColors.primaryToneOf(sheetContext),
-                          child: Icon(option.icon),
-                        ),
+                        leading: _NavigationOptionIcon(option: option),
                         title: Text(option.label),
                         trailing: const Icon(Icons.open_in_new_rounded),
                         onTap: () async {
@@ -107,9 +102,8 @@ class NavigationLauncher {
     final String? from = origin == null
         ? null
         : '${origin.latitude.toStringAsFixed(6)},${origin.longitude.toStringAsFixed(6)}';
-    final bool useAppleMaps = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.iOS ||
-            defaultTargetPlatform == TargetPlatform.macOS);
+    final bool useAppleMaps =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     final bool useAndroidMaps =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
@@ -117,6 +111,7 @@ class NavigationLauncher {
       _NavigationCandidate(
         label: l10n.navigatorGoogleMaps,
         icon: Icons.map_outlined,
+        assetPath: AppAssets.googleMaps,
         appUri: useAndroidMaps
             ? Uri.parse('google.navigation:q=$destination&mode=d')
             : Uri.parse(
@@ -129,6 +124,7 @@ class NavigationLauncher {
       _NavigationCandidate(
         label: l10n.navigatorYandexNavigator,
         icon: Icons.navigation_outlined,
+        assetPath: AppAssets.yandexMaps,
         appUri: Uri.parse(
           'yandexnavi://build_route_on_map?lat_to=$latText&lon_to=$lonText',
         ),
@@ -136,6 +132,7 @@ class NavigationLauncher {
       _NavigationCandidate(
         label: l10n.navigatorYandexMaps,
         icon: Icons.location_on_outlined,
+        assetPath: AppAssets.yandexMaps,
         appUri: Uri.parse(
           from == null
               ? 'yandexmaps://maps.yandex.com/?rtext=~$destination&rtt=auto'
@@ -151,6 +148,7 @@ class NavigationLauncher {
         _NavigationCandidate(
           label: l10n.navigatorAppleMaps,
           icon: Icons.map_rounded,
+          assetPath: AppAssets.appleMaps,
           appUri: Uri.parse('http://maps.apple.com/?daddr=$destination&dirflg=d'),
         ),
       _NavigationCandidate(
@@ -199,6 +197,7 @@ class NavigationLauncher {
         _NavigationOption(
           label: candidate.label,
           icon: candidate.icon,
+          assetPath: candidate.assetPath,
           launchUri: launchUri,
         ),
       );
@@ -225,12 +224,14 @@ class _NavigationCandidate {
   const _NavigationCandidate({
     required this.label,
     required this.icon,
+    this.assetPath,
     this.appUri,
     this.fallbackUri,
   });
 
   final String label;
   final IconData icon;
+  final String? assetPath;
   final Uri? appUri;
   final Uri? fallbackUri;
 }
@@ -239,10 +240,43 @@ class _NavigationOption {
   const _NavigationOption({
     required this.label,
     required this.icon,
+    this.assetPath,
     required this.launchUri,
   });
 
   final String label;
   final IconData icon;
+  final String? assetPath;
   final Uri launchUri;
+}
+
+class _NavigationOptionIcon extends StatelessWidget {
+  const _NavigationOptionIcon({
+    required this.option,
+  });
+
+  final _NavigationOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? assetPath = option.assetPath;
+    return Container(
+      width: 42,
+      height: 42,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoftOf(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: assetPath == null
+          ? Icon(option.icon, color: AppColors.primaryToneOf(context))
+          : Image.asset(
+              assetPath,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) =>
+                  Icon(option.icon, color: AppColors.primaryToneOf(context)),
+            ),
+    );
+  }
 }

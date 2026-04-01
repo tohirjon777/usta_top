@@ -6,13 +6,15 @@ use Illuminate\Support\Facades\File;
 
 trait UsesIsolatedUstaTopData
 {
-    private string $ustatopTempDir;
+    protected string $ustatopTempDir;
+    protected string $ustatopSqlitePath;
 
     protected function setUpUstaTopData(): void
     {
         $this->ustatopTempDir = sys_get_temp_dir().'/ustatop-laravel-'.bin2hex(random_bytes(8));
         $dataDir = $this->ustatopTempDir.'/data';
         $storageDir = $this->ustatopTempDir.'/storage/app/ustatop';
+        $this->ustatopSqlitePath = $storageDir.'/ustatop.sqlite';
 
         File::ensureDirectoryExists($dataDir);
         File::ensureDirectoryExists($storageDir);
@@ -29,6 +31,8 @@ trait UsesIsolatedUstaTopData
         }
 
         config()->set('ustatop.data_dir', $dataDir);
+        config()->set('ustatop.storage_driver', 'sqlite');
+        config()->set('ustatop.sqlite_file', $this->ustatopSqlitePath);
         config()->set('ustatop.users_file', $dataDir.'/users.json');
         config()->set('ustatop.workshops_file', $dataDir.'/workshops.json');
         config()->set('ustatop.bookings_file', $dataDir.'/bookings.json');
@@ -36,6 +40,10 @@ trait UsesIsolatedUstaTopData
         config()->set('ustatop.booking_messages_file', $dataDir.'/booking_messages.json');
         config()->set('ustatop.workshop_locations_file', $dataDir.'/workshop_locations.json');
         config()->set('ustatop.auth_sessions_file', $storageDir.'/auth_sessions.json');
+        config()->set('ustatop.sms_verifications_file', $storageDir.'/sms_verifications.json');
+        config()->set('ustatop.telegram_sync_state_file', $storageDir.'/telegram_sync_state.json');
+        config()->set('database.default', 'sqlite');
+        config()->set('database.connections.sqlite.database', $this->ustatopSqlitePath);
     }
 
     protected function tearDownUstaTopData(): void

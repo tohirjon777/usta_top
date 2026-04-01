@@ -12,6 +12,7 @@ DATA_DIR="$RUNTIME_DIR/data"
 DATA_SEED_MARKER="$DATA_DIR/.seeded_from_project"
 ENV_FILE="$RUNTIME_DIR/.env.local"
 LOG_DIR="$SERVICE_ROOT/logs"
+BACKUP_DIR="$SERVICE_ROOT/backups"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/com.ustatop.backend.plist"
 LABEL="com.ustatop.backend"
@@ -29,6 +30,9 @@ Usage:
   ./backend_service.sh start
   ./backend_service.sh stop
   ./backend_service.sh restart
+  ./backend_service.sh backup [backup_path]
+  ./backend_service.sh backups
+  ./backend_service.sh restore <backup_path>
   ./backend_service.sh status
   ./backend_service.sh logs
   ./backend_service.sh uninstall
@@ -38,6 +42,9 @@ Commands:
   start      O'rnatilgan service'ni ishga tushiradi
   stop       Service'ni to'xtatadi
   restart    Service'ni qayta ishga tushiradi
+  backup     Runtime SQLite bazaning backup nusxasini oladi
+  backups    Olingan backup ro'yxatini ko'rsatadi
+  restore    Backup fayldan SQLite bazani tiklaydi
   status     Service holatini ko'rsatadi
   logs       Backend loglarini ko'rsatadi
   uninstall  Service'ni o'chiradi
@@ -69,7 +76,7 @@ ensure_env_file() {
 }
 
 sync_runtime() {
-  mkdir -p "$RUNTIME_DIR" "$LOG_DIR" "$RUNTIME_DIR/storage/app/ustatop" "$RUNTIME_DIR/storage/logs" "$DATA_DIR"
+  mkdir -p "$RUNTIME_DIR" "$LOG_DIR" "$BACKUP_DIR" "$RUNTIME_DIR/storage/app/ustatop" "$RUNTIME_DIR/storage/logs" "$DATA_DIR"
 
   rsync -a --delete \
     --exclude 'vendor/' \
@@ -91,6 +98,26 @@ sync_runtime() {
   if [[ -f "$PROJECT_ENV_FILE" ]]; then
     cp "$PROJECT_ENV_FILE" "$ENV_FILE"
   fi
+}
+
+resolve_backup_path() {
+  local raw_path="${1:-}"
+  if [[ -z "$raw_path" ]]; then
+    printf '\n'
+    return
+  fi
+
+  if [[ "$raw_path" == /* ]]; then
+    printf '%s\n' "$raw_path"
+    return
+  fi
+
+  if [[ -f "$BACKUP_DIR/$raw_path" ]]; then
+    printf '%s\n' "$BACKUP_DIR/$raw_path"
+    return
+  fi
+
+  printf '%s\n' "$ROOT_DIR/$raw_path"
 }
 
 write_plist() {
@@ -235,6 +262,54 @@ restart_service() {
   start_service
 }
 
+backup_service() {
+  ensure_env_file
+  sync_runtime
+
+  local requested_path="${1:-}"
+  local backup_path
+  if [[ -n "$requested_path" ]]; then
+    backup_path="$(resolve_backup_path "$requested_path")"
+  else
+    backup_path="$BACKUP_DIR/ustatop-backup-$(date +%Y%m%d-%H%M%S).sqlite"
+  fi
+
+  (
+    cd "$RUNTIME_DIR"
+    php artisan ustatop:backup-storage --path="$backup_path"
+  )
+}
+
+list_backups() {
+  mkdir -p "$BACKUP_DIR"
+  printf 'Backup dir: %s\n' "$BACKUP_DIR"
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.sqlite' -print | sort
+}
+
+restore_service() {
+  local requested_path="${1:-}"
+  if [[ -z "$requested_path" ]]; then
+    printf 'Backup fayl yo‘lini kiriting.\n' >&2
+    exit 1
+  fi
+
+  local backup_path
+  backup_path="$(resolve_backup_path "$requested_path")"
+  if [[ ! -f "$backup_path" ]]; then
+    printf 'Backup fayli topilmadi: %s\n' "$backup_path" >&2
+    exit 1
+  fi
+
+  ensure_env_file
+  sync_runtime
+  stop_service
+  (
+    cd "$RUNTIME_DIR"
+    php artisan ustatop:restore-storage "$backup_path" --force
+  )
+  start_service
+}
+
 show_status() {
   if is_loaded; then
     printf 'Service loaded: %s\n' "$LABEL"
@@ -246,11 +321,12 @@ show_status() {
 
   if wait_for_health 6 1; then
     printf 'Health: %s OK\n' "$HEALTH_URL"
+    printf 'Storage: SQLite (%s)\n' "$RUNTIME_DIR/storage/app/ustatop/ustatop.sqlite"
     local lan_ip=""
     lan_ip="$(detect_lan_ip || true)"
     if [[ -n "$lan_ip" ]]; then
       printf 'LAN: http://%s:%s/health\n' "$lan_ip" "$SERVICE_PORT"
-      printf 'Admin: http://%s:%s/admin/login\n' "$lan_ip" "$SERVICE_PORT"
+      printf 'Website: http://%s:%s/\n' "$lan_ip" "$SERVICE_PORT"
     fi
   else
     printf 'Health: backend javob bermayapti\n'
@@ -284,6 +360,15 @@ case "${1:-}" in
     ;;
   restart)
     restart_service
+    ;;
+  backup)
+    backup_service "${2:-}"
+    ;;
+  backups)
+    list_backups
+    ;;
+  restore)
+    restore_service "${2:-}"
     ;;
   status)
     show_status

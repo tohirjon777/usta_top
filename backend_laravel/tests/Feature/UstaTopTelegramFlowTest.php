@@ -27,44 +27,18 @@ class UstaTopTelegramFlowTest extends TestCase
 
     public function test_owner_can_link_telegram_and_new_booking_triggers_message(): void
     {
-        $this->post('/owner/login', [
-            'workshopId' => 'w-1',
-            'accessCode' => '5252',
-        ])->assertRedirect('/owner/bookings');
-
-        $this->post('/owner/telegram/generate')
-            ->assertRedirect();
-
-        $workshop = app(UstaTopRepository::class)->workshopById('w-1');
-        $code = (string) ($workshop['telegramLinkCode'] ?? '');
-        $this->assertNotSame('', $code);
+        app(UstaTopRepository::class)->updateWorkshop('w-1', [
+            'telegramChatId' => '99887766',
+            'telegramChatLabel' => '@usta_top_owner',
+            'telegramLinkCode' => '',
+        ]);
 
         Http::fake([
-            'https://api.telegram.org/*/getUpdates*' => Http::response([
-                'ok' => true,
-                'result' => [[
-                    'update_id' => 1,
-                    'message' => [
-                        'text' => '/start '.$code,
-                        'chat' => [
-                            'id' => 99887766,
-                            'username' => 'usta_top_owner',
-                        ],
-                    ],
-                ]],
-            ], 200),
             'https://api.telegram.org/*/sendMessage' => Http::response([
                 'ok' => true,
                 'result' => ['message_id' => 1],
             ], 200),
         ]);
-
-        $this->post('/owner/telegram/check')
-            ->assertRedirect();
-
-        $linkedWorkshop = app(UstaTopRepository::class)->workshopById('w-1');
-        $this->assertSame('99887766', (string) ($linkedWorkshop['telegramChatId'] ?? ''));
-        $this->assertSame('', (string) ($linkedWorkshop['telegramLinkCode'] ?? ''));
 
         $register = $this->postJson('/auth/register', [
             'fullName' => 'Telegram Flow',

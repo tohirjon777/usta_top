@@ -5,6 +5,7 @@ import '../core/config/app_assets.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
+import '../services/auth_service.dart';
 import '../ui/app_spacing.dart';
 import '../widgets/app_primary_button.dart';
 import '../widgets/app_reveal.dart';
@@ -385,8 +386,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
-
-    controller.dispose();
   }
 
   Future<void> _showRegistrationSheet() async {
@@ -396,6 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final TextEditingController passwordController = TextEditingController();
     final TextEditingController confirmPasswordController =
         TextEditingController();
+    final TextEditingController codeController = TextEditingController();
     final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     final BuildContext parentContext = context;
     final AuthProvider authProvider = parentContext.read<AuthProvider>();
@@ -404,6 +404,9 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isSaving = false;
     bool obscurePassword = true;
     bool obscureConfirmPassword = true;
+    bool isCodeStep = false;
+    String? lastRequestedPhone;
+    String? debugCode;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -412,7 +415,7 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            Future<void> submit() async {
+            Future<void> sendCode() async {
               if (isSaving || !(formKey.currentState?.validate() ?? false)) {
                 return;
               }
@@ -421,10 +424,60 @@ class _LoginScreenState extends State<LoginScreen> {
                 isSaving = true;
               });
 
-              final bool success = await authProvider.signUp(
+              final String phone = phoneController.text.trim();
+              final AuthOtpChallenge? challenge =
+                  await authProvider.requestSignUpCode(
+                phone: phone,
+              );
+              if (!mounted) {
+                return;
+              }
+
+              final String? providerError = authProvider.errorMessage;
+              if (challenge != null) {
+                setModalState(() {
+                  isCodeStep = true;
+                  isSaving = false;
+                  lastRequestedPhone = phone;
+                  debugCode = challenge.debugCode;
+                });
+                messenger.showSnackBar(
+                  SnackBar(content: Text(l10n.codeSentToPhone(phone))),
+                );
+                return;
+              }
+
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    (providerError?.trim().isNotEmpty ?? false)
+                        ? providerError!
+                        : l10n.codeSendFailed,
+                  ),
+                ),
+              );
+
+              if (context.mounted) {
+                setModalState(() {
+                  isSaving = false;
+                });
+              }
+            }
+
+            Future<void> verifyCode() async {
+              if (isSaving || !(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+
+              setModalState(() {
+                isSaving = true;
+              });
+
+              final bool success = await authProvider.verifySignUpCode(
                 fullName: fullNameController.text.trim(),
                 phone: phoneController.text.trim(),
                 password: passwordController.text,
+                code: codeController.text.trim(),
               );
               if (!mounted) {
                 return;
@@ -457,6 +510,14 @@ class _LoginScreenState extends State<LoginScreen> {
               }
             }
 
+            Future<void> submit() async {
+              if (isCodeStep) {
+                await verifyCode();
+                return;
+              }
+              await sendCode();
+            }
+
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -466,133 +527,215 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               child: Form(
                 key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      l10n.signUp,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    AppSpacing.h4,
-                    Text(
-                      l10n.signUpDescription,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: fullNameController,
-                      enabled: !isSaving,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(labelText: l10n.fullName),
-                      validator: (String? value) =>
-                          _validateFullName(value, l10n),
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: phoneController,
-                      enabled: !isSaving,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: l10n.phoneNumber,
-                        hintText: l10n.phoneHint,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        l10n.signUp,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      validator: (String? value) => _validatePhone(value, l10n),
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: passwordController,
-                      enabled: !isSaving,
-                      obscureText: obscurePassword,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: l10n.password,
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setModalState(() {
-                              obscurePassword = !obscurePassword;
-                            });
+                      AppSpacing.h4,
+                      Text(
+                        isCodeStep
+                            ? l10n.verificationStepSubtitle(
+                                lastRequestedPhone ?? phoneController.text.trim(),
+                              )
+                            : l10n.signUpDescription,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      AppSpacing.h12,
+                      if (!isCodeStep) ...<Widget>[
+                        TextFormField(
+                          controller: fullNameController,
+                          enabled: !isSaving,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(labelText: l10n.fullName),
+                          validator: (String? value) =>
+                              _validateFullName(value, l10n),
+                        ),
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: phoneController,
+                          enabled: !isSaving,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l10n.phoneNumber,
+                            hintText: l10n.phoneHint,
+                          ),
+                          validator: (String? value) =>
+                              _validatePhone(value, l10n),
+                        ),
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: passwordController,
+                          enabled: !isSaving,
+                          obscureText: obscurePassword,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l10n.password,
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setModalState(() {
+                                  obscurePassword = !obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                            ),
+                          ),
+                          validator: (String? value) => _validatePassword(
+                            value,
+                            l10n,
+                            requiredMessage: l10n.passwordRequired,
+                          ),
+                        ),
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: confirmPasswordController,
+                          enabled: !isSaving,
+                          obscureText: obscureConfirmPassword,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: l10n.confirmPassword,
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setModalState(() {
+                                  obscureConfirmPassword =
+                                      !obscureConfirmPassword;
+                                });
+                              },
+                              icon: Icon(
+                                obscureConfirmPassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                            ),
+                          ),
+                          validator: (String? value) {
+                            final String? base = _validatePassword(
+                              value,
+                              l10n,
+                              requiredMessage: l10n.confirmPasswordRequired,
+                            );
+                            if (base != null) {
+                              return base;
+                            }
+                            if ((value ?? '') != passwordController.text) {
+                              return l10n.passwordsDoNotMatch;
+                            }
+                            return null;
                           },
-                          icon: Icon(
-                            obscurePassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
+                          onFieldSubmitted: (_) => submit(),
+                        ),
+                      ] else ...<Widget>[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.chipBackgroundOf(context),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                l10n.verificationStepTitle,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              AppSpacing.h4,
+                              Text(
+                                l10n.codeSentToPhone(
+                                  lastRequestedPhone ??
+                                      phoneController.text.trim(),
+                                ),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              if (debugCode != null) ...<Widget>[
+                                AppSpacing.h8,
+                                Text(
+                                  l10n.otpDebugCode(debugCode!),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.primaryToneOf(context),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ),
-                      validator: (String? value) => _validatePassword(
-                        value,
-                        l10n,
-                        requiredMessage: l10n.passwordRequired,
-                      ),
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: confirmPasswordController,
-                      enabled: !isSaving,
-                      obscureText: obscureConfirmPassword,
-                      textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: l10n.confirmPassword,
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setModalState(() {
-                              obscureConfirmPassword = !obscureConfirmPassword;
-                            });
-                          },
-                          icon: Icon(
-                            obscureConfirmPassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: codeController,
+                          enabled: !isSaving,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: l10n.smsCode,
+                            hintText: '123456',
                           ),
-                        ),
-                      ),
-                      validator: (String? value) {
-                        final String? base = _validatePassword(
-                          value,
-                          l10n,
-                          requiredMessage: l10n.confirmPasswordRequired,
-                        );
-                        if (base != null) {
-                          return base;
-                        }
-                        if ((value ?? '') != passwordController.text) {
-                          return l10n.passwordsDoNotMatch;
-                        }
-                        return null;
-                      },
-                      onFieldSubmitted: (_) => submit(),
-                    ),
-                    AppSpacing.h16,
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: isSaving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: Text(l10n.cancel),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: isSaving ? null : submit,
-                            child: isSaving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(l10n.createAccount),
-                          ),
+                          validator: (String? value) =>
+                              _validateSmsCode(value, l10n),
+                          onFieldSubmitted: (_) => submit(),
                         ),
                       ],
-                    ),
-                  ],
+                      AppSpacing.h16,
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () {
+                                      if (isCodeStep) {
+                                        setModalState(() {
+                                          isCodeStep = false;
+                                          isSaving = false;
+                                          codeController.clear();
+                                        });
+                                        return;
+                                      }
+                                      Navigator.of(context).pop();
+                                    },
+                              child: Text(
+                                isCodeStep ? l10n.back : l10n.cancel,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: isSaving ? null : submit,
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      isCodeStep
+                                          ? l10n.verifyCode
+                                          : l10n.sendCode,
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -600,11 +743,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
-
-    fullNameController.dispose();
-    phoneController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
   }
 
   Future<void> _showForgotPasswordSheet() async {
@@ -614,6 +752,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final TextEditingController passwordController = TextEditingController();
     final TextEditingController confirmPasswordController =
         TextEditingController();
+    final TextEditingController codeController = TextEditingController();
     final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     final BuildContext parentContext = context;
     final AuthProvider authProvider = parentContext.read<AuthProvider>();
@@ -622,6 +761,9 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isSaving = false;
     bool obscurePassword = true;
     bool obscureConfirmPassword = true;
+    bool isCodeStep = false;
+    String? lastRequestedPhone;
+    String? debugCode;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -630,7 +772,56 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            Future<void> submit() async {
+            Future<void> sendCode() async {
+              if (isSaving || !(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+
+              setModalState(() {
+                isSaving = true;
+              });
+
+              final String phone = phoneController.text.trim();
+              final AuthOtpChallenge? challenge =
+                  await authProvider.requestPasswordResetCode(
+                phone: phone,
+              );
+              if (!mounted) {
+                return;
+              }
+
+              final String? providerError = authProvider.errorMessage;
+              if (challenge != null) {
+                setModalState(() {
+                  isCodeStep = true;
+                  isSaving = false;
+                  lastRequestedPhone = phone;
+                  debugCode = challenge.debugCode;
+                });
+                messenger.showSnackBar(
+                  SnackBar(content: Text(l10n.codeSentToPhone(phone))),
+                );
+                return;
+              }
+
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    (providerError?.trim().isNotEmpty ?? false)
+                        ? providerError!
+                        : l10n.codeSendFailed,
+                  ),
+                ),
+              );
+
+              if (context.mounted) {
+                setModalState(() {
+                  isSaving = false;
+                });
+              }
+            }
+
+            Future<void> verifyCode() async {
               if (isSaving || !(formKey.currentState?.validate() ?? false)) {
                 return;
               }
@@ -641,9 +832,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
               final String phone = phoneController.text.trim();
               final String newPassword = passwordController.text;
-              final bool success = await authProvider.resetPassword(
+              final bool success = await authProvider.verifyPasswordResetCode(
                 phone: phone,
                 newPassword: newPassword,
+                code: codeController.text.trim(),
               );
               if (!mounted) {
                 return;
@@ -657,7 +849,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? l10n.passwordResetSuccess
                         : (providerError?.trim().isNotEmpty ?? false)
                             ? providerError!
-                            : l10n.passwordResetFailed,
+                            : l10n.passwordResetVerifyFailed,
                   ),
                 ),
               );
@@ -678,6 +870,14 @@ class _LoginScreenState extends State<LoginScreen> {
               }
             }
 
+            Future<void> submit() async {
+              if (isCodeStep) {
+                await verifyCode();
+                return;
+              }
+              await sendCode();
+            }
+
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -687,124 +887,206 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               child: Form(
                 key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      l10n.resetPassword,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    AppSpacing.h4,
-                    Text(
-                      l10n.forgotPasswordDescription,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: phoneController,
-                      enabled: !isSaving,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: l10n.phoneNumber,
-                        hintText: l10n.phoneHint,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        l10n.resetPassword,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      validator: (String? value) => _validatePhone(value, l10n),
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: passwordController,
-                      enabled: !isSaving,
-                      obscureText: obscurePassword,
-                      textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: l10n.newPassword,
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setModalState(() {
-                              obscurePassword = !obscurePassword;
-                            });
+                      AppSpacing.h4,
+                      Text(
+                        isCodeStep
+                            ? l10n.verificationStepSubtitle(
+                                lastRequestedPhone ?? phoneController.text.trim(),
+                              )
+                            : l10n.forgotPasswordDescription,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      AppSpacing.h12,
+                      if (!isCodeStep) ...<Widget>[
+                        TextFormField(
+                          controller: phoneController,
+                          enabled: !isSaving,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l10n.phoneNumber,
+                            hintText: l10n.phoneHint,
+                          ),
+                          validator: (String? value) =>
+                              _validatePhone(value, l10n),
+                        ),
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: passwordController,
+                          enabled: !isSaving,
+                          obscureText: obscurePassword,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l10n.newPassword,
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setModalState(() {
+                                  obscurePassword = !obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                            ),
+                          ),
+                          validator: (String? value) => _validatePassword(
+                            value,
+                            l10n,
+                            requiredMessage: l10n.passwordRequired,
+                          ),
+                        ),
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: confirmPasswordController,
+                          enabled: !isSaving,
+                          obscureText: obscureConfirmPassword,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: l10n.confirmPassword,
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setModalState(() {
+                                  obscureConfirmPassword =
+                                      !obscureConfirmPassword;
+                                });
+                              },
+                              icon: Icon(
+                                obscureConfirmPassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                            ),
+                          ),
+                          validator: (String? value) {
+                            final String? base = _validatePassword(
+                              value,
+                              l10n,
+                              requiredMessage: l10n.confirmPasswordRequired,
+                            );
+                            if (base != null) {
+                              return base;
+                            }
+                            if ((value ?? '') != passwordController.text) {
+                              return l10n.passwordsDoNotMatch;
+                            }
+                            return null;
                           },
-                          icon: Icon(
-                            obscurePassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
+                          onFieldSubmitted: (_) => submit(),
+                        ),
+                      ] else ...<Widget>[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.chipBackgroundOf(context),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                l10n.verificationStepTitle,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              AppSpacing.h4,
+                              Text(
+                                l10n.codeSentToPhone(
+                                  lastRequestedPhone ??
+                                      phoneController.text.trim(),
+                                ),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              if (debugCode != null) ...<Widget>[
+                                AppSpacing.h8,
+                                Text(
+                                  l10n.otpDebugCode(debugCode!),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.primaryToneOf(context),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ),
-                      validator: (String? value) => _validatePassword(
-                        value,
-                        l10n,
-                        requiredMessage: l10n.passwordRequired,
-                      ),
-                    ),
-                    AppSpacing.h12,
-                    TextFormField(
-                      controller: confirmPasswordController,
-                      enabled: !isSaving,
-                      obscureText: obscureConfirmPassword,
-                      textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: l10n.confirmPassword,
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setModalState(() {
-                              obscureConfirmPassword = !obscureConfirmPassword;
-                            });
-                          },
-                          icon: Icon(
-                            obscureConfirmPassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
+                        AppSpacing.h12,
+                        TextFormField(
+                          controller: codeController,
+                          enabled: !isSaving,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: l10n.smsCode,
+                            hintText: '123456',
                           ),
-                        ),
-                      ),
-                      validator: (String? value) {
-                        final String? base = _validatePassword(
-                          value,
-                          l10n,
-                          requiredMessage: l10n.confirmPasswordRequired,
-                        );
-                        if (base != null) {
-                          return base;
-                        }
-                        if ((value ?? '') != passwordController.text) {
-                          return l10n.passwordsDoNotMatch;
-                        }
-                        return null;
-                      },
-                      onFieldSubmitted: (_) => submit(),
-                    ),
-                    AppSpacing.h16,
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: isSaving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: Text(l10n.cancel),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: isSaving ? null : submit,
-                            child: isSaving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(l10n.resetPassword),
-                          ),
+                          validator: (String? value) =>
+                              _validateSmsCode(value, l10n),
+                          onFieldSubmitted: (_) => submit(),
                         ),
                       ],
-                    ),
-                  ],
+                      AppSpacing.h16,
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () {
+                                      if (isCodeStep) {
+                                        setModalState(() {
+                                          isCodeStep = false;
+                                          isSaving = false;
+                                          codeController.clear();
+                                        });
+                                        return;
+                                      }
+                                      Navigator.of(context).pop();
+                                    },
+                              child: Text(
+                                isCodeStep ? l10n.back : l10n.cancel,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: isSaving ? null : submit,
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      isCodeStep
+                                          ? l10n.verifyCode
+                                          : l10n.sendCode,
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -812,10 +1094,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
-
-    phoneController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
   }
 
   String? _validateFullName(String? value, AppLocalizations l10n) {
@@ -851,6 +1129,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     if (normalized.length < 6) {
       return l10n.passwordLength;
+    }
+    return null;
+  }
+
+  String? _validateSmsCode(String? value, AppLocalizations l10n) {
+    final String normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return l10n.smsCodeRequired;
+    }
+    if (normalized.length < 4) {
+      return l10n.smsCodeInvalid;
     }
     return null;
   }

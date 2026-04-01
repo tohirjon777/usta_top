@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Support\UstaTop\JsonFileStore;
+use Illuminate\Console\Command;
+
+class UstaTopBootstrapStorageCommand extends Command
+{
+    protected $signature = 'ustatop:bootstrap-storage';
+
+    protected $description = 'Initialize local SQLite storage and import existing UstaTop JSON data.';
+
+    public function __construct(
+        private readonly JsonFileStore $store,
+    ) {
+        parent::__construct();
+    }
+
+    public function handle(): int
+    {
+        $this->store->ensureSqliteReady();
+        $this->store->syncFilesToSqlite([
+            config('ustatop.users_file'),
+            config('ustatop.workshops_file'),
+            config('ustatop.bookings_file'),
+            config('ustatop.reviews_file'),
+            config('ustatop.booking_messages_file'),
+            config('ustatop.workshop_locations_file'),
+            config('ustatop.auth_sessions_file'),
+            config('ustatop.sms_verifications_file'),
+            config('ustatop.telegram_sync_state_file'),
+        ]);
+
+        $this->info('UstaTop local SQLite storage ready: '.$this->store->sqlitePath());
+
+        return self::SUCCESS;
+    }
+}

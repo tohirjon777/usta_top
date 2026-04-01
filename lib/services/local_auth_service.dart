@@ -17,6 +17,7 @@ class LocalAuthService implements AuthService {
   final Map<String, String> _userIdByPhone = <String, String>{};
   final Map<String, String> _passwordByUserId = <String, String>{};
   final Map<String, String> _sessionToUserId = <String, String>{};
+  final Map<String, String> _otpByPhoneAndPurpose = <String, String>{};
   String? _activeUserId;
 
   @override
@@ -63,6 +64,45 @@ class LocalAuthService implements AuthService {
   }
 
   @override
+  Future<AuthOtpChallenge> sendSignUpCode({
+    required String phone,
+  }) async {
+    final String normalizedPhone = _normalizePhone(phone);
+    if (_userIdByPhone.containsKey(normalizedPhone)) {
+      throw const AuthException('Bu telefon raqam allaqachon ishlatilgan');
+    }
+
+    const String code = '123456';
+    _otpByPhoneAndPurpose['register:$normalizedPhone'] = code;
+
+    return AuthOtpChallenge(
+      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      resendAvailableAt: DateTime.now().add(const Duration(seconds: 60)),
+      channel: 'sms',
+      debugCode: code,
+    );
+  }
+
+  @override
+  Future<AuthSession> verifySignUpCode({
+    required String fullName,
+    required String phone,
+    required String password,
+    required String code,
+  }) async {
+    final String normalizedPhone = _normalizePhone(phone);
+    if (_otpByPhoneAndPurpose['register:$normalizedPhone'] != code.trim()) {
+      throw const AuthException('Tasdiqlash kodi noto\'g\'ri');
+    }
+    _otpByPhoneAndPurpose.remove('register:$normalizedPhone');
+    return signUp(
+      fullName: fullName,
+      phone: phone,
+      password: password,
+    );
+  }
+
+  @override
   Future<void> resetPassword({
     required String phone,
     required String newPassword,
@@ -76,6 +116,40 @@ class LocalAuthService implements AuthService {
       throw const AuthException('Bunday telefon raqam bilan akkaunt topilmadi');
     }
     _passwordByUserId[userId] = newPassword;
+  }
+
+  @override
+  Future<AuthOtpChallenge> sendPasswordResetCode({
+    required String phone,
+  }) async {
+    final String normalizedPhone = _normalizePhone(phone);
+    if (!_userIdByPhone.containsKey(normalizedPhone)) {
+      throw const AuthException('Bunday telefon raqam bilan akkaunt topilmadi');
+    }
+
+    const String code = '123456';
+    _otpByPhoneAndPurpose['password_reset:$normalizedPhone'] = code;
+
+    return AuthOtpChallenge(
+      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      resendAvailableAt: DateTime.now().add(const Duration(seconds: 60)),
+      channel: 'sms',
+      debugCode: code,
+    );
+  }
+
+  @override
+  Future<void> verifyPasswordResetCode({
+    required String phone,
+    required String newPassword,
+    required String code,
+  }) async {
+    final String normalizedPhone = _normalizePhone(phone);
+    if (_otpByPhoneAndPurpose['password_reset:$normalizedPhone'] != code.trim()) {
+      throw const AuthException('Tasdiqlash kodi noto\'g\'ri');
+    }
+    _otpByPhoneAndPurpose.remove('password_reset:$normalizedPhone');
+    await resetPassword(phone: phone, newPassword: newPassword);
   }
 
   @override

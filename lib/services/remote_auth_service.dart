@@ -117,30 +117,118 @@ class RemoteAuthService implements AuthService {
 
       final Map<String, dynamic> body = _decodeObject(response.body);
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final dynamic data = body['data'];
-        if (data is! Map<String, dynamic>) {
-          throw const AuthException('Server javobi noto\'g\'ri formatda');
-        }
-
-        final String token =
-            (data['token'] ?? data['accessToken'] ?? '').toString();
-        if (token.isEmpty) {
-          throw const AuthException('Server token qaytarmadi');
-        }
-
-        final String refreshToken = (data['refreshToken'] ?? '').toString();
-        final DateTime? expiresAt =
-            DateTime.tryParse((data['expiresAt'] ?? '').toString());
-        return AuthSession(
-          accessToken: token,
-          refreshToken: refreshToken.isEmpty ? null : refreshToken,
-          expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 30)),
-        );
+        return _parseSession(body);
       }
 
       final String message = _errorMessage(
         body,
         fallback: 'Ro\'yxatdan o\'tib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Serverga ulanish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<AuthOtpChallenge> sendSignUpCode({
+    required String phone,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authRegisterSendCode}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'phone': phone,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return _parseOtpChallenge(body);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Tasdiqlash kodini yuborib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Serverga ulanish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<AuthSession> verifySignUpCode({
+    required String fullName,
+    required String phone,
+    required String password,
+    required String code,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authRegisterVerifyCode}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'fullName': fullName,
+              'phone': phone,
+              'password': password,
+              'code': code,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return _parseSession(body);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Akkauntni tasdiqlab bo\'lmadi',
       );
       throw AuthException(message, statusCode: response.statusCode);
     } on TimeoutException {
@@ -193,6 +281,110 @@ class RemoteAuthService implements AuthService {
       final String message = _errorMessage(
         body,
         fallback: 'Parolni tiklab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Serverga ulanish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<AuthOtpChallenge> sendPasswordResetCode({
+    required String phone,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authPasswordSendCode}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'phone': phone,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return _parseOtpChallenge(body);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Tasdiqlash kodini yuborib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Serverga ulanish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
+  Future<void> verifyPasswordResetCode({
+    required String phone,
+    required String newPassword,
+    required String code,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authPasswordVerifyCode}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient
+          .post(
+            uri,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode(<String, String>{
+              'phone': phone,
+              'newPassword': newPassword,
+              'code': code,
+            }),
+          )
+          .timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Parolni tasdiqlab bo\'lmadi',
       );
       throw AuthException(message, statusCode: response.statusCode);
     } on TimeoutException {
@@ -722,6 +914,35 @@ class RemoteAuthService implements AuthService {
       throw const FormatException('JSON object expected');
     }
     return decoded;
+  }
+
+  AuthSession _parseSession(Map<String, dynamic> body) {
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const AuthException('Server javobi noto\'g\'ri formatda');
+    }
+
+    final String token = (data['token'] ?? data['accessToken'] ?? '').toString();
+    if (token.isEmpty) {
+      throw const AuthException('Server token qaytarmadi');
+    }
+
+    final String refreshToken = (data['refreshToken'] ?? '').toString();
+    final DateTime? expiresAt = DateTime.tryParse((data['expiresAt'] ?? '').toString());
+    return AuthSession(
+      accessToken: token,
+      refreshToken: refreshToken.isEmpty ? null : refreshToken,
+      expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 30)),
+    );
+  }
+
+  AuthOtpChallenge _parseOtpChallenge(Map<String, dynamic> body) {
+    final dynamic data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const AuthException('Server javobi noto\'g\'ri formatda');
+    }
+
+    return AuthOtpChallenge.fromJson(data);
   }
 
   String _errorMessage(

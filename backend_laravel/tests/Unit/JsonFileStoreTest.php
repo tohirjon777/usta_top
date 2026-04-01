@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 class JsonFileStoreTest extends TestCase
 {
     private string $tempDir;
+    private array $originalEnv = [];
 
     protected function setUp(): void
     {
@@ -19,6 +20,8 @@ class JsonFileStoreTest extends TestCase
 
     protected function tearDown(): void
     {
+        $this->restoreEnv('USTATOP_STORAGE_DRIVER');
+        $this->restoreEnv('USTATOP_SQLITE_FILE');
         $this->deleteDirectory($this->tempDir);
 
         parent::tearDown();
@@ -54,6 +57,48 @@ class JsonFileStoreTest extends TestCase
         $corruptCopies = glob($path.'.corrupt.*');
         $this->assertIsArray($corruptCopies);
         $this->assertNotEmpty($corruptCopies);
+    }
+
+    public function test_it_persists_arrays_in_sqlite_mode(): void
+    {
+        $sqlitePath = $this->tempDir.'/storage/app/ustatop/ustatop.sqlite';
+        $path = $this->tempDir.'/data/users.json';
+        $payload = [
+            ['id' => 'u-1', 'fullName' => 'Toxirjon'],
+        ];
+
+        $this->setEnv('USTATOP_STORAGE_DRIVER', 'sqlite');
+        $this->setEnv('USTATOP_SQLITE_FILE', $sqlitePath);
+
+        $store = new JsonFileStore();
+        $store->writeArray($path, $payload);
+
+        $this->assertFileExists($sqlitePath);
+        $this->assertSame($payload, $store->readArray($path));
+    }
+
+    private function setEnv(string $name, string $value): void
+    {
+        if (! array_key_exists($name, $this->originalEnv)) {
+            $existingValue = getenv($name);
+            $this->originalEnv[$name] = $existingValue === false ? null : $existingValue;
+        }
+
+        putenv($name.'='.$value);
+    }
+
+    private function restoreEnv(string $name): void
+    {
+        if (! array_key_exists($name, $this->originalEnv)) {
+            return;
+        }
+
+        $value = $this->originalEnv[$name];
+        if ($value === null) {
+            putenv($name);
+        } else {
+            putenv($name.'='.$value);
+        }
     }
 
     private function deleteDirectory(string $directory): void

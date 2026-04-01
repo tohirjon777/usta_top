@@ -240,13 +240,19 @@ input:focus, select:focus {
 .workshop-copy { color: var(--muted); line-height: 1.6; margin: 0 0 12px; }
 .map-shell {
     position: relative;
+    isolation: isolate;
     overflow: hidden;
     border-radius: 24px;
     min-height: 620px;
     border: 1px solid var(--line);
     background: #fff;
 }
-#workshopMap, #detailMap { height: 100%; min-height: 620px; }
+#workshopMap, #detailMap {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    min-height: 620px;
+}
 .map-shell.is-compact { min-height: 420px; }
 .map-shell.is-compact #detailMap { min-height: 420px; }
 .map-panel {
@@ -254,13 +260,22 @@ input:focus, select:focus {
     left: 16px;
     right: 16px;
     bottom: 16px;
-    z-index: 500;
+    z-index: 1200;
     padding: 18px;
     border-radius: 24px;
     border: 1px solid rgba(255,255,255,.4);
     background: rgba(255,255,255,.92);
     box-shadow: 0 26px 60px rgba(15,23,42,.18);
     backdrop-filter: blur(16px);
+}
+.map-shell .leaflet-pane,
+.map-shell .leaflet-top,
+.map-shell .leaflet-bottom,
+.map-shell .leaflet-control {
+    z-index: 10;
+}
+.map-shell .leaflet-popup {
+    z-index: 20;
 }
 .map-empty { color: var(--muted); }
 .detail-hero {

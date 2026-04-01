@@ -3,6 +3,11 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+$sqliteDatabase = env('DB_DATABASE', database_path('database.sqlite'));
+if (is_string($sqliteDatabase) && $sqliteDatabase !== '' && ! str_starts_with($sqliteDatabase, '/')) {
+    $sqliteDatabase = base_path($sqliteDatabase);
+}
+
 return [
 
     /*
@@ -35,7 +40,7 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'database' => $sqliteDatabase,
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,

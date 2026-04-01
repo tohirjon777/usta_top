@@ -309,12 +309,19 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            border: Border(
-              top: BorderSide(color: AppColors.borderOf(context)),
-            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.borderOf(context)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Row(
             children: <Widget>[
@@ -570,14 +577,29 @@ class _DetailHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[heroStart, heroEnd],
+          colors: isDark
+              ? <Color>[
+                  Color.lerp(AppColors.primaryToneOf(context), Colors.black, 0.18)!,
+                  Color.lerp(AppColors.accentOf(context), AppColors.primaryToneOf(context), 0.42)!,
+                ]
+              : <Color>[heroStart, heroEnd],
         ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryToneOf(context).withValues(
+              alpha: isDark ? 0.18 : 0.14,
+            ),
+            blurRadius: 26,
+            offset: const Offset(0, 16),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -594,6 +616,16 @@ class _DetailHeroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(22),
                   fallbackIcon: Icons.car_repair,
                   iconSize: 34,
+                  overlay: Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -648,6 +680,7 @@ class _DetailHeroCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.borderOf(context)),
               ),
               child: Row(
                 children: <Widget>[
@@ -692,11 +725,18 @@ class _InsightTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.borderOf(context)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -741,7 +781,7 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -783,10 +823,11 @@ class _ServiceActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.chipBackgroundOf(context),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -872,9 +913,9 @@ class _ReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: isHighlighted ? 3 : null,
+      elevation: isHighlighted ? 4 : null,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         side: BorderSide(
           color: isHighlighted
               ? AppColors.primaryToneOf(context).withValues(alpha: 0.35)
@@ -883,7 +924,7 @@ class _ReviewCard extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -934,7 +975,8 @@ class _ReviewCard extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.primarySoftOf(context),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderOf(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -980,7 +1022,7 @@ class _ReviewAnalyticsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -1049,7 +1091,8 @@ class _ReviewAnalyticsCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppColors.chipBackgroundOf(context),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.borderOf(context)),
                     ),
                     child: Text(
                       '${item.serviceName} • ${item.reviewCount} • ${item.averageRating.toStringAsFixed(1)}★',
@@ -1077,10 +1120,11 @@ class _AnalyticsMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.chipBackgroundOf(context),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1168,7 +1212,7 @@ class _ReviewEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: <Widget>[
             Icon(
@@ -1213,10 +1257,11 @@ class _MetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.chipBackgroundOf(context),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

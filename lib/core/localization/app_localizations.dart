@@ -368,6 +368,19 @@ class AppLocalizations {
       'signUpDescription': 'Create a new account with your phone number.',
       'noAccountYet': 'Do not have an account yet?',
       'createAccount': 'Create account',
+      'sendCode': 'Send code',
+      'verifyCode': 'Verify code',
+      'smsCode': 'SMS code',
+      'smsCodeRequired': 'Enter the SMS code',
+      'smsCodeInvalid': 'Enter a valid SMS code',
+      'verificationStepTitle': 'Phone verification',
+      'verificationStepSubtitle':
+          'We sent a confirmation code to {phone}. Enter it below.',
+      'codeSentToPhone': 'A confirmation code was sent to {phone}',
+      'codeSendFailed': 'Confirmation code could not be sent',
+      'otpDebugCode': 'Test code: {code}',
+      'passwordResetVerifyFailed': 'Password reset could not be confirmed',
+      'back': 'Back',
       'forgotPassword': 'Forgot password?',
       'forgotPasswordDescription':
           'Enter your phone number and set a new password.',
@@ -739,6 +752,19 @@ class AppLocalizations {
       'signUpDescription': 'Telefon raqamingiz orqali yangi akkaunt yarating.',
       'noAccountYet': 'Akkauntingiz yo\'qmi?',
       'createAccount': 'Akkaunt yaratish',
+      'sendCode': 'Kod yuborish',
+      'verifyCode': 'Kodni tasdiqlash',
+      'smsCode': 'SMS kod',
+      'smsCodeRequired': 'SMS kodni kiriting',
+      'smsCodeInvalid': 'To\'g\'ri SMS kodni kiriting',
+      'verificationStepTitle': 'Telefonni tasdiqlash',
+      'verificationStepSubtitle':
+          '{phone} raqamiga tasdiqlash kodi yuborildi. Uni quyida kiriting.',
+      'codeSentToPhone': '{phone} raqamiga tasdiqlash kodi yuborildi',
+      'codeSendFailed': 'Tasdiqlash kodini yuborib bo\'lmadi',
+      'otpDebugCode': 'Test kod: {code}',
+      'passwordResetVerifyFailed': 'Parolni tasdiqlab bo\'lmadi',
+      'back': 'Orqaga',
       'forgotPassword': 'Parolni unutdingizmi?',
       'forgotPasswordDescription':
           'Telefon raqamingizni kiriting va yangi parol o\'rnating.',
@@ -1106,6 +1132,19 @@ class AppLocalizations {
       'signUpDescription': 'Создайте новый аккаунт с помощью номера телефона.',
       'noAccountYet': 'Еще нет аккаунта?',
       'createAccount': 'Создать аккаунт',
+      'sendCode': 'Отправить код',
+      'verifyCode': 'Подтвердить код',
+      'smsCode': 'SMS-код',
+      'smsCodeRequired': 'Введите SMS-код',
+      'smsCodeInvalid': 'Введите корректный SMS-код',
+      'verificationStepTitle': 'Подтверждение телефона',
+      'verificationStepSubtitle':
+          'Мы отправили код подтверждения на {phone}. Введите его ниже.',
+      'codeSentToPhone': 'Код подтверждения отправлен на {phone}',
+      'codeSendFailed': 'Не удалось отправить код подтверждения',
+      'otpDebugCode': 'Тестовый код: {code}',
+      'passwordResetVerifyFailed': 'Не удалось подтвердить сброс пароля',
+      'back': 'Назад',
       'forgotPassword': 'Забыли пароль?',
       'forgotPasswordDescription':
           'Введите номер телефона и задайте новый пароль.',
@@ -1563,6 +1602,21 @@ class AppLocalizations {
   String get signUpDescription => _text('signUpDescription');
   String get noAccountYet => _text('noAccountYet');
   String get createAccount => _text('createAccount');
+  String get sendCode => _text('sendCode');
+  String get verifyCode => _text('verifyCode');
+  String get smsCode => _text('smsCode');
+  String get smsCodeRequired => _text('smsCodeRequired');
+  String get smsCodeInvalid => _text('smsCodeInvalid');
+  String get verificationStepTitle => _text('verificationStepTitle');
+  String verificationStepSubtitle(String phone) =>
+      _fmt('verificationStepSubtitle', <String, Object>{'phone': phone});
+  String codeSentToPhone(String phone) =>
+      _fmt('codeSentToPhone', <String, Object>{'phone': phone});
+  String get codeSendFailed => _text('codeSendFailed');
+  String otpDebugCode(String code) =>
+      _fmt('otpDebugCode', <String, Object>{'code': code});
+  String get passwordResetVerifyFailed => _text('passwordResetVerifyFailed');
+  String get back => _text('back');
   String get forgotPassword => _text('forgotPassword');
   String get forgotPasswordDescription => _text('forgotPasswordDescription');
   String get resetPassword => _text('resetPassword');

@@ -214,20 +214,26 @@ class _HomeHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color primary = AppColors.primaryToneOf(context);
     final Color accent = AppColors.accentOf(context);
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[primary, accent],
+          colors: isDark
+              ? <Color>[
+                  Color.lerp(primary, Colors.black, 0.16)!,
+                  Color.lerp(accent, primary, 0.35)!,
+                ]
+              : <Color>[primary, accent],
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: primary.withValues(alpha: 0.18),
-            blurRadius: 28,
-            offset: const Offset(0, 18),
+            color: primary.withValues(alpha: isDark ? 0.24 : 0.18),
+            blurRadius: 30,
+            offset: const Offset(0, 20),
           ),
         ],
       ),
@@ -244,7 +250,10 @@ class _HomeHeroCard extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.18),
+                    ),
                   ),
                   child: Image.asset(
                     AppAssets.logo,
@@ -258,10 +267,8 @@ class _HomeHeroCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         l10n.appTitle,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(
+                        style:
+                            Theme.of(context).textTheme.displaySmall?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                             ),
@@ -282,7 +289,7 @@ class _HomeHeroCard extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.18),
                 ),
@@ -368,10 +375,10 @@ class _HeroMetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.16),
         ),
@@ -414,12 +421,20 @@ class _QuickBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
       decoration: BoxDecoration(
         color: AppColors.primarySoftOf(context),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.borderOf(context)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.08 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -488,6 +503,7 @@ class _SalonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color openColor =
         salon.isOpen ? AppColors.primaryToneOf(context) : AppColors.warning;
     final SalonService? firstService =
@@ -498,7 +514,7 @@ class _SalonCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -509,7 +525,7 @@ class _SalonCard extends StatelessWidget {
                     imageUrl: salon.imageUrl,
                     width: 58,
                     height: 58,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(20),
                     fallbackIcon: Icons.car_repair,
                     iconSize: 26,
                     overlay: Positioned(
@@ -521,8 +537,17 @@ class _SalonCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(999),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: isDark ? 0.10 : 0.06,
+                              ),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Text(
                           '#$rank',
@@ -574,7 +599,8 @@ class _SalonCard extends StatelessWidget {
                         height: 34,
                         decoration: BoxDecoration(
                           color: AppColors.primarySoftOf(context),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.borderOf(context)),
                         ),
                         child: Icon(
                           Icons.north_east_rounded,
@@ -660,7 +686,10 @@ class _SalonCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.accentSoftOf(context),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.accentOf(context).withValues(alpha: 0.12),
+                      ),
                     ),
                     child: Text(
                       salon.badge,
@@ -689,11 +718,17 @@ class _ServicePreviewPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: AppColors.chipBackgroundOf(context),
         borderRadius: BorderRadius.circular(999),
+        border: isDark
+            ? Border.all(
+                color: AppColors.borderOf(context).withValues(alpha: 0.76),
+              )
+            : null,
       ),
       child: Text(
         label,
@@ -721,11 +756,17 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.chipBackgroundOf(context),
         borderRadius: BorderRadius.circular(999),
+        border: isDark
+            ? Border.all(
+                color: AppColors.borderOf(context).withValues(alpha: 0.76),
+              )
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

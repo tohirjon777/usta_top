@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend_laravel"
+SECRETS_ENV_FILE="$BACKEND_DIR/secrets/local.env"
 
 BIND_HOST="0.0.0.0"
 PORT="8080"
@@ -105,8 +106,11 @@ if [[ "$SKIP_PUB_GET" -eq 0 ]]; then
     if [[ ! -f ".env" ]]; then
       cp .env.example .env
     fi
+    mkdir -p storage/app/ustatop
     composer install --no-interaction --prefer-dist
     php artisan key:generate --force >/dev/null 2>&1 || true
+    php artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
+    php artisan migrate --force >/dev/null 2>&1 || true
   )
 
   if [[ "$BACKEND_ONLY" -eq 0 ]]; then
@@ -153,10 +157,19 @@ else
       source ".env.local"
       set +a
     fi
+    if [[ -f "$SECRETS_ENV_FILE" ]]; then
+      set -a
+      # shellcheck disable=SC1090
+      source "$SECRETS_ENV_FILE"
+      set +a
+    fi
     if [[ ! -f ".env" ]]; then
       cp .env.example .env
     fi
+    mkdir -p storage/app/ustatop
     php artisan key:generate --force >/dev/null 2>&1 || true
+    php artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
+    php artisan migrate --force >/dev/null 2>&1 || true
     if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
       TELEGRAM_POLL_PID_FILE="$(mktemp /tmp/ustatop-telegram-poll.XXXXXX.pid)"
       php artisan ustatop:telegram-poll >/tmp/ustatop-telegram-poll.log 2>&1 &
@@ -192,8 +205,7 @@ if ! curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
 fi
 
 printf 'Backend tayyor.\n'
-printf 'Admin panel: http://127.0.0.1:%s/admin/login\n' "$PORT"
-printf 'Owner panel: http://127.0.0.1:%s/owner/login\n' "$PORT"
+printf 'Customer website: http://127.0.0.1:%s/\n' "$PORT"
 
 if [[ "$BACKEND_ONLY" -eq 1 ]]; then
   if [[ "$BACKEND_STARTED_BY_SCRIPT" -eq 1 ]]; then

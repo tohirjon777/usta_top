@@ -19,7 +19,11 @@ abstract final class ApiEndpoints {
   // }
   static const String authLogin = '/auth/login';
   static const String authRegister = '/auth/register';
+  static const String authRegisterSendCode = '/auth/register/send-code';
+  static const String authRegisterVerifyCode = '/auth/register/verify-code';
   static const String authForgotPassword = '/auth/forgot-password';
+  static const String authPasswordSendCode = '/auth/password/send-code';
+  static const String authPasswordVerifyCode = '/auth/password/verify-code';
   static const String authPushToken = '/auth/push-token';
   static const String authPushTokenRemove = '/auth/push-token/remove';
   static const String authPushTokenTest = '/auth/push-token/test';

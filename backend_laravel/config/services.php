@@ -39,4 +39,11 @@ return [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
     ],
 
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+        'base_url' => env('SMS_BASE_URL', 'https://devsms.uz/api'),
+        'bearer_token' => env('SMS_BEARER_TOKEN'),
+        'service_name' => env('SMS_SERVICE_NAME', 'Usta Top'),
+    ],
+
 ];

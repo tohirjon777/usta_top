@@ -314,4 +314,55 @@ class UstaTopApiFlowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.savedPaymentCards', []);
     }
+
+    public function test_sms_verification_flow_works_for_register_and_password_reset(): void
+    {
+        $phone = '+99890'.random_int(1000000, 9999999);
+
+        $sendRegisterCode = $this->postJson('/auth/register/send-code', [
+            'phone' => $phone,
+        ]);
+        $sendRegisterCode->assertOk();
+
+        $registerCode = (string) $sendRegisterCode->json('data.debugCode');
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $registerCode);
+
+        $verifyRegisterCode = $this->postJson('/auth/register/verify-code', [
+            'fullName' => 'SMS Register',
+            'phone' => $phone,
+            'password' => 'secret123',
+            'code' => $registerCode,
+        ]);
+        $verifyRegisterCode
+            ->assertOk()
+            ->assertJsonPath('data.user.phone', $phone);
+
+        $token = (string) $verifyRegisterCode->json('data.token');
+        $this->assertNotSame('', $token);
+
+        $loginResponse = $this->postJson('/auth/login', [
+            'phone' => $phone,
+            'password' => 'secret123',
+        ]);
+        $loginResponse->assertOk();
+
+        $sendResetCode = $this->postJson('/auth/password/send-code', [
+            'phone' => $phone,
+        ]);
+        $sendResetCode->assertOk();
+
+        $resetCode = (string) $sendResetCode->json('data.debugCode');
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $resetCode);
+
+        $this->postJson('/auth/password/verify-code', [
+            'phone' => $phone,
+            'newPassword' => 'newsecret123',
+            'code' => $resetCode,
+        ])->assertOk();
+
+        $this->postJson('/auth/login', [
+            'phone' => $phone,
+            'password' => 'newsecret123',
+        ])->assertOk();
+    }
 }
