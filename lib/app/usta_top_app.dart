@@ -13,7 +13,16 @@ import '../ui/app_loading_view.dart';
 import 'main_navigation_shell.dart';
 
 class UstaTopApp extends StatelessWidget {
-  const UstaTopApp({super.key});
+  const UstaTopApp({
+    super.key,
+    required this.currentBackendBaseUrl,
+    required this.backendBaseUrlLocked,
+    required this.onUpdateBackendBaseUrl,
+  });
+
+  final String currentBackendBaseUrl;
+  final bool backendBaseUrlLocked;
+  final Future<void> Function(String? value) onUpdateBackendBaseUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +50,11 @@ class UstaTopApp extends StatelessWidget {
           ? const Scaffold(body: AppLoadingView())
           : authProvider.isLoggedIn
               ? const MainNavigationShell()
-              : const LoginScreen(),
+              : LoginScreen(
+                  currentBackendBaseUrl: currentBackendBaseUrl,
+                  backendBaseUrlLocked: backendBaseUrlLocked,
+                  onUpdateBackendBaseUrl: onUpdateBackendBaseUrl,
+                ),
     );
   }
 }

@@ -1,0 +1,20 @@
+[Unit]
+Description=Usta Top Telegram Poller
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ustatop/backend_laravel
+Environment=APP_ENV=production
+ExecStart=/usr/bin/php artisan ustatop:telegram-poll
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
+

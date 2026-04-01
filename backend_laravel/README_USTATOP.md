@@ -38,3 +38,9 @@ Shundan keyin yangi zakaz va status o‘zgarishlari shu Telegram chatga yuborila
 
 Eslatma:
 - root-level `../backend_service.sh` va `../run_dev.sh` faqat Laravel backendni ishga tushiradi
+
+Production uchun:
+- tunnel yoki lokal Mac o'rniga alohida VPS tavsiya qilinadi
+- tayyor production yo'riqnoma: `deploy/README_PRODUCTION.md`
+- nginx config: `deploy/nginx/ustatop.conf`
+- Telegram poller service: `deploy/systemd/ustatop-telegram-poll.service`

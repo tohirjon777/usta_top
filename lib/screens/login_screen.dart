@@ -10,7 +10,16 @@ import '../widgets/app_primary_button.dart';
 import '../widgets/app_reveal.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({
+    super.key,
+    required this.currentBackendBaseUrl,
+    required this.backendBaseUrlLocked,
+    required this.onUpdateBackendBaseUrl,
+  });
+
+  final String currentBackendBaseUrl;
+  final bool backendBaseUrlLocked;
+  final Future<void> Function(String? value) onUpdateBackendBaseUrl;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -45,6 +54,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: _AuthHeroCard(
                   title: l10n.appTitle,
                   subtitle: l10n.signInDescription,
+                  trailing: widget.backendBaseUrlLocked
+                      ? null
+                      : IconButton(
+                          tooltip: l10n.serverSettings,
+                          onPressed: _showServerSettingsSheet,
+                          icon: const Icon(Icons.dns_rounded),
+                        ),
                 ),
               ),
               const SizedBox(height: 18),
@@ -99,6 +115,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             _AuthFeaturePill(
                               icon: Icons.verified_outlined,
                               label: l10n.verifiedMasters,
+                            ),
+                            _AuthFeaturePill(
+                              icon: Icons.hub_rounded,
+                              label: l10n.serverUsing(
+                                widget.currentBackendBaseUrl,
+                              ),
                             ),
                           ],
                         ),
@@ -235,6 +257,136 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _showServerSettingsSheet() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final TextEditingController controller = TextEditingController(
+      text: widget.currentBackendBaseUrl,
+    );
+    bool isSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Future<void> submit() async {
+              final String normalized = controller.text.trim();
+              final Uri? uri = Uri.tryParse(normalized);
+              final bool valid = uri != null &&
+                  (uri.scheme == 'http' || uri.scheme == 'https') &&
+                  (uri.host.isNotEmpty);
+              if (!valid || isSaving) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text(l10n.serverUrlInvalid)),
+                );
+                return;
+              }
+
+              setModalState(() {
+                isSaving = true;
+              });
+              await widget.onUpdateBackendBaseUrl(normalized);
+              if (!mounted) {
+                return;
+              }
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(content: Text(l10n.serverUpdated)),
+              );
+            }
+
+            Future<void> reset() async {
+              if (isSaving) {
+                return;
+              }
+              setModalState(() {
+                isSaving = true;
+              });
+              await widget.onUpdateBackendBaseUrl(null);
+              if (!mounted) {
+                return;
+              }
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(content: Text(l10n.serverReset)),
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    l10n.serverSettings,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.serverSettingsSubtitle,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: controller,
+                    enabled: !isSaving,
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: l10n.serverUrlLabel,
+                      hintText: 'http://192.168.100.222:8080',
+                    ),
+                    onFieldSubmitted: (_) => submit(),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: isSaving ? null : reset,
+                          child: Text(l10n.serverResetButton),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: isSaving ? null : submit,
+                          child: isSaving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(l10n.saveChanges),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
   }
 
   Future<void> _showRegistrationSheet() async {
@@ -712,10 +864,12 @@ class _AuthHeroCard extends StatelessWidget {
   const _AuthHeroCard({
     required this.title,
     required this.subtitle,
+    this.trailing,
   });
 
   final String title;
   final String subtitle;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -735,11 +889,22 @@ class _AuthHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
+              ),
+              if (trailing != null) ...<Widget>[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
+            ],
           ),
           const SizedBox(height: 6),
           Text(

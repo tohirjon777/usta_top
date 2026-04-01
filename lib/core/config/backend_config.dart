@@ -3,10 +3,32 @@ import 'package:flutter/foundation.dart';
 class BackendConfig {
   const BackendConfig._();
 
-  static String resolveBaseUrl() {
-    // TODO(API): Eng to'g'ri yo'l - ishga tushirishda `API_BASE_URL` berish.
+  static String? get definedBaseUrl {
     const String fromDefine = String.fromEnvironment('API_BASE_URL');
-    if (fromDefine.isNotEmpty) {
+    if (fromDefine.isEmpty) {
+      return null;
+    }
+    return normalizeBaseUrl(fromDefine);
+  }
+
+  static String normalizeBaseUrl(String value) {
+    return value.trim().replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  static String resolveBaseUrl({
+    String? overrideBaseUrl,
+  }) {
+    final String? normalizedOverride = overrideBaseUrl == null ||
+            overrideBaseUrl.trim().isEmpty
+        ? null
+        : normalizeBaseUrl(overrideBaseUrl);
+    if (normalizedOverride != null) {
+      return normalizedOverride;
+    }
+
+    // TODO(API): Eng to'g'ri yo'l - ishga tushirishda `API_BASE_URL` berish.
+    final String? fromDefine = definedBaseUrl;
+    if (fromDefine != null) {
       return fromDefine;
     }
 

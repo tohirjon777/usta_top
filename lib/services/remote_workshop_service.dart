@@ -15,7 +15,7 @@ class RemoteWorkshopService implements WorkshopService {
     required this.baseUrl,
     required AuthTokenStorage tokenStorage,
     this.client,
-    this.timeout = const Duration(seconds: 8),
+    this.timeout = const Duration(seconds: 20),
   }) : _tokenStorage = tokenStorage;
 
   final String baseUrl;

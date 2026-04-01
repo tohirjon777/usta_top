@@ -354,6 +354,15 @@ class AppLocalizations {
       'welcomeBack': 'Welcome back',
       'signInDescription':
           'Sign in to manage your service requests and profile.',
+      'serverSettings': 'Server settings',
+      'serverSettingsSubtitle':
+          'Use your Mac local IP so the phone can reach the backend over Wi-Fi.',
+      'serverUrlLabel': 'Server URL',
+      'serverUrlInvalid': 'Enter a valid server URL',
+      'serverUpdated': 'Server address updated',
+      'serverReset': 'Server address reset to default',
+      'serverResetButton': 'Reset',
+      'serverUsing': 'Server: {url}',
       'fullName': 'Full name',
       'signUp': 'Sign up',
       'signUpDescription': 'Create a new account with your phone number.',
@@ -716,6 +725,15 @@ class AppLocalizations {
       'welcomeBack': 'Xush kelibsiz',
       'signInDescription':
           'Buyurtmalar va profilingizni boshqarish uchun tizimga kiring.',
+      'serverSettings': 'Server sozlamalari',
+      'serverSettingsSubtitle':
+          'Telefon backendga Wi‑Fi orqali chiqishi uchun Mac lokal IP manzilini kiriting.',
+      'serverUrlLabel': 'Server manzili',
+      'serverUrlInvalid': 'To\'g\'ri server manzilini kiriting',
+      'serverUpdated': 'Server manzili yangilandi',
+      'serverReset': 'Server manzili standart holatga qaytdi',
+      'serverResetButton': 'Qaytarish',
+      'serverUsing': 'Server: {url}',
       'fullName': 'To\'liq ism',
       'signUp': 'Ro\'yxatdan o\'tish',
       'signUpDescription': 'Telefon raqamingiz orqali yangi akkaunt yarating.',
@@ -1074,6 +1092,15 @@ class AppLocalizations {
       'login': 'Вход',
       'welcomeBack': 'С возвращением',
       'signInDescription': 'Войдите, чтобы управлять заявками и профилем.',
+      'serverSettings': 'Настройки сервера',
+      'serverSettingsSubtitle':
+          'Укажите локальный IP вашего Mac, чтобы телефон подключался к backend по Wi‑Fi.',
+      'serverUrlLabel': 'Адрес сервера',
+      'serverUrlInvalid': 'Введите корректный адрес сервера',
+      'serverUpdated': 'Адрес сервера обновлён',
+      'serverReset': 'Адрес сервера сброшен на стандартный',
+      'serverResetButton': 'Сбросить',
+      'serverUsing': 'Сервер: {url}',
       'fullName': 'Полное имя',
       'signUp': 'Регистрация',
       'signUpDescription': 'Создайте новый аккаунт с помощью номера телефона.',
@@ -1522,6 +1549,15 @@ class AppLocalizations {
   String get login => _text('login');
   String get welcomeBack => _text('welcomeBack');
   String get signInDescription => _text('signInDescription');
+  String get serverSettings => _text('serverSettings');
+  String get serverSettingsSubtitle => _text('serverSettingsSubtitle');
+  String get serverUrlLabel => _text('serverUrlLabel');
+  String get serverUrlInvalid => _text('serverUrlInvalid');
+  String get serverUpdated => _text('serverUpdated');
+  String get serverReset => _text('serverReset');
+  String get serverResetButton => _text('serverResetButton');
+  String serverUsing(String url) =>
+      _fmt('serverUsing', <String, Object>{'url': url});
   String get fullName => _text('fullName');
   String get signUp => _text('signUp');
   String get signUpDescription => _text('signUpDescription');

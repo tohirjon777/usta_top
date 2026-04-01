@@ -18,7 +18,9 @@ LABEL="com.ustatop.backend"
 LAUNCH_DOMAIN="gui/$(id -u)"
 OUT_LOG="$LOG_DIR/backend.out.log"
 ERR_LOG="$LOG_DIR/backend.err.log"
-HEALTH_URL="http://127.0.0.1:8080/health"
+SERVICE_HOST="${SERVICE_HOST:-0.0.0.0}"
+SERVICE_PORT="${SERVICE_PORT:-8080}"
+HEALTH_URL="http://127.0.0.1:${SERVICE_PORT}/health"
 
 usage() {
   cat <<'EOF'
@@ -40,6 +42,21 @@ Commands:
   logs       Backend loglarini ko'rsatadi
   uninstall  Service'ni o'chiradi
 EOF
+}
+
+detect_lan_ip() {
+  local default_interface=""
+  default_interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
+  if [[ -n "$default_interface" ]]; then
+    local iface_ip=""
+    iface_ip="$(ipconfig getifaddr "$default_interface" 2>/dev/null || true)"
+    if [[ -n "$iface_ip" ]]; then
+      printf '%s\n' "$iface_ip"
+      return 0
+    fi
+  fi
+
+  ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}'
 }
 
 ensure_env_file() {
@@ -99,9 +116,9 @@ write_plist() {
     <key>HOME</key>
     <string>$HOME</string>
     <key>HOST</key>
-    <string>127.0.0.1</string>
+    <string>$SERVICE_HOST</string>
     <key>PORT</key>
-    <string>8080</string>
+    <string>$SERVICE_PORT</string>
     <key>PHP_CLI_SERVER_WORKERS</key>
     <string>4</string>
     <key>USTATOP_USERS_FILE</key>
@@ -229,6 +246,12 @@ show_status() {
 
   if wait_for_health 6 1; then
     printf 'Health: %s OK\n' "$HEALTH_URL"
+    local lan_ip=""
+    lan_ip="$(detect_lan_ip || true)"
+    if [[ -n "$lan_ip" ]]; then
+      printf 'LAN: http://%s:%s/health\n' "$lan_ip" "$SERVICE_PORT"
+      printf 'Admin: http://%s:%s/admin/login\n' "$lan_ip" "$SERVICE_PORT"
+    fi
   else
     printf 'Health: backend javob bermayapti\n'
   fi

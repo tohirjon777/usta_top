@@ -11,7 +11,7 @@ class RemoteAuthService implements AuthService {
   const RemoteAuthService({
     required this.baseUrl,
     this.client,
-    this.timeout = const Duration(seconds: 8),
+    this.timeout = const Duration(seconds: 20),
   });
 
   final String baseUrl;

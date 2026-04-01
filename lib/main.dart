@@ -6,6 +6,7 @@ import 'app/usta_top_app.dart';
 import 'core/config/backend_config.dart';
 import 'core/localization/app_language.dart';
 import 'core/storage/auth_token_storage.dart';
+import 'core/storage/backend_endpoint_storage.dart';
 import 'core/storage/notification_settings_storage.dart';
 import 'core/storage/saved_workshops_storage.dart';
 import 'core/storage/theme_mode_storage.dart';
@@ -33,7 +34,20 @@ Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: binding);
   final Stopwatch splashStopwatch = Stopwatch()..start();
-  runApp(const MyApp());
+  const BackendEndpointStorage backendEndpointStorage =
+      BackendEndpointStorage();
+  final String? storedBackendBaseUrl =
+      await backendEndpointStorage.loadBaseUrl();
+
+  runApp(
+    MyApp(
+      backendEndpointStorage: backendEndpointStorage,
+      initialBackendBaseUrl: BackendConfig.resolveBaseUrl(
+        overrideBaseUrl: storedBackendBaseUrl,
+      ),
+      backendBaseUrlLocked: false,
+    ),
+  );
 
   final int remainingMilliseconds = 2000 - splashStopwatch.elapsedMilliseconds;
   if (remainingMilliseconds > 0) {
@@ -63,8 +77,52 @@ List<BookingItem> _seedBookings() {
   ];
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({
+    super.key,
+    required this.backendEndpointStorage,
+    required this.initialBackendBaseUrl,
+    required this.backendBaseUrlLocked,
+  });
+
+  final BackendEndpointStorage backendEndpointStorage;
+  final String initialBackendBaseUrl;
+  final bool backendBaseUrlLocked;
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late String _backendBaseUrl = widget.initialBackendBaseUrl;
+
+  Future<void> _updateBackendBaseUrl(String? value) async {
+    if (widget.backendBaseUrlLocked) {
+      return;
+    }
+
+    if (value == null || value.trim().isEmpty) {
+      await widget.backendEndpointStorage.clearBaseUrl();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _backendBaseUrl = BackendConfig.resolveBaseUrl();
+      });
+      return;
+    }
+
+    final String normalized = BackendConfig.normalizeBaseUrl(value);
+    await widget.backendEndpointStorage.saveBaseUrl(normalized);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _backendBaseUrl = BackendConfig.resolveBaseUrl(
+        overrideBaseUrl: normalized,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +134,7 @@ class MyApp extends StatelessWidget {
       defaultValue: !isFlutterTest,
     );
     final bool enablePushNotifications = useBackend && !isFlutterTest;
-    // TODO(API): Server manzilini `--dart-define=API_BASE_URL=https://...` bilan bering.
-    final String backendBaseUrl = BackendConfig.resolveBaseUrl();
+    final String backendBaseUrl = _backendBaseUrl;
     const AuthTokenStorage tokenStorage = AuthTokenStorage();
     const NotificationSettingsStorage notificationSettingsStorage =
         NotificationSettingsStorage();
@@ -85,6 +142,7 @@ class MyApp extends StatelessWidget {
     const ThemeModeStorage themeModeStorage = ThemeModeStorage();
 
     return MultiProvider(
+      key: ValueKey<String>('providers:$backendBaseUrl'),
       providers: [
         Provider<AuthTokenStorage>.value(value: tokenStorage),
         Provider<NotificationSettingsStorage>.value(
@@ -166,7 +224,11 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ],
-      child: const UstaTopApp(),
+      child: UstaTopApp(
+        currentBackendBaseUrl: backendBaseUrl,
+        backendBaseUrlLocked: widget.backendBaseUrlLocked,
+        onUpdateBackendBaseUrl: _updateBackendBaseUrl,
+      ),
     );
   }
 }
