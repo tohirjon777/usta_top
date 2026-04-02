@@ -98,9 +98,7 @@
             <div class="card" id="map">
                 <div class="map-shell">
                     <div id="workshopMap"></div>
-                    <div id="mapPanel" class="map-panel map-empty">
-                        Xaritadan marker tanlang. Shu yerda ustaxona tavsifi va marshrut tugmasi chiqadi.
-                    </div>
+                    <div id="mapPanel" class="map-panel is-hidden" aria-hidden="true"></div>
                 </div>
             </div>
         </div>

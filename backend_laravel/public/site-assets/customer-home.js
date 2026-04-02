@@ -10,10 +10,11 @@
     const defaultCenter = [41.3111, 69.2797];
 
     let workshops = fallbackWorkshops;
-    let selectedWorkshopId = fallbackWorkshops[0]?.id ?? null;
+    let selectedWorkshopId = null;
     let map = null;
     let geoObjectCollection = null;
     let mapReadyPromise = null;
+    let hasFittedInitialBounds = false;
 
     function yandexRouteUrl(latitude, longitude) {
         if (latitude == null || longitude == null) {
@@ -110,10 +111,6 @@
             return;
         }
 
-        if (!filtered.some((item) => item.id === selectedWorkshopId)) {
-            selectedWorkshopId = filtered[0].id;
-        }
-
         container.innerHTML = filtered.map(cardTemplate).join('');
         container.querySelectorAll('[data-id]').forEach((card) => {
             card.addEventListener('click', () => {
@@ -124,30 +121,36 @@
 
     function renderMapPanel(workshop) {
         const panel = document.getElementById('mapPanel');
-        if (!workshop) {
-            panel.className = 'map-panel map-empty';
-            panel.innerHTML = 'Xaritadan marker tanlang. Shu yerda ustaxona tavsifi va marshrut tugmasi chiqadi.';
+        if (!panel) {
             return;
         }
 
+        if (!workshop) {
+            panel.className = 'map-panel is-hidden';
+            panel.setAttribute('aria-hidden', 'true');
+            panel.innerHTML = '';
+            return;
+        }
+
+        const embedUrl = `${workshop.detailUrl}${workshop.detailUrl.includes('?') ? '&' : '?'}embedded=1`;
         panel.className = 'map-panel';
+        panel.setAttribute('aria-hidden', 'false');
         panel.innerHTML = `
-            <div class="badge-row" style="margin-bottom:10px;">
-                <span class="pill ${workshop.isOpen ? 'status-open' : 'status-closed'}">${workshop.isOpen ? 'Ochiq' : 'Yopiq'}</span>
-                ${workshop.badge ? `<span class="pill">${workshop.badge}</span>` : ''}
-                <span class="pill muted">⭐ ${workshop.rating}</span>
+            <div class="map-panel__bar">
+                <strong>${workshop.name}</strong>
+                <button type="button" class="map-panel__close" aria-label="Oynani yopish">×</button>
             </div>
-            <h3 style="margin:0 0 8px; font-size:24px;">${workshop.name}</h3>
-            <p style="margin:0 0 10px; color:var(--muted); line-height:1.6;">${workshop.fullDescription || workshop.description || ''}</p>
-            <div class="meta-row" style="margin-bottom:12px;">
-                <span class="pill muted">${workshop.address || 'Manzil ko‘rsatilmagan'}</span>
-                <span class="pill muted">Boshlanishi: ${workshop.startingPriceLabel}</span>
-            </div>
-            <div class="actions-row">
-                <a class="button-secondary" href="${workshop.detailUrl}">Ustaxona sahifasi</a>
-                <a class="button" href="${routeLink(workshop)}" target="_blank" rel="noreferrer">Marshrut</a>
-            </div>
+            <iframe
+                class="map-panel__frame"
+                src="${embedUrl}"
+                title="${workshop.name}"
+                loading="lazy"
+            ></iframe>
         `;
+
+        panel.querySelector('.map-panel__close')?.addEventListener('click', () => {
+            clearSelection();
+        });
     }
 
     function ensureMapReady() {
@@ -203,7 +206,10 @@
         );
     }
 
-    async function renderMap(filtered) {
+    async function renderMap(filtered, options = {}) {
+        const {
+            preserveViewport = false,
+        } = options;
         const readyMap = await ensureMapReady();
         if (!readyMap) {
             return;
@@ -227,8 +233,13 @@
             points.push([workshop.latitude, workshop.longitude]);
         });
 
+        if (preserveViewport) {
+            return;
+        }
+
         if (points.length === 1) {
             readyMap.setCenter(points[0], 14, { duration: 250 });
+            hasFittedInitialBounds = true;
             return;
         }
 
@@ -239,22 +250,33 @@
                 zoomMargin: 28,
                 duration: 250,
             });
+            hasFittedInitialBounds = true;
             return;
         }
 
-        readyMap.setCenter(defaultCenter, 11, { duration: 250 });
+        if (!hasFittedInitialBounds) {
+            readyMap.setCenter(defaultCenter, 11, { duration: 250 });
+            hasFittedInitialBounds = true;
+        }
     }
 
     async function selectWorkshop(id, scrollIntoView) {
+        if (selectedWorkshopId === id) {
+            clearSelection();
+            return;
+        }
+
         selectedWorkshopId = id;
         const filtered = applyFilters();
         const workshop = filtered.find((item) => item.id === id) || workshops.find((item) => item.id === id);
 
         renderList(filtered);
         renderMapPanel(workshop);
-        await renderMap(filtered);
+        await renderMap(filtered, {
+            preserveViewport: !scrollIntoView,
+        });
 
-        if (workshop?.latitude != null && workshop?.longitude != null && map) {
+        if (scrollIntoView && workshop?.latitude != null && workshop?.longitude != null && map) {
             map.setCenter([workshop.latitude, workshop.longitude], 14, { duration: 300 });
         }
 
@@ -266,11 +288,29 @@
         }
     }
 
-    async function refreshUi() {
+    function clearSelection() {
+        selectedWorkshopId = null;
         const filtered = applyFilters();
         renderList(filtered);
-        renderMapPanel(filtered.find((item) => item.id === selectedWorkshopId) || filtered[0] || null);
-        await renderMap(filtered);
+        renderMapPanel(null);
+        void renderMap(filtered, {
+            preserveViewport: true,
+        });
+    }
+
+    async function refreshUi(options = {}) {
+        const {
+            refitBounds = false,
+        } = options;
+        const filtered = applyFilters();
+        if (selectedWorkshopId && !filtered.some((item) => item.id === selectedWorkshopId)) {
+            selectedWorkshopId = null;
+        }
+        renderList(filtered);
+        renderMapPanel(filtered.find((item) => item.id === selectedWorkshopId) || null);
+        await renderMap(filtered, {
+            preserveViewport: !refitBounds && hasFittedInitialBounds,
+        });
     }
 
     async function bootstrap() {
@@ -284,7 +324,7 @@
                         rating: Number(item.rating || 0).toFixed(1),
                         reviewCount: Number(item.reviewCount || 0),
                         distanceKm: Number(item.distanceKm || 0).toFixed(1),
-                        startingPriceLabel: item.startingPrice ? `${Number(item.startingPrice).toLocaleString('ru-RU')} UZS` : 'Narx so‘rov asosida',
+                        startingPriceLabel: item.startingPrice ? `${Number(item.startingPrice).toLocaleString('ru-RU')} so'm` : 'Narx so‘rov asosida',
                         fullDescription: item.description || '',
                         imageUrl: item.imageUrl || '',
                         serviceNames: (item.services || []).slice(0, 4).map((service) => service.name || ''),
@@ -298,16 +338,16 @@
         }
 
         document.getElementById('searchInput').addEventListener('input', () => {
-            void refreshUi();
+            void refreshUi({ refitBounds: true });
         });
         document.getElementById('serviceFilter').addEventListener('change', () => {
-            void refreshUi();
+            void refreshUi({ refitBounds: true });
         });
         document.getElementById('openOnly').addEventListener('change', () => {
-            void refreshUi();
+            void refreshUi({ refitBounds: true });
         });
 
-        await refreshUi();
+        await refreshUi({ refitBounds: true });
     }
 
     void bootstrap();

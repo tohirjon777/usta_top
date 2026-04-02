@@ -69,13 +69,22 @@ class CustomerWebsiteController extends Controller
         abort_unless($workshop !== null, 404);
 
         $presented = $this->presentWorkshopDetail($workshop);
+        $customer = $this->currentCustomer($request);
+
+        if ($request->boolean('embedded')) {
+            return view('ustatop.customer.workshop-embed', [
+                'title' => ($presented['name'] ?? 'Usta Top').' | Usta Top',
+                'workshop' => $presented,
+                'currentCustomer' => $this->presentCustomer($customer),
+            ]);
+        }
+
         $related = collect($this->repository->listWorkshops())
             ->reject(fn (array $item): bool => ($item['id'] ?? '') === $id)
             ->map(fn (array $item): array => $this->presentWorkshopSummary($item))
             ->take(3)
             ->values()
             ->all();
-        $customer = $this->currentCustomer($request);
 
         return view('ustatop.customer.workshop', [
             'title' => ($presented['name'] ?? 'Usta Top').' | Usta Top',

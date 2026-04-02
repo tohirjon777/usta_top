@@ -40,6 +40,7 @@ class UstaTopWebPanelTest extends TestCase
             ->assertSee('Usta Top')
             ->assertSee('Ustaxonalar katalogi')
             ->assertSee('api-maps.yandex.ru/2.1/?apikey=test-yandex-key', false)
+            ->assertSee('id="mapPanel" class="map-panel is-hidden"', false)
             ->assertSee('Turbo Usta Servis');
 
         $this->get('/workshops')
@@ -53,6 +54,12 @@ class UstaTopWebPanelTest extends TestCase
             ->assertSee('Xizmatlar')
             ->assertSee('Yandex Maps’da ochish')
             ->assertSee('Lokatsiya');
+
+        $this->get('/workshop/w-1?embedded=1')
+            ->assertOk()
+            ->assertSee('Turbo Usta Servis')
+            ->assertSee('To‘liq sahifa')
+            ->assertSee('Marshrut');
     }
 
     public function test_customer_can_register_manage_cards_and_book_from_website(): void

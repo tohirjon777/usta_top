@@ -12,7 +12,7 @@
 
     function formatUzs(value) {
         const amount = Number(value || 0);
-        return `${amount.toLocaleString('ru-RU')} UZS`;
+        return `${amount.toLocaleString('ru-RU')} so'm`;
     }
 
     function initMap() {

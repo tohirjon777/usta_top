@@ -38,7 +38,7 @@ final class Money
             $formatted .= $digits[$index];
         }
 
-        return $sign.$formatted.' UZS';
+        return $sign.$formatted." so'm";
     }
 
     public static function parseStoredAmount(string $raw): ?int
