@@ -208,6 +208,16 @@ class _BookingScreenState extends State<BookingScreen> {
       .map((BookingAvailabilitySlot slot) => slot.time)
       .toList(growable: false);
 
+  int get _currentBookingStep {
+    if (_selectedTime != null) {
+      return 4;
+    }
+    if (_selectedVehicleDisplayName.isNotEmpty) {
+      return 3;
+    }
+    return 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -315,14 +325,27 @@ class _BookingScreenState extends State<BookingScreen> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: <Widget>[
           AppReveal(
+            beginOffset: const Offset(0, 0.03),
+            beginScale: 0.985,
             child: _BookingHeroCard(
               salon: widget.salon,
               l10n: l10n,
             ),
           ),
+          const SizedBox(height: 14),
+          AppReveal(
+            delay: const Duration(milliseconds: 50),
+            beginOffset: const Offset(0, 0.04),
+            beginScale: 0.985,
+            child: _BookingProgressIndicator(
+              currentStep: _currentBookingStep,
+            ),
+          ),
           const SizedBox(height: 18),
           AppReveal(
             delay: const Duration(milliseconds: 90),
+            beginOffset: const Offset(0, 0.05),
+            beginScale: 0.985,
             child: _BookingSectionCard(
               title: l10n.service,
               child: DropdownButtonFormField<String>(
@@ -368,6 +391,8 @@ class _BookingScreenState extends State<BookingScreen> {
           const SizedBox(height: 18),
           AppReveal(
             delay: const Duration(milliseconds: 140),
+            beginOffset: const Offset(0, 0.055),
+            beginScale: 0.985,
             child: _BookingSectionCard(
               title: l10n.vehicleSelectionTitle,
               child: Column(
@@ -532,6 +557,8 @@ class _BookingScreenState extends State<BookingScreen> {
           const SizedBox(height: 12),
           AppReveal(
             delay: const Duration(milliseconds: 190),
+            beginOffset: const Offset(0, 0.06),
+            beginScale: 0.985,
             child: OutlinedButton.icon(
               onPressed: () async {
                 if (_isLoadingCalendar) {
@@ -624,202 +651,254 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ],
           const SizedBox(height: 14),
-          Text(
-            l10n.availableTimes,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (_isLoadingAvailability)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
-                ),
-              ),
-            )
-          else if (_availabilityError != null)
-            _AvailabilityMessageCard(
-              title: _availabilityError!,
-              subtitle: l10n.availableTimesRetryHint,
-            )
-          else if (_slotItems.isEmpty)
-            _AvailabilityMessageCard(
-              title: _isClosedDay
-                  ? l10n.availableTimesClosedDay
-                  : l10n.availableTimesEmpty,
-              subtitle: _isClosedDay
-                  ? l10n.availableTimesClosedDayHint
-                  : l10n.availableTimesEmptyHint,
-            )
-          else
-            Column(
+          AppReveal(
+            delay: const Duration(milliseconds: 230),
+            beginOffset: const Offset(0, 0.065),
+            beginScale: 0.985,
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                if (_availableSlots.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _AvailabilityMessageCard(
-                      title: _isClosedDay
-                          ? l10n.availableTimesClosedDay
-                          : l10n.availableTimesEmpty,
-                      subtitle: _isClosedDay
-                          ? l10n.availableTimesClosedDayHint
-                          : l10n.availableTimesEmptyHint,
+                Text(
+                  l10n.availableTimes,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  reverseDuration: const Duration(milliseconds: 180),
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                    final Animation<Offset> slide = Tween<Offset>(
+                      begin: const Offset(0, 0.06),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    );
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: slide,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey<String>(
+                      '${_dateKey(_selectedDate)}|$_selectedServiceId|${_slotItems.length}|$_isLoadingAvailability|${_availabilityError ?? ''}',
                     ),
-                  ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _slotItems
-                      .map(
-                        (BookingAvailabilitySlot slot) => ChoiceChip(
-                          label: Text(
-                            slot.time,
-                            style: TextStyle(
-                              color: slot.isAvailable
-                                  ? null
-                                  : AppColors.secondaryTextOf(context),
+                    child: _isLoadingAvailability
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2.2),
+                              ),
                             ),
-                          ),
-                          selected: slot.time == _selectedTime,
-                          backgroundColor: slot.isAvailable
-                              ? null
-                              : AppColors.chipBackgroundOf(context),
-                          side: BorderSide(
-                            color: slot.isAvailable
-                                ? AppColors.borderOf(context)
-                                : AppColors.borderOf(context)
-                                    .withValues(alpha: 0.6),
-                          ),
-                          onSelected: slot.isAvailable
-                              ? (_) {
-                                  setState(() {
-                                    _selectedTime = slot.time;
-                                  });
-                                }
-                              : null,
-                        ),
-                      )
-                      .toList(),
+                          )
+                        : (_availabilityError != null
+                            ? _AvailabilityMessageCard(
+                                title: _availabilityError!,
+                                subtitle: l10n.availableTimesRetryHint,
+                              )
+                            : (_slotItems.isEmpty
+                                ? _AvailabilityMessageCard(
+                                    title: _isClosedDay
+                                        ? l10n.availableTimesClosedDay
+                                        : l10n.availableTimesEmpty,
+                                    subtitle: _isClosedDay
+                                        ? l10n.availableTimesClosedDayHint
+                                        : l10n.availableTimesEmptyHint,
+                                  )
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      if (_availableSlots.isEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 10),
+                                          child: _AvailabilityMessageCard(
+                                            title: _isClosedDay
+                                                ? l10n.availableTimesClosedDay
+                                                : l10n.availableTimesEmpty,
+                                            subtitle: _isClosedDay
+                                                ? l10n.availableTimesClosedDayHint
+                                                : l10n.availableTimesEmptyHint,
+                                          ),
+                                        ),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: _slotItems
+                                            .map(
+                                              (BookingAvailabilitySlot slot) => AnimatedScale(
+                                                scale: slot.time == _selectedTime ? 1 : 0.97,
+                                                duration: const Duration(milliseconds: 180),
+                                                curve: Curves.easeOutCubic,
+                                                child: ChoiceChip(
+                                                  label: Text(
+                                                    slot.time,
+                                                    style: TextStyle(
+                                                      color: slot.isAvailable
+                                                          ? null
+                                                          : AppColors.secondaryTextOf(context),
+                                                    ),
+                                                  ),
+                                                  selected: slot.time == _selectedTime,
+                                                  backgroundColor: slot.isAvailable
+                                                      ? null
+                                                      : AppColors.chipBackgroundOf(context),
+                                                  side: BorderSide(
+                                                    color: slot.isAvailable
+                                                        ? AppColors.borderOf(context)
+                                                        : AppColors.borderOf(context)
+                                                            .withValues(alpha: 0.6),
+                                                  ),
+                                                  onSelected: slot.isAvailable
+                                                      ? (_) {
+                                                          setState(() {
+                                                            _selectedTime = slot.time;
+                                                          });
+                                                        }
+                                                      : null,
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                                    ],
+                                  ))),
+                  ),
                 ),
               ],
             ),
+          ),
           const SizedBox(height: 18),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    l10n.summary,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (_isLoadingPriceQuote) ...<Widget>[
-                    const SizedBox(height: 10),
-                    const LinearProgressIndicator(minHeight: 3),
-                  ],
-                  const SizedBox(height: 6),
-                  Text(l10n.serviceLabel(_selectedService.name)),
-                  Text(
-                    l10n.vehicleModelLabel(
-                      _selectedVehicleDisplayName.isEmpty
-                          ? l10n.vehicleModelPending
-                          : _selectedVehicleDisplayName,
-                    ),
-                  ),
-                  Text(
-                    l10n.vehicleTypeLabel(
-                      _selectedVehicleType.label(l10n),
-                    ),
-                  ),
-                  Text(
-                    l10n.durationLabel(
-                      l10n.durationMinutes(_selectedService.durationMinutes),
-                    ),
-                  ),
-                  Text(l10n.dateLabel(selectedDateLabel)),
-                  Text(
-                    l10n.timeLabel(
-                      _selectedTime ?? l10n.bookingTimePending,
-                    ),
-                  ),
-                  Text(
-                    l10n.basePriceLabel(
-                      AppFormatters.moneyK(_quotedBasePrice),
-                    ),
-                  ),
-                  if (_requiresPrepayment)
+          AppReveal(
+            delay: const Duration(milliseconds: 260),
+            beginOffset: const Offset(0, 0.07),
+            beginScale: 0.985,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
                     Text(
-                      l10n.prepaymentSummaryLabel(
-                        _quotedPrepaymentPercent,
-                        AppFormatters.moneyK(_quotedPrepaymentAmount),
+                      l10n.summary,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (_isLoadingPriceQuote) ...<Widget>[
+                      const SizedBox(height: 10),
+                      const LinearProgressIndicator(minHeight: 3),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(l10n.serviceLabel(_selectedService.name)),
+                    Text(
+                      l10n.vehicleModelLabel(
+                        _selectedVehicleDisplayName.isEmpty
+                            ? l10n.vehicleModelPending
+                            : _selectedVehicleDisplayName,
                       ),
                     ),
-                  if (_requiresPrepayment)
                     Text(
-                      l10n.remainingPaymentLabel(
-                        AppFormatters.moneyK(_quotedRemainingAmount),
+                      l10n.vehicleTypeLabel(
+                        _selectedVehicleType.label(l10n),
                       ),
                     ),
-                  if (_priceQuote?.matchedRule == true &&
-                      _priceQuote!.matchedVehicleLabel.isNotEmpty)
                     Text(
-                      l10n.vehiclePriceRuleLabel(
-                        _priceQuote!.matchedVehicleLabel,
+                      l10n.durationLabel(
+                        l10n.durationMinutes(_selectedService.durationMinutes),
                       ),
                     ),
-                  if (_priceQuoteError != null)
+                    Text(l10n.dateLabel(selectedDateLabel)),
                     Text(
-                      _priceQuoteError!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
+                      l10n.timeLabel(
+                        _selectedTime ?? l10n.bookingTimePending,
+                      ),
                     ),
-                  const SizedBox(height: 6),
-                  Text(
-                    l10n.totalLabel(
-                      AppFormatters.moneyK(_calculatedPrice),
+                    Text(
+                      l10n.basePriceLabel(
+                        AppFormatters.moneyK(_quotedBasePrice),
+                      ),
                     ),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryToneOf(context),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.paymentMethodLabel,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.paymentMethodHint,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.secondaryTextOf(context),
+                    if (_requiresPrepayment)
+                      Text(
+                        l10n.prepaymentSummaryLabel(
+                          _quotedPrepaymentPercent,
+                          AppFormatters.moneyK(_quotedPrepaymentAmount),
                         ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _paymentMethods
-                        .map(
-                          (String method) => ChoiceChip(
-                            label: Text(_paymentMethodLabel(l10n, method)),
-                            selected: method == _selectedPaymentMethod,
-                            onSelected: (_) {
-                              setState(() {
-                                _selectedPaymentMethod = method;
-                              });
-                            },
+                      ),
+                    if (_requiresPrepayment)
+                      Text(
+                        l10n.remainingPaymentLabel(
+                          AppFormatters.moneyK(_quotedRemainingAmount),
+                        ),
+                      ),
+                    if (_priceQuote?.matchedRule == true &&
+                        _priceQuote!.matchedVehicleLabel.isNotEmpty)
+                      Text(
+                        l10n.vehiclePriceRuleLabel(
+                          _priceQuote!.matchedVehicleLabel,
+                        ),
+                      ),
+                    if (_priceQuoteError != null)
+                      Text(
+                        _priceQuoteError!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                      ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.totalLabel(
+                        AppFormatters.moneyK(_calculatedPrice),
+                      ),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryToneOf(context),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.paymentMethodLabel,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.paymentMethodHint,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
                           ),
-                        )
-                        .toList(),
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _paymentMethods
+                          .map(
+                            (String method) => AnimatedScale(
+                              scale: method == _selectedPaymentMethod ? 1 : 0.98,
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOutCubic,
+                              child: ChoiceChip(
+                                label: Text(_paymentMethodLabel(l10n, method)),
+                                selected: method == _selectedPaymentMethod,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _selectedPaymentMethod = method;
+                                  });
+                                },
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1537,6 +1616,88 @@ class _BookingHeroCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _BookingProgressIndicator extends StatelessWidget {
+  const _BookingProgressIndicator({
+    required this.currentStep,
+  });
+
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    const List<IconData> icons = <IconData>[
+      Icons.tune_rounded,
+      Icons.directions_car_rounded,
+      Icons.schedule_rounded,
+      Icons.task_alt_rounded,
+    ];
+
+    return Row(
+      children: List<Widget>.generate(icons.length, (int index) {
+        final bool isCompleted = index + 1 < currentStep;
+        final bool isActive = index + 1 == currentStep;
+        final Color fill = isCompleted || isActive
+            ? AppColors.primaryToneOf(context)
+            : AppColors.chipBackgroundOf(context);
+        final Color foreground = isCompleted || isActive
+            ? Colors.white
+            : AppColors.secondaryTextOf(context);
+
+        return Expanded(
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: fill,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isCompleted || isActive
+                          ? fill
+                          : AppColors.borderOf(context),
+                    ),
+                    boxShadow: isActive
+                        ? <BoxShadow>[
+                            BoxShadow(
+                              color: fill.withValues(alpha: 0.18),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ]
+                        : const <BoxShadow>[],
+                  ),
+                  child: AnimatedScale(
+                    scale: isActive ? 1 : 0.96,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: Icon(
+                      icons[index],
+                      size: 18,
+                      color: foreground,
+                    ),
+                  ),
+                ),
+              ),
+              if (index != icons.length - 1)
+                Container(
+                  width: 12,
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  color: index + 1 < currentStep
+                      ? AppColors.primaryToneOf(context).withValues(alpha: 0.45)
+                      : AppColors.borderOf(context),
+                ),
+            ],
+          ),
+        );
+      }),
     );
   }
 }

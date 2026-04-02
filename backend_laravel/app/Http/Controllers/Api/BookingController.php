@@ -78,12 +78,22 @@ class BookingController extends Controller
         }
 
         try {
+            $booking = $this->repository->rescheduleBookingForUser(
+                $user['id'],
+                $id,
+                trim((string) $request->input('dateTime'))
+            );
+            $workshop = $this->repository->workshopById((string) ($booking['workshopId'] ?? ''));
+            if ($workshop !== null) {
+                try {
+                    $this->notifications->sendBookingStatusNotification($workshop, $booking, 'customer');
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
+
             return response()->json([
-                'data' => $this->repository->rescheduleBookingForUser(
-                    $user['id'],
-                    $id,
-                    trim((string) $request->input('dateTime'))
-                ),
+                'data' => $booking,
             ]);
         } catch (RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 400);

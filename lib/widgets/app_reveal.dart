@@ -10,6 +10,8 @@ class AppReveal extends StatefulWidget {
     this.duration = const Duration(milliseconds: 180),
     this.curve = Curves.easeOut,
     this.enabled = true,
+    this.beginOffset = Offset.zero,
+    this.beginScale = 1,
   });
 
   final Widget child;
@@ -17,6 +19,8 @@ class AppReveal extends StatefulWidget {
   final Duration duration;
   final Curve curve;
   final bool enabled;
+  final Offset beginOffset;
+  final double beginScale;
 
   @override
   State<AppReveal> createState() => _AppRevealState();
@@ -93,7 +97,17 @@ class _AppRevealState extends State<AppReveal> {
       opacity: _visible ? 1 : 0,
       duration: widget.duration,
       curve: widget.curve,
-      child: widget.child,
+      child: AnimatedSlide(
+        offset: _visible ? Offset.zero : widget.beginOffset,
+        duration: widget.duration,
+        curve: widget.curve,
+        child: AnimatedScale(
+          scale: _visible ? 1 : widget.beginScale,
+          duration: widget.duration,
+          curve: widget.curve,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }

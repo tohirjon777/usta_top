@@ -6,6 +6,7 @@ class AuthUser {
     required this.id,
     required this.fullName,
     required this.phone,
+    this.avatarUrl,
     this.savedVehicles = const <SavedVehicleProfile>[],
     this.savedPaymentCards = const <SavedPaymentCard>[],
   });
@@ -13,12 +14,14 @@ class AuthUser {
   final String id;
   final String fullName;
   final String phone;
+  final String? avatarUrl;
   final List<SavedVehicleProfile> savedVehicles;
   final List<SavedPaymentCard> savedPaymentCards;
 
   AuthUser copyWith({
     String? fullName,
     String? phone,
+    String? avatarUrl,
     List<SavedVehicleProfile>? savedVehicles,
     List<SavedPaymentCard>? savedPaymentCards,
   }) {
@@ -26,6 +29,7 @@ class AuthUser {
       id: id,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       savedVehicles: savedVehicles ?? this.savedVehicles,
       savedPaymentCards: savedPaymentCards ?? this.savedPaymentCards,
     );
@@ -38,6 +42,9 @@ class AuthUser {
       id: (json['id'] ?? '').toString(),
       fullName: (json['fullName'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
+      avatarUrl: (json['avatarUrl'] ?? '').toString().trim().isEmpty
+          ? null
+          : (json['avatarUrl'] ?? '').toString(),
       savedVehicles:
           ((json['savedVehicles'] as List<dynamic>?) ?? const <dynamic>[])
               .whereType<Map<String, dynamic>>()
@@ -154,6 +161,12 @@ abstract interface class AuthService {
     required String accessToken,
     required String fullName,
     required String phone,
+  });
+
+  Future<AuthUser> uploadCurrentUserAvatar({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
   });
 
   Future<AuthUser> addPaymentCard({

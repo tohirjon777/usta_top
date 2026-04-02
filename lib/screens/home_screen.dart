@@ -12,6 +12,10 @@ import '../ui/app_loading_view.dart';
 import '../widgets/app_reveal.dart';
 import '../widgets/workshop_image_view.dart';
 
+enum _HomeDiscoveryFilter { all, open, topRated, nearby, saved }
+
+enum _HomeDiscoverySort { recommended, nearest, rating, price }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -26,6 +30,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  _HomeDiscoveryFilter _activeFilter = _HomeDiscoveryFilter.all;
+  _HomeDiscoverySort _activeSort = _HomeDiscoverySort.recommended;
 
   @override
   void dispose() {
@@ -39,7 +45,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final WorkshopProvider workshopProvider = context.watch<WorkshopProvider>();
     final SavedWorkshopsProvider savedProvider =
         context.watch<SavedWorkshopsProvider>();
-    final List<Salon> salons = workshopProvider.workshops;
+    final List<Salon> salons = _sortSalons(
+      _applyFilter(
+        workshopProvider.workshops,
+        savedProvider,
+      ),
+    );
     final bool isLoading = workshopProvider.isLoading;
     final String query = workshopProvider.query;
     final String? errorMessage = workshopProvider.errorMessage;
@@ -62,6 +73,8 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
           children: <Widget>[
             AppReveal(
+              beginOffset: const Offset(0, 0.03),
+              beginScale: 0.985,
               child: _HomeHeroCard(
                 l10n: l10n,
                 controller: _searchController,
@@ -82,6 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 18),
             AppReveal(
               delay: const Duration(milliseconds: 90),
+              beginOffset: const Offset(0, 0.04),
+              beginScale: 0.985,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -106,13 +121,33 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 22),
             AppReveal(
+              delay: const Duration(milliseconds: 120),
+              beginOffset: const Offset(0, 0.045),
+              beginScale: 0.985,
+              child: _HomeDiscoveryControls(
+                l10n: l10n,
+                activeFilter: _activeFilter,
+                activeSortLabel: _sortLabel(l10n, _activeSort),
+                onSortTap: () => _showSortSheet(context),
+                onFilterSelected: (value) {
+                  setState(() {
+                    _activeFilter = value;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            AppReveal(
               delay: const Duration(milliseconds: 140),
+              beginOffset: const Offset(0, 0.05),
+              beginScale: 0.985,
               child: _SectionHeader(
                 title:
                     query.isEmpty ? l10n.findTrustedMasters : l10n.searchHint,
-                subtitle: query.isEmpty
-                    ? l10n.salonsNearby(salons.length)
-                    : '${salons.length}',
+                subtitle: l10n.homeResultsSummary(
+                  salons.length,
+                  _sortLabel(l10n, _activeSort),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -143,6 +178,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.only(bottom: 14),
                   child: AppReveal(
                     delay: Duration(milliseconds: 180 + (entry.key * 55)),
+                    duration: const Duration(milliseconds: 240),
+                    beginOffset: const Offset(0, 0.08),
+                    beginScale: 0.975,
                     child: _SalonCard(
                       l10n: l10n,
                       salon: entry.value,
@@ -188,6 +226,139 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(content: Text(l10n.savedWorkshopUpdateFailed)),
       );
     }
+  }
+
+  List<Salon> _applyFilter(
+    List<Salon> salons,
+    SavedWorkshopsProvider savedProvider,
+  ) {
+    switch (_activeFilter) {
+      case _HomeDiscoveryFilter.all:
+        return List<Salon>.from(salons, growable: false);
+      case _HomeDiscoveryFilter.open:
+        return salons
+            .where((Salon salon) => salon.isOpen)
+            .toList(growable: false);
+      case _HomeDiscoveryFilter.topRated:
+        return salons
+            .where((Salon salon) => salon.rating >= 4.7)
+            .toList(growable: false);
+      case _HomeDiscoveryFilter.nearby:
+        return salons
+            .where((Salon salon) => salon.distanceKm > 0 && salon.distanceKm <= 5)
+            .toList(growable: false);
+      case _HomeDiscoveryFilter.saved:
+        return salons
+            .where((Salon salon) => savedProvider.isSaved(salon.id))
+            .toList(growable: false);
+    }
+  }
+
+  List<Salon> _sortSalons(List<Salon> salons) {
+    final List<Salon> sorted = List<Salon>.from(salons, growable: false);
+    sorted.sort((Salon a, Salon b) {
+      switch (_activeSort) {
+        case _HomeDiscoverySort.recommended:
+          final int openCompare = (b.isOpen ? 1 : 0).compareTo(a.isOpen ? 1 : 0);
+          if (openCompare != 0) {
+            return openCompare;
+          }
+          final int ratingCompare = b.rating.compareTo(a.rating);
+          if (ratingCompare != 0) {
+            return ratingCompare;
+          }
+          final int reviewCompare = b.reviewCount.compareTo(a.reviewCount);
+          if (reviewCompare != 0) {
+            return reviewCompare;
+          }
+          return a.distanceKm.compareTo(b.distanceKm);
+        case _HomeDiscoverySort.nearest:
+          return a.distanceKm.compareTo(b.distanceKm);
+        case _HomeDiscoverySort.rating:
+          final int ratingCompare = b.rating.compareTo(a.rating);
+          if (ratingCompare != 0) {
+            return ratingCompare;
+          }
+          return b.reviewCount.compareTo(a.reviewCount);
+        case _HomeDiscoverySort.price:
+          final int priceCompare = a.startingPrice.compareTo(b.startingPrice);
+          if (priceCompare != 0) {
+            return priceCompare;
+          }
+          return a.distanceKm.compareTo(b.distanceKm);
+      }
+    });
+    return sorted;
+  }
+
+  String _sortLabel(AppLocalizations l10n, _HomeDiscoverySort value) {
+    switch (value) {
+      case _HomeDiscoverySort.recommended:
+        return l10n.homeSortRecommended;
+      case _HomeDiscoverySort.nearest:
+        return l10n.homeSortNearest;
+      case _HomeDiscoverySort.rating:
+        return l10n.homeSortTopRated;
+      case _HomeDiscoverySort.price:
+        return l10n.homeSortLowestPrice;
+    }
+  }
+
+  Future<void> _showSortSheet(BuildContext context) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final _HomeDiscoverySort? selected =
+        await showModalBottomSheet<_HomeDiscoverySort>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      l10n.homeSortTitle,
+                      style: Theme.of(sheetContext).textTheme.titleLarge,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ..._HomeDiscoverySort.values.map(
+                  (_HomeDiscoverySort option) => ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    leading: Icon(
+                      option == _activeSort
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: option == _activeSort
+                          ? AppColors.primaryToneOf(sheetContext)
+                          : AppColors.secondaryTextOf(sheetContext),
+                    ),
+                    title: Text(_sortLabel(l10n, option)),
+                    onTap: () => Navigator.of(sheetContext).pop(option),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted || selected == _activeSort) {
+      return;
+    }
+
+    setState(() {
+      _activeSort = selected;
+    });
   }
 }
 
@@ -449,6 +620,150 @@ class _QuickBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HomeDiscoveryControls extends StatelessWidget {
+  const _HomeDiscoveryControls({
+    required this.l10n,
+    required this.activeFilter,
+    required this.activeSortLabel,
+    required this.onSortTap,
+    required this.onFilterSelected,
+  });
+
+  final AppLocalizations l10n;
+  final _HomeDiscoveryFilter activeFilter;
+  final String activeSortLabel;
+  final VoidCallback onSortTap;
+  final ValueChanged<_HomeDiscoveryFilter> onFilterSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                _HomeFilterChip(
+                  label: l10n.mapFilterAll,
+                  selected: activeFilter == _HomeDiscoveryFilter.all,
+                  onTap: () => onFilterSelected(_HomeDiscoveryFilter.all),
+                ),
+                const SizedBox(width: 8),
+                _HomeFilterChip(
+                  label: l10n.openNow,
+                  selected: activeFilter == _HomeDiscoveryFilter.open,
+                  onTap: () => onFilterSelected(_HomeDiscoveryFilter.open),
+                ),
+                const SizedBox(width: 8),
+                _HomeFilterChip(
+                  label: l10n.mapFilterTopRated,
+                  selected: activeFilter == _HomeDiscoveryFilter.topRated,
+                  onTap: () => onFilterSelected(_HomeDiscoveryFilter.topRated),
+                ),
+                const SizedBox(width: 8),
+                _HomeFilterChip(
+                  label: l10n.mapFilterNearby,
+                  selected: activeFilter == _HomeDiscoveryFilter.nearby,
+                  onTap: () => onFilterSelected(_HomeDiscoveryFilter.nearby),
+                ),
+                const SizedBox(width: 8),
+                _HomeFilterChip(
+                  label: l10n.homeFilterSaved,
+                  selected: activeFilter == _HomeDiscoveryFilter.saved,
+                  onTap: () => onFilterSelected(_HomeDiscoveryFilter.saved),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        _HomeSortButton(
+          label: activeSortLabel,
+          onTap: onSortTap,
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeFilterChip extends StatelessWidget {
+  const _HomeFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      selectedColor: AppColors.primarySoftOf(context),
+      side: BorderSide(color: AppColors.borderOf(context)),
+      labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: selected
+                ? AppColors.primaryToneOf(context)
+                : AppColors.textOf(context),
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    );
+  }
+}
+
+class _HomeSortButton extends StatelessWidget {
+  const _HomeSortButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderOf(context)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                Icons.tune_rounded,
+                size: 18,
+                color: AppColors.primaryToneOf(context),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

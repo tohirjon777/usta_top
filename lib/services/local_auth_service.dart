@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../models/saved_payment_card.dart';
 import 'auth_service.dart';
 
@@ -185,6 +187,30 @@ class LocalAuthService implements AuthService {
     _userIdByPhone.remove(_normalizePhone(current.phone));
     _usersById[current.id] = updated;
     _userIdByPhone[normalizedPhoneKey] = current.id;
+    return updated;
+  }
+
+  @override
+  Future<AuthUser> uploadCurrentUserAvatar({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final AuthUser current = _requireUserByToken(accessToken);
+    final String extension = fileName.contains('.')
+        ? fileName.split('.').last.toLowerCase()
+        : 'png';
+    final String mimeType = switch (extension) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      _ => 'image/png',
+    };
+
+    final AuthUser updated = current.copyWith(
+      avatarUrl: 'data:$mimeType;base64,${base64Encode(bytes)}',
+    );
+    _usersById[current.id] = updated;
     return updated;
   }
 

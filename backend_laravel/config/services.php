@@ -46,4 +46,8 @@ return [
         'service_name' => env('SMS_SERVICE_NAME', 'Usta Top'),
     ],
 
+    'yandex_maps' => [
+        'js_api_key' => env('YANDEX_MAPS_JS_API_KEY'),
+    ],
+
 ];

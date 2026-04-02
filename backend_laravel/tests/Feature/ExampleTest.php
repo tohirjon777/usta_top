@@ -13,8 +13,8 @@ class ExampleTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertJson([
-                'ok' => true,
-            ]);
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('storageDriver', fn ($value) => is_string($value) && $value !== '')
+            ->assertJsonPath('environment', fn ($value) => is_string($value) && $value !== '');
     }
 }

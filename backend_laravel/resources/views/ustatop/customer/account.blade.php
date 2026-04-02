@@ -4,11 +4,22 @@
     <section class="account-hero">
         <div class="hero-card">
             <div class="eyebrow">Mening kabinetim</div>
-            <h1>{{ $currentCustomer['fullName'] ?? 'Mijoz' }}</h1>
-            <p>
-                Telefon: {{ $currentCustomer['phone'] ?? '—' }}. Bu yerdan profilni yangilaysiz, kartalarni saqlaysiz,
-                bronlarni boshqarasiz va ustaxona bilan yozishasiz.
-            </p>
+            <div class="account-hero__identity">
+                <div class="account-avatar">
+                    @if(!empty($currentCustomer['avatarUrl']))
+                        <img src="{{ $currentCustomer['avatarUrl'] }}" alt="{{ $currentCustomer['fullName'] ?? 'Mijoz' }}">
+                    @else
+                        {{ strtoupper(mb_substr($currentCustomer['fullName'] ?? 'M', 0, 1)) }}
+                    @endif
+                </div>
+                <div>
+                    <h1>{{ $currentCustomer['fullName'] ?? 'Mijoz' }}</h1>
+                    <p>
+                        Telefon: {{ $currentCustomer['phone'] ?? '—' }}. Bu yerdan profilni yangilaysiz, kartalarni saqlaysiz,
+                        bronlarni boshqarasiz va ustaxona bilan yozishasiz.
+                    </p>
+                </div>
+            </div>
             <div class="stats">
                 <div class="stat-card">
                     <div class="stat-value">{{ count($bookings) }}</div>
@@ -54,6 +65,14 @@
                         <input type="text" name="phone" value="{{ $currentCustomer['phone'] ?? '' }}" required>
                     </label>
                     <button class="button" type="submit">Profilni saqlash</button>
+                </form>
+                <form method="post" action="/customer/avatar" class="form-grid" enctype="multipart/form-data" style="margin-top:16px;">
+                    @csrf
+                    <label class="field">
+                        <span>Avatar rasmi</span>
+                        <input type="file" name="avatar" accept="image/*" required>
+                    </label>
+                    <button class="button-secondary" type="submit">Avatarni yangilash</button>
                 </form>
             </article>
 
@@ -225,6 +244,9 @@
                                 @endif
                                 @if(!empty($booking['rescheduledAtLabel']))
                                     · Ko‘chirilgan: {{ $booking['rescheduledAtLabel'] }}
+                                @endif
+                                @if(!empty($booking['rescheduledByLabel']))
+                                    · Ko‘chirdi: {{ $booking['rescheduledByLabel'] }}
                                 @endif
                                 @if(!empty($booking['previousDateTimeLabel']))
                                     · Oldingi vaqt: {{ $booking['previousDateTimeLabel'] }}

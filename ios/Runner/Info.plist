@@ -66,6 +66,8 @@
 		<string>Main</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Yaqin servislarni xaritada ko'rsatish uchun joylashuv kerak.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Profil avataringiz uchun rasm tanlashga ruxsat kerak.</string>
 		<key>UISupportedInterfaceOrientations</key>
 		<array>
 			<string>UIInterfaceOrientationPortrait</string>

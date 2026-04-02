@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\UstaTop\CustomerAvatarStorage;
 use App\Support\UstaTop\SmsVerificationService;
 use App\Support\UstaTop\UstaTopRepository;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly UstaTopRepository $repository,
         private readonly SmsVerificationService $smsVerificationService,
+        private readonly CustomerAvatarStorage $avatarStorage,
     ) {
     }
 
@@ -154,6 +156,34 @@ class AuthController extends Controller
                     (string) $user['id'],
                     trim((string) $request->input('fullName')),
                     trim((string) $request->input('phone'))
+                ),
+            ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function updateAvatar(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        if (! $request->hasFile('avatar')) {
+            return response()->json(['error' => 'Avatar rasmi yuborilmadi'], 400);
+        }
+
+        try {
+            $avatarUrl = $this->avatarStorage->storeUploadedAvatar(
+                $request->file('avatar'),
+                (string) ($user['avatarUrl'] ?? '')
+            );
+
+            return response()->json([
+                'data' => $this->repository->updateUserAvatarUrl(
+                    (string) $user['id'],
+                    $avatarUrl
                 ),
             ]);
         } catch (RuntimeException $exception) {

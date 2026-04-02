@@ -4,9 +4,11 @@ Bu loyiha uchun asosiy backend endi shu papka ichidagi Laravel servisidir.
 Asosiy saqlash qatlam:
 - lokal SQLite baza: `backend_laravel/storage/app/ustatop/ustatop.sqlite`
 - `backend_laravel/data` esa boshlang'ich import/seed JSON manbasi
+- production uchun `USTATOP_STORAGE_DRIVER=database` orqali PostgreSQL/MySQL ishlatish mumkin
 
 Asosiy imkoniyatlar:
 - SQLite bazada saqlanadigan repository qatlam
+- production-ready database storage driver (`database`) qo'llab-quvvatlanadi
 - API: `/health`, `/auth`, `/workshops`, `/bookings`
 - Booking availability, price quote, review, booking message endpointlari
 - Public customer website: `/`, `/customer/login`, `/customer/account`, `/workshop/{id}`
@@ -46,9 +48,19 @@ SMS OTP:
 2. `../backend_service.sh restart`
 3. Register va parol tiklash oqimi SMS kod bilan ishlaydi.
 
+Yandex Maps (website):
+1. `backend_laravel/secrets/local.env` ichiga `YANDEX_MAPS_JS_API_KEY=...` yozing
+2. `../backend_service.sh restart`
+3. Public website xaritalari Yandex Maps bilan ishlaydi
+
 Eslatma:
 - root-level `../backend_service.sh` va `../run_dev.sh` faqat Laravel backendni ishga tushiradi
 - keyingi yozuvlar va yangilanishlar SQLite bazaga saqlanadi; JSON fayllar endi seed manbasi sifatida ishlatiladi
+- production muhitda PostgreSQL ishlatsangiz `.env` da:
+  - `DB_CONNECTION=pgsql`
+  - `USTATOP_STORAGE_DRIVER=database`
+  - `USTATOP_STORAGE_DB_CONNECTION=pgsql`
+  - `USTATOP_STORAGE_DB_TABLE=ustatop_json_documents`
 
 Backup va restore:
 - artisan backup: `php artisan ustatop:backup-storage`
@@ -58,5 +70,7 @@ Backup va restore:
 Production uchun:
 - tunnel yoki lokal Mac o'rniga alohida VPS tavsiya qilinadi
 - tayyor production yo'riqnoma: `deploy/README_PRODUCTION.md`
+- Forge deploy script: `deploy/forge/deploy.sh`
+- Forge daemon command: `deploy/forge/daemon-telegram-poll.txt`
 - nginx config: `deploy/nginx/ustatop.conf`
 - Telegram poller service: `deploy/systemd/ustatop-telegram-poll.service`

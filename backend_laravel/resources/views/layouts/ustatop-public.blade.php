@@ -8,8 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
     <link rel="stylesheet" href="{{ asset('site-assets/customer.css') }}">
+    @if(!empty($yandexMapsApiKey))
+        <script src="https://api-maps.yandex.ru/2.1/?apikey={{ urlencode($yandexMapsApiKey) }}&lang=ru_RU" type="text/javascript"></script>
+    @endif
     @yield('head')
 </head>
 <body class="{{ $pageClass ?? '' }}">
@@ -46,7 +48,6 @@
         @yield('content')
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     @yield('scripts')
 </body>
 </html>

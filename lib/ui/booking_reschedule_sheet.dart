@@ -66,7 +66,12 @@ class _BookingRescheduleSheetState extends State<_BookingRescheduleSheet> {
   void initState() {
     super.initState();
     _selectedDate = _normalizedDate(widget.booking.dateTime);
-    unawaited(_refreshAvailabilityCalendar(forceAdjustSelection: false));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_refreshAvailabilityCalendar(forceAdjustSelection: false));
+    });
   }
 
   @override

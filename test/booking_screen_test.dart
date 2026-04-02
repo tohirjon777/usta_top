@@ -17,6 +17,7 @@ import 'package:usta_top/providers/booking_provider.dart';
 import 'package:usta_top/screens/booking_screen.dart';
 import 'package:usta_top/services/auth_service.dart';
 import 'package:usta_top/services/booking_service.dart';
+import 'package:usta_top/ui/booking_reschedule_sheet.dart';
 
 void main() {
   Widget buildTestApp({
@@ -154,6 +155,100 @@ void main() {
 
     expect(find.text('Shu vaqtni tanlash'), findsNothing);
   });
+
+  testWidgets('reschedule sheet opens without provider build-scope exception',
+      (WidgetTester tester) async {
+    final FakeBookingService bookingService = FakeBookingService();
+    final BookingProvider bookingProvider = BookingProvider(
+      service: bookingService,
+      seed: <BookingItem>[
+        BookingItem(
+          id: 'b-1',
+          workshopId: 'w-1',
+          salonName: 'Turbo Usta Servis',
+          masterName: 'Aziz Usta',
+          serviceId: 'srv-1',
+          serviceName: 'Diagnostika',
+          vehicleModel: 'Chevrolet Cobalt',
+          vehicleTypeId: 'sedan',
+          dateTime: DateTime.now().add(const Duration(days: 1)),
+          basePrice: 120,
+          price: 120,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>(
+            create: (_) => AuthProvider(
+              authService: FakeAuthService(),
+              tokenStorage: const AuthTokenStorage(),
+            ),
+          ),
+          ChangeNotifierProvider<BookingProvider>.value(value: bookingProvider),
+        ],
+        child: MaterialApp(
+          locale: AppLanguage.uzbek.locale,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: _RescheduleSheetHost(
+            booking: bookingProvider.bookings.first,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Bron vaqtini o‘zgartirish'), findsOneWidget);
+  });
+}
+
+class _RescheduleSheetHost extends StatefulWidget {
+  const _RescheduleSheetHost({
+    required this.booking,
+  });
+
+  final BookingItem booking;
+
+  @override
+  State<_RescheduleSheetHost> createState() => _RescheduleSheetHostState();
+}
+
+class _RescheduleSheetHostState extends State<_RescheduleSheetHost> {
+  bool _opened = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_opened) {
+      return;
+    }
+    _opened = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      showBookingRescheduleSheet(
+        context: context,
+        booking: widget.booking,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: SizedBox.shrink());
+  }
 }
 
 Salon buildTestSalon() {
@@ -359,6 +454,20 @@ class FakeAuthService implements AuthService {
       id: 'u-1',
       fullName: 'Test User',
       phone: '+998901234567',
+    );
+  }
+
+  @override
+  Future<AuthUser> uploadCurrentUserAvatar({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    return const AuthUser(
+      id: 'u-1',
+      fullName: 'Test User',
+      phone: '+998901234567',
+      avatarUrl: 'data:image/png;base64,test-avatar',
     );
   }
 

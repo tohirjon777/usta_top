@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../core/localization/app_language.dart';
@@ -12,6 +13,7 @@ import '../providers/language_provider.dart';
 import '../providers/notification_settings_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/app_reveal.dart';
+import '../widgets/profile_avatar_view.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -28,6 +30,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final ImagePicker _imagePicker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +72,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       authProvider.currentUser?.phone,
       l10n.profileUnknownPhone,
     );
+    final String? avatarUrl = authProvider.currentUser?.avatarUrl?.trim().isEmpty ?? true
+        ? null
+        : authProvider.currentUser?.avatarUrl;
     final List<SavedPaymentCard> savedPaymentCards =
         authProvider.currentUser?.savedPaymentCards ??
             const <SavedPaymentCard>[];
@@ -82,11 +89,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: _ProfileHeroCard(
               fullName: fullName,
               phone: phone,
+              avatarUrl: avatarUrl,
               isLoadingProfile: isLoadingProfile,
               refreshTooltip: l10n.refresh,
               editLabel: l10n.editProfile,
               passwordLabel: l10n.changePassword,
+              changeAvatarLabel: l10n.changeAvatar,
               onRefresh: () => context.read<AuthProvider>().loadCurrentUser(),
+              onChangeAvatar:
+                  isLoadingProfile || authProvider.currentUser == null
+                      ? null
+                      : _pickAvatar,
               onEditProfile:
                   isLoadingProfile || authProvider.currentUser == null
                       ? null
@@ -266,6 +279,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _pickAvatar() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final AuthProvider authProvider = context.read<AuthProvider>();
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+
+    final XFile? file = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 88,
+    );
+    if (file == null || !mounted) {
+      return;
+    }
+
+    final List<int> bytes = await file.readAsBytes();
+    if (!mounted) {
+      return;
+    }
+
+    final bool success = await authProvider.uploadCurrentUserAvatar(
+      bytes: bytes,
+      fileName: file.name.isEmpty ? 'avatar.jpg' : file.name,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    final String? providerError = authProvider.errorMessage;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? l10n.avatarUpdated
+              : (providerError?.trim().isNotEmpty ?? false)
+                  ? providerError!
+                  : l10n.avatarUpdateFailed,
+        ),
       ),
     );
   }
@@ -1108,22 +1163,28 @@ class _ProfileHeroCard extends StatelessWidget {
   const _ProfileHeroCard({
     required this.fullName,
     required this.phone,
+    required this.avatarUrl,
     required this.isLoadingProfile,
     required this.refreshTooltip,
     required this.editLabel,
     required this.passwordLabel,
+    required this.changeAvatarLabel,
     required this.onRefresh,
+    this.onChangeAvatar,
     this.onEditProfile,
     this.onChangePassword,
   });
 
   final String fullName;
   final String phone;
+  final String? avatarUrl;
   final bool isLoadingProfile;
   final String refreshTooltip;
   final String editLabel;
   final String passwordLabel;
+  final String changeAvatarLabel;
   final VoidCallback onRefresh;
+  final VoidCallback? onChangeAvatar;
   final VoidCallback? onEditProfile;
   final VoidCallback? onChangePassword;
 
@@ -1165,10 +1226,7 @@ class _ProfileHeroCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Container(
-            width: 74,
-            height: 74,
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor.withValues(alpha: isDark ? 0.20 : 0.9),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isDark
@@ -1176,10 +1234,13 @@ class _ProfileHeroCard extends StatelessWidget {
                     : AppColors.borderOf(context),
               ),
             ),
-            child: Icon(
-              Icons.person_rounded,
-              size: 42,
-              color: isDark ? Colors.white : AppColors.primaryToneOf(context),
+            child: ProfileAvatarView(
+              size: 74,
+              initials: _initials(fullName),
+              imageUrl: avatarUrl,
+              onEdit: onChangeAvatar,
+              editTooltip: changeAvatarLabel,
+              isLoading: isLoadingProfile,
             ),
           ),
           const SizedBox(width: 14),
@@ -1232,6 +1293,22 @@ class _ProfileHeroCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _initials(String value) {
+    final List<String> parts = value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((String item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'U';
+    }
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
   }
 }
 

@@ -22,6 +22,11 @@ class JsonFileStoreTest extends TestCase
     {
         $this->restoreEnv('USTATOP_STORAGE_DRIVER');
         $this->restoreEnv('USTATOP_SQLITE_FILE');
+        $this->restoreEnv('USTATOP_STORAGE_DB_CONNECTION');
+        $this->restoreEnv('USTATOP_STORAGE_DB_TABLE');
+        $this->restoreEnv('DB_CONNECTION');
+        $this->restoreEnv('DB_DATABASE');
+        JsonFileStore::clearDatabaseConnectionCache();
         $this->deleteDirectory($this->tempDir);
 
         parent::tearDown();
@@ -74,6 +79,27 @@ class JsonFileStoreTest extends TestCase
         $store->writeArray($path, $payload);
 
         $this->assertFileExists($sqlitePath);
+        $this->assertSame($payload, $store->readArray($path));
+    }
+
+    public function test_it_persists_arrays_in_database_mode_using_sqlite_connection(): void
+    {
+        $databasePath = $this->tempDir.'/storage/app/ustatop/database.sqlite';
+        $path = $this->tempDir.'/data/bookings.json';
+        $payload = [
+            ['id' => 'b-1', 'status' => 'upcoming'],
+        ];
+
+        $this->setEnv('USTATOP_STORAGE_DRIVER', 'database');
+        $this->setEnv('USTATOP_STORAGE_DB_CONNECTION', 'sqlite');
+        $this->setEnv('USTATOP_STORAGE_DB_TABLE', 'ustatop_json_documents');
+        $this->setEnv('DB_CONNECTION', 'sqlite');
+        $this->setEnv('DB_DATABASE', $databasePath);
+
+        $store = new JsonFileStore();
+        $store->writeArray($path, $payload);
+
+        $this->assertFileExists($databasePath);
         $this->assertSame($payload, $store->readArray($path));
     }
 

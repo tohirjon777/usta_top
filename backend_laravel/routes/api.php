@@ -20,6 +20,7 @@ Route::post('/auth/push-token/remove', [AuthController::class, 'unregisterPushTo
 Route::post('/auth/push-token/test', [AuthController::class, 'sendTestPush']);
 Route::get('/auth/me', [AuthController::class, 'me']);
 Route::patch('/auth/me', [AuthController::class, 'updateMe']);
+Route::post('/auth/me/avatar', [AuthController::class, 'updateAvatar']);
 Route::post('/auth/me/cards', [AuthController::class, 'addPaymentCard']);
 Route::patch('/auth/me/cards/{cardId}', [AuthController::class, 'updatePaymentCard']);
 Route::delete('/auth/me/cards/{cardId}', [AuthController::class, 'deletePaymentCard']);

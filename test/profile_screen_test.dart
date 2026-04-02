@@ -349,4 +349,16 @@ class FakeAuthService implements AuthService {
     );
     return user;
   }
+
+  @override
+  Future<AuthUser> uploadCurrentUserAvatar({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    user = user.copyWith(
+      avatarUrl: 'data:image/png;base64,test-avatar',
+    );
+    return user;
+  }
 }

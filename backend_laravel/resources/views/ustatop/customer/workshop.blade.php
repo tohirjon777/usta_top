@@ -209,7 +209,7 @@
                 <div class="meta-row" style="margin-top:14px;">
                     <span class="pill muted">{{ $workshop['address'] ?: 'Manzil ko‘rsatilmagan' }}</span>
                     @if($workshop['routeUrl'])
-                        <a class="button" href="{{ $workshop['routeUrl'] }}" target="_blank" rel="noreferrer">Google Maps’da ochish</a>
+                        <a class="button" href="{{ $workshop['routeUrl'] }}" target="_blank" rel="noreferrer">Yandex Maps’da ochish</a>
                     @endif
                 </div>
             </div>

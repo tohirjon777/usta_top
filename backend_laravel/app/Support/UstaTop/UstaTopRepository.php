@@ -134,6 +134,7 @@ class UstaTopRepository
             'fullName' => trim($fullName),
             'phone' => $normalizedPhone,
             'password' => $password,
+            'avatarUrl' => '',
             'pushTokens' => [],
             'savedVehicles' => [],
             'paymentCards' => [],
@@ -217,6 +218,23 @@ class UstaTopRepository
 
             $users[$index]['fullName'] = trim($fullName);
             $users[$index]['phone'] = $normalizedPhone;
+            $this->saveUsers($users);
+
+            return $this->publicUser($users[$index]);
+        }
+
+        throw new RuntimeException('Foydalanuvchi topilmadi');
+    }
+
+    public function updateUserAvatarUrl(string $userId, string $avatarUrl): array
+    {
+        $users = $this->users();
+        foreach ($users as $index => $user) {
+            if (($user['id'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $users[$index]['avatarUrl'] = trim($avatarUrl);
             $this->saveUsers($users);
 
             return $this->publicUser($users[$index]);
@@ -1148,6 +1166,7 @@ class UstaTopRepository
             'id' => $user['id'],
             'fullName' => $user['fullName'],
             'phone' => $user['phone'],
+            'avatarUrl' => trim((string) ($user['avatarUrl'] ?? '')),
             'savedVehicles' => array_values($user['savedVehicles'] ?? []),
             'savedPaymentCards' => array_values($user['paymentCards'] ?? []),
         ];
@@ -1240,6 +1259,7 @@ class UstaTopRepository
                 $user['pushTokens'] = array_values($user['pushTokens'] ?? []);
                 $user['savedVehicles'] = array_values($user['savedVehicles'] ?? []);
                 $user['paymentCards'] = array_values($user['paymentCards'] ?? []);
+                $user['avatarUrl'] = trim((string) ($user['avatarUrl'] ?? ''));
 
                 return $user;
             }

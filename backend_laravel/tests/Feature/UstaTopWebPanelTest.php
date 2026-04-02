@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\UstaTop\UstaTopRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\UploadedFile;
 use Tests\Concerns\UsesIsolatedUstaTopData;
 use Tests\TestCase;
 
@@ -15,6 +16,7 @@ class UstaTopWebPanelTest extends TestCase
     {
         parent::setUp();
         $this->setUpUstaTopData();
+        config()->set('services.yandex_maps.js_api_key', 'test-yandex-key');
     }
 
     protected function tearDown(): void
@@ -37,6 +39,7 @@ class UstaTopWebPanelTest extends TestCase
             ->assertOk()
             ->assertSee('Usta Top')
             ->assertSee('Ustaxonalar katalogi')
+            ->assertSee('api-maps.yandex.ru/2.1/?apikey=test-yandex-key', false)
             ->assertSee('Turbo Usta Servis');
 
         $this->get('/workshops')
@@ -48,6 +51,7 @@ class UstaTopWebPanelTest extends TestCase
             ->assertOk()
             ->assertSee('Turbo Usta Servis')
             ->assertSee('Xizmatlar')
+            ->assertSee('Yandex Maps’da ochish')
             ->assertSee('Lokatsiya');
     }
 
@@ -68,6 +72,15 @@ class UstaTopWebPanelTest extends TestCase
             ->assertOk()
             ->assertSee('Web Mijoz')
             ->assertSee('Mening bronlarim');
+
+        $this->post('/customer/avatar', [
+            'avatar' => UploadedFile::fake()->image('customer-avatar.png', 240, 240),
+        ])->assertRedirect('/customer/account#profile');
+
+        $this->followingRedirects()
+            ->get('/customer/account')
+            ->assertOk()
+            ->assertSee('/media/customers/', false);
 
         $this->post('/customer/cards', [
             'brand' => 'Uzcard',
@@ -138,6 +151,8 @@ class UstaTopWebPanelTest extends TestCase
             ->get('/customer/account')
             ->assertOk()
             ->assertSee('Uzcard')
-            ->assertSee('Web sayt orqali yozilgan test xabar');
+            ->assertSee('Web sayt orqali yozilgan test xabar')
+            ->assertSee('Ko‘chirdi: Mijoz')
+            ->assertSee('Oldingi vaqt:');
     }
 }

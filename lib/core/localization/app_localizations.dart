@@ -70,6 +70,13 @@ class AppLocalizations {
       'mapFilterAll': 'All',
       'mapFilterTopRated': 'Top rated',
       'mapFilterNearby': 'Nearby',
+      'homeFilterSaved': 'Saved',
+      'homeSortTitle': 'Sort workshops',
+      'homeSortRecommended': 'Recommended',
+      'homeSortNearest': 'Nearest',
+      'homeSortTopRated': 'Highest rating',
+      'homeSortLowestPrice': 'Lowest price',
+      'homeResultsSummary': '{count} workshops • {sort}',
       'mapSelectedWorkshop': 'Selected workshop',
       'mapBrowseList': 'Browse workshops',
       'chooseNavigatorTitle': 'Choose navigator',
@@ -302,6 +309,9 @@ class AppLocalizations {
       'profileNameTooShort': 'Full name must be at least 2 characters',
       'profileUpdated': 'Profile updated successfully',
       'profileUpdateFailed': 'Profile could not be updated',
+      'changeAvatar': 'Change avatar',
+      'avatarUpdated': 'Avatar updated successfully',
+      'avatarUpdateFailed': 'Avatar could not be updated',
       'profileNameUpdated': 'Name updated successfully',
       'profileNameUpdateFailed': 'Name could not be updated',
       'savedCardsTitle': 'Saved cards',
@@ -445,6 +455,13 @@ class AppLocalizations {
       'mapFilterAll': 'Barchasi',
       'mapFilterTopRated': 'Yuqori baho',
       'mapFilterNearby': 'Yaqin',
+      'homeFilterSaved': 'Saqlangan',
+      'homeSortTitle': 'Ustaxonalarni saralash',
+      'homeSortRecommended': 'Tavsiya etilgan',
+      'homeSortNearest': 'Eng yaqin',
+      'homeSortTopRated': 'Eng yuqori baho',
+      'homeSortLowestPrice': 'Eng arzon',
+      'homeResultsSummary': '{count} ta ustaxona • {sort}',
       'mapSelectedWorkshop': 'Tanlangan ustaxona',
       'mapBrowseList': 'Xaritadagi ustaxonalar',
       'chooseNavigatorTitle': 'Navigatorni tanlang',
@@ -683,6 +700,9 @@ class AppLocalizations {
       'profileNameTooShort': 'Ism kamida 2 ta belgidan iborat bo\'lsin',
       'profileUpdated': 'Profil muvaffaqiyatli yangilandi',
       'profileUpdateFailed': 'Profilni yangilab bo\'lmadi',
+      'changeAvatar': 'Avatarni o\'zgartirish',
+      'avatarUpdated': 'Avatar muvaffaqiyatli yangilandi',
+      'avatarUpdateFailed': 'Avatarni yangilab bo\'lmadi',
       'profileNameUpdated': 'Ism muvaffaqiyatli yangilandi',
       'profileNameUpdateFailed': 'Ismni yangilab bo\'lmadi',
       'savedCardsTitle': 'Saqlangan kartalar',
@@ -829,6 +849,13 @@ class AppLocalizations {
       'mapFilterAll': 'Все',
       'mapFilterTopRated': 'Высокий рейтинг',
       'mapFilterNearby': 'Рядом',
+      'homeFilterSaved': 'Сохранённые',
+      'homeSortTitle': 'Сортировка сервисов',
+      'homeSortRecommended': 'Рекомендуемые',
+      'homeSortNearest': 'Ближайшие',
+      'homeSortTopRated': 'Высокий рейтинг',
+      'homeSortLowestPrice': 'Самые дешёвые',
+      'homeResultsSummary': '{count} сервисов • {sort}',
       'mapSelectedWorkshop': 'Выбранный автосервис',
       'mapBrowseList': 'Автосервисы на карте',
       'chooseNavigatorTitle': 'Выберите навигатор',
@@ -1064,6 +1091,9 @@ class AppLocalizations {
       'profileNameTooShort': 'Имя должно быть не короче 2 символов',
       'profileUpdated': 'Профиль успешно обновлен',
       'profileUpdateFailed': 'Не удалось обновить профиль',
+      'changeAvatar': 'Изменить аватар',
+      'avatarUpdated': 'Аватар успешно обновлён',
+      'avatarUpdateFailed': 'Не удалось обновить аватар',
       'profileNameUpdated': 'Имя успешно обновлено',
       'profileNameUpdateFailed': 'Не удалось обновить имя',
       'savedCardsTitle': 'Сохранённые карты',
@@ -1243,6 +1273,16 @@ class AppLocalizations {
   String get mapFilterAll => _text('mapFilterAll');
   String get mapFilterTopRated => _text('mapFilterTopRated');
   String get mapFilterNearby => _text('mapFilterNearby');
+  String get homeFilterSaved => _text('homeFilterSaved');
+  String get homeSortTitle => _text('homeSortTitle');
+  String get homeSortRecommended => _text('homeSortRecommended');
+  String get homeSortNearest => _text('homeSortNearest');
+  String get homeSortTopRated => _text('homeSortTopRated');
+  String get homeSortLowestPrice => _text('homeSortLowestPrice');
+  String homeResultsSummary(int count, String sort) => _fmt(
+        'homeResultsSummary',
+        <String, Object>{'count': count, 'sort': sort},
+      );
   String get mapSelectedWorkshop => _text('mapSelectedWorkshop');
   String get mapBrowseList => _text('mapBrowseList');
   String get chooseNavigatorTitle => _text('chooseNavigatorTitle');
@@ -1538,6 +1578,9 @@ class AppLocalizations {
   String get profileNameTooShort => _text('profileNameTooShort');
   String get profileUpdated => _text('profileUpdated');
   String get profileUpdateFailed => _text('profileUpdateFailed');
+  String get changeAvatar => _text('changeAvatar');
+  String get avatarUpdated => _text('avatarUpdated');
+  String get avatarUpdateFailed => _text('avatarUpdateFailed');
   String get profileNameUpdated => _text('profileNameUpdated');
   String get profileNameUpdateFailed => _text('profileNameUpdateFailed');
   String get savedCardsTitle => _text('savedCardsTitle');

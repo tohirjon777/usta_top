@@ -7,20 +7,44 @@
     const payload = JSON.parse(dataNode.textContent || '{}');
     const workshopApiEndpoint = payload.apiEndpoint || '/workshops';
     const fallbackWorkshops = Array.isArray(payload.initialWorkshops) ? payload.initialWorkshops : [];
+    const defaultCenter = [41.3111, 69.2797];
 
     let workshops = fallbackWorkshops;
     let selectedWorkshopId = fallbackWorkshops[0]?.id ?? null;
     let map = null;
-    let markers = [];
+    let geoObjectCollection = null;
+    let mapReadyPromise = null;
+
+    function yandexRouteUrl(latitude, longitude) {
+        if (latitude == null || longitude == null) {
+            return '#';
+        }
+
+        return `https://yandex.com/maps/?rtext=~${latitude},${longitude}&rtt=auto`;
+    }
 
     function routeLink(workshop) {
         if (workshop.routeUrl) {
             return workshop.routeUrl;
         }
-        if (workshop.latitude == null || workshop.longitude == null) {
-            return '#';
-        }
-        return `https://www.google.com/maps/dir/?api=1&destination=${workshop.latitude},${workshop.longitude}`;
+
+        return yandexRouteUrl(workshop.latitude, workshop.longitude);
+    }
+
+    function markerDataUrl(isSelected) {
+        const fill = isSelected ? '#0f766e' : '#14b8a6';
+        const stroke = isSelected ? '#ffffff' : '#083344';
+        const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80" fill="none">
+                <path d="M32 78C32 78 56 52.5 56 31C56 16.6406 45.3594 6 32 6C18.6406 6 8 16.6406 8 31C8 52.5 32 78 32 78Z" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
+                <rect x="20" y="24" width="24" height="18" rx="4" fill="white" opacity="0.98"/>
+                <path d="M16 42L22 36.5H42L48 42V48C48 49.6569 46.6569 51 45 51H19C17.3431 51 16 49.6569 16 48V42Z" fill="white" opacity="0.98"/>
+                <circle cx="24" cy="48" r="4" fill="${fill}"/>
+                <circle cx="40" cy="48" r="4" fill="${fill}"/>
+            </svg>
+        `;
+
+        return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     }
 
     function cardTemplate(workshop) {
@@ -28,6 +52,7 @@
             ? `<img src="${workshop.imageUrl}" alt="${workshop.name}">`
             : `${(workshop.name || 'UT').slice(0, 2).toUpperCase()}`;
         const services = (workshop.serviceNames || []).map((item) => `<span class="pill muted">${item}</span>`).join('');
+
         return `
             <article class="workshop-card ${selectedWorkshopId === workshop.id ? 'is-active' : ''}" data-id="${workshop.id}">
                 <div class="workshop-image">${image}</div>
@@ -92,40 +117,9 @@
         container.innerHTML = filtered.map(cardTemplate).join('');
         container.querySelectorAll('[data-id]').forEach((card) => {
             card.addEventListener('click', () => {
-                selectWorkshop(card.dataset.id, true);
+                void selectWorkshop(card.dataset.id, true);
             });
         });
-    }
-
-    function renderMap(filtered) {
-        if (!map) {
-            map = L.map('workshopMap', { scrollWheelZoom: true });
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors',
-            }).addTo(map);
-        }
-
-        markers.forEach((marker) => marker.remove());
-        markers = [];
-
-        const bounds = [];
-        filtered.forEach((workshop) => {
-            if (workshop.latitude == null || workshop.longitude == null) {
-                return;
-            }
-
-            const marker = L.marker([workshop.latitude, workshop.longitude]).addTo(map);
-            marker.on('click', () => selectWorkshop(workshop.id, false));
-            markers.push(marker);
-            bounds.push([workshop.latitude, workshop.longitude]);
-        });
-
-        if (bounds.length) {
-            map.fitBounds(bounds, { padding: [28, 28] });
-        } else {
-            map.setView([41.3111, 69.2797], 11);
-        }
     }
 
     function renderMapPanel(workshop) {
@@ -156,28 +150,127 @@
         `;
     }
 
-    function selectWorkshop(id, scrollIntoView) {
+    function ensureMapReady() {
+        if (mapReadyPromise) {
+            return mapReadyPromise;
+        }
+
+        const mapNode = document.getElementById('workshopMap');
+        if (!mapNode || !window.ymaps) {
+            renderMapPanel(null);
+            const panel = document.getElementById('mapPanel');
+            if (panel) {
+                panel.className = 'map-panel map-empty';
+                panel.textContent = 'Yandex Maps yuklanmadi. API key yoki script holatini tekshiring.';
+            }
+
+            return Promise.resolve(null);
+        }
+
+        mapReadyPromise = new Promise((resolve) => {
+            window.ymaps.ready(() => {
+                map = new window.ymaps.Map('workshopMap', {
+                    center: defaultCenter,
+                    zoom: 11,
+                    controls: [],
+                }, {
+                    suppressMapOpenBlock: true,
+                });
+                geoObjectCollection = new window.ymaps.GeoObjectCollection();
+                map.geoObjects.add(geoObjectCollection);
+
+                resolve(map);
+            });
+        });
+
+        return mapReadyPromise;
+    }
+
+    function buildPlacemark(workshop, isSelected) {
+        return new window.ymaps.Placemark(
+            [workshop.latitude, workshop.longitude],
+            {
+                hintContent: workshop.name,
+            },
+            {
+                iconLayout: 'default#image',
+                iconImageHref: markerDataUrl(isSelected),
+                iconImageSize: isSelected ? [56, 70] : [46, 58],
+                iconImageOffset: isSelected ? [-28, -70] : [-23, -58],
+                hideIconOnBalloonOpen: false,
+                cursor: 'pointer',
+            }
+        );
+    }
+
+    async function renderMap(filtered) {
+        const readyMap = await ensureMapReady();
+        if (!readyMap) {
+            return;
+        }
+
+        if (geoObjectCollection) {
+            geoObjectCollection.removeAll();
+        }
+
+        const points = [];
+        filtered.forEach((workshop) => {
+            if (workshop.latitude == null || workshop.longitude == null) {
+                return;
+            }
+
+            const placemark = buildPlacemark(workshop, workshop.id === selectedWorkshopId);
+            placemark.events.add('click', () => {
+                void selectWorkshop(workshop.id, false);
+            });
+            geoObjectCollection.add(placemark);
+            points.push([workshop.latitude, workshop.longitude]);
+        });
+
+        if (points.length === 1) {
+            readyMap.setCenter(points[0], 14, { duration: 250 });
+            return;
+        }
+
+        const bounds = geoObjectCollection ? geoObjectCollection.getBounds() : null;
+        if (points.length > 1 && bounds) {
+            readyMap.setBounds(bounds, {
+                checkZoomRange: true,
+                zoomMargin: 28,
+                duration: 250,
+            });
+            return;
+        }
+
+        readyMap.setCenter(defaultCenter, 11, { duration: 250 });
+    }
+
+    async function selectWorkshop(id, scrollIntoView) {
         selectedWorkshopId = id;
         const filtered = applyFilters();
         const workshop = filtered.find((item) => item.id === id) || workshops.find((item) => item.id === id);
+
         renderList(filtered);
-        renderMap(filtered);
         renderMapPanel(workshop);
+        await renderMap(filtered);
 
         if (workshop?.latitude != null && workshop?.longitude != null && map) {
-            map.flyTo([workshop.latitude, workshop.longitude], Math.max(map.getZoom(), 13), { duration: 0.6 });
+            map.setCenter([workshop.latitude, workshop.longitude], 14, { duration: 300 });
         }
 
         if (scrollIntoView) {
-            document.querySelector(`[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.querySelector(`[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
         }
     }
 
-    function refreshUi() {
+    async function refreshUi() {
         const filtered = applyFilters();
         renderList(filtered);
-        renderMap(filtered);
         renderMapPanel(filtered.find((item) => item.id === selectedWorkshopId) || filtered[0] || null);
+        await renderMap(filtered);
     }
 
     async function bootstrap() {
@@ -196,9 +289,7 @@
                         imageUrl: item.imageUrl || '',
                         serviceNames: (item.services || []).slice(0, 4).map((service) => service.name || ''),
                         detailUrl: `/workshop/${encodeURIComponent(item.id)}`,
-                        routeUrl: item.latitude != null && item.longitude != null
-                            ? `https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}`
-                            : null,
+                        routeUrl: yandexRouteUrl(item.latitude, item.longitude),
                     }));
                 }
             }
@@ -206,12 +297,18 @@
             console.warn('Workshop API ishlamadi, fallback data ishlatilmoqda.', error);
         }
 
-        document.getElementById('searchInput').addEventListener('input', refreshUi);
-        document.getElementById('serviceFilter').addEventListener('change', refreshUi);
-        document.getElementById('openOnly').addEventListener('change', refreshUi);
-        refreshUi();
+        document.getElementById('searchInput').addEventListener('input', () => {
+            void refreshUi();
+        });
+        document.getElementById('serviceFilter').addEventListener('change', () => {
+            void refreshUi();
+        });
+        document.getElementById('openOnly').addEventListener('change', () => {
+            void refreshUi();
+        });
+
+        await refreshUi();
     }
 
-    bootstrap();
+    void bootstrap();
 })();
-

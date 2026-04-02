@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Support\UstaTop\UstaTopRepository;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\UploadedFile;
 use Tests\Concerns\UsesIsolatedUstaTopData;
 use Tests\TestCase;
 
@@ -46,6 +47,13 @@ class UstaTopApiFlowTest extends TestCase
             ->getJson('/auth/me')
             ->assertOk()
             ->assertJsonPath('data.phone', $phone);
+
+        $this->withHeaders($headers)
+            ->post('/auth/me/avatar', [
+                'avatar' => UploadedFile::fake()->image('avatar.png', 240, 240),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.avatarUrl', fn ($value) => is_string($value) && str_contains($value, '/media/customers/'));
 
         $this->getJson('/workshops')
             ->assertOk()

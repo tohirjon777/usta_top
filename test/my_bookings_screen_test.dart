@@ -72,6 +72,27 @@ void main() {
     );
   }
 
+  BookingItem buildAcceptedRescheduledBooking() {
+    return BookingItem(
+      id: 'b-4',
+      workshopId: 'w-1',
+      salonName: 'Turbo Usta Servis',
+      masterName: 'Aziz Usta',
+      serviceId: 'srv-1',
+      serviceName: 'Kompyuter diagnostika',
+      vehicleModel: 'Chevrolet Cobalt',
+      vehicleTypeId: 'sedan',
+      dateTime: DateTime(2026, 3, 24, 12, 0),
+      basePrice: 120,
+      price: 120,
+      status: BookingStatus.accepted,
+      acceptedAt: DateTime(2026, 3, 23, 18, 30),
+      previousDateTime: DateTime(2026, 3, 24, 10, 0),
+      rescheduledAt: DateTime(2026, 3, 23, 18, 0),
+      rescheduledByRole: 'owner_panel',
+    );
+  }
+
   BookingItem buildRescheduledBooking() {
     return BookingItem(
       id: 'b-3',
@@ -140,5 +161,19 @@ void main() {
     expect(find.text('Yangi vaqtni qabul qilish'), findsOneWidget);
     expect(find.text('Buyurtmani bekor qilish'), findsOneWidget);
     expect(find.text('Sharh yozish'), findsNothing);
+  });
+
+  testWidgets(
+      'accepted booking keeps reschedule history visible for customer UI',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      buildTestApp(<BookingItem>[buildAcceptedRescheduledBooking()]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Qabul qilindi'), findsOneWidget);
+    expect(find.textContaining('Oldingi vaqt:'), findsOneWidget);
+    expect(find.textContaining('Ko‘chirdi:'), findsOneWidget);
+    expect(find.textContaining('Ko‘chirilgan vaqt:'), findsOneWidget);
   });
 }

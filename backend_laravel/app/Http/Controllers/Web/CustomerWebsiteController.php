@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Support\UstaTop\CustomerAvatarStorage;
 use App\Support\UstaTop\Money;
 use App\Support\UstaTop\UstaTopRepository;
 use App\Support\UstaTop\WorkshopNotificationsService;
@@ -19,6 +20,7 @@ class CustomerWebsiteController extends Controller
     public function __construct(
         private readonly UstaTopRepository $repository,
         private readonly WorkshopNotificationsService $notifications,
+        private readonly CustomerAvatarStorage $avatarStorage,
     ) {
     }
 
@@ -48,6 +50,7 @@ class CustomerWebsiteController extends Controller
         return view('ustatop.customer.home', [
             'title' => 'Usta Top',
             'currentCustomer' => $this->presentCustomer($this->currentCustomer($request)),
+            'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'initialWorkshops' => $workshops->all(),
             'featuredWorkshops' => $workshops->take(3)->all(),
             'services' => $services,
@@ -77,6 +80,7 @@ class CustomerWebsiteController extends Controller
         return view('ustatop.customer.workshop', [
             'title' => ($presented['name'] ?? 'Usta Top').' | Usta Top',
             'currentCustomer' => $this->presentCustomer($customer),
+            'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'workshop' => $presented,
             'relatedWorkshops' => $related,
             'vehicleTypes' => $this->vehicleTypes(),
@@ -99,6 +103,7 @@ class CustomerWebsiteController extends Controller
         return view('ustatop.customer.auth', [
             'title' => 'Mijoz kirish | Usta Top',
             'currentCustomer' => null,
+            'yandexMapsApiKey' => $this->yandexMapsApiKey(),
         ]);
     }
 
@@ -164,6 +169,7 @@ class CustomerWebsiteController extends Controller
         return view('ustatop.customer.account', [
             'title' => 'Mening kabinetim | Usta Top',
             'currentCustomer' => $this->presentCustomer($customer),
+            'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'bookings' => $bookings,
             'vehicleTypes' => $this->vehicleTypes(),
             'paymentMethods' => $this->paymentMethods(),
@@ -185,6 +191,30 @@ class CustomerWebsiteController extends Controller
             );
 
             return redirect('/customer/account#profile')->with('success', 'Profil yangilandi');
+        } catch (RuntimeException $exception) {
+            return redirect('/customer/account#profile')->with('error', $exception->getMessage());
+        }
+    }
+
+    public function updateAvatar(Request $request)
+    {
+        $customer = $this->currentCustomer($request);
+        if (! $customer) {
+            return $this->redirectToLogin($request);
+        }
+
+        if (! $request->hasFile('avatar')) {
+            return redirect('/customer/account#profile')->with('error', 'Avatar rasmi tanlanmadi');
+        }
+
+        try {
+            $avatarUrl = $this->avatarStorage->storeUploadedAvatar(
+                $request->file('avatar'),
+                (string) ($customer['avatarUrl'] ?? '')
+            );
+            $this->repository->updateUserAvatarUrl((string) $customer['id'], $avatarUrl);
+
+            return redirect('/customer/account#profile')->with('success', 'Avatar muvaffaqiyatli saqlandi');
         } catch (RuntimeException $exception) {
             return redirect('/customer/account#profile')->with('error', $exception->getMessage());
         }
@@ -317,7 +347,15 @@ class CustomerWebsiteController extends Controller
                 trim((string) $request->input('bookingDate')),
                 trim((string) $request->input('bookingTime'))
             );
-            $this->repository->rescheduleBookingForUser((string) $customer['id'], $id, $dateTime);
+            $booking = $this->repository->rescheduleBookingForUser((string) $customer['id'], $id, $dateTime);
+            $workshop = $this->repository->workshopById((string) ($booking['workshopId'] ?? ''));
+            if ($workshop !== null) {
+                try {
+                    $this->notifications->sendBookingStatusNotification($workshop, $booking, 'customer');
+                } catch (\Throwable $error) {
+                    report($error);
+                }
+            }
 
             return redirect('/customer/account#booking-'.$id)->with('success', 'Buyurtma ko‘chirildi');
         } catch (RuntimeException $exception) {
@@ -490,6 +528,7 @@ class CustomerWebsiteController extends Controller
         $booking['completedAtLabel'] = $this->dateTimeLabel((string) ($booking['completedAt'] ?? ''));
         $booking['cancelledAtLabel'] = $this->dateTimeLabel((string) ($booking['cancelledAt'] ?? ''));
         $booking['rescheduledAtLabel'] = $this->dateTimeLabel((string) ($booking['rescheduledAt'] ?? ''));
+        $booking['rescheduledByLabel'] = $this->bookingActorLabel((string) ($booking['rescheduledByRole'] ?? ''));
         $booking['priceLabel'] = Money::formatUzs((int) ($booking['price'] ?? 0));
         $booking['prepaymentLabel'] = Money::formatUzs((int) ($booking['prepaymentAmount'] ?? 0));
         $booking['remainingLabel'] = Money::formatUzs((int) ($booking['remainingAmount'] ?? 0));
@@ -546,10 +585,20 @@ class CustomerWebsiteController extends Controller
             'latitude' => $latitude,
             'longitude' => $longitude,
             'routeUrl' => ($latitude !== null && $longitude !== null)
-                ? 'https://www.google.com/maps/dir/?api=1&destination='.$latitude.','.$longitude
+                ? $this->yandexRouteUrl($latitude, $longitude)
                 : null,
             'detailUrl' => '/workshop/'.urlencode((string) ($workshop['id'] ?? '')),
         ];
+    }
+
+    private function yandexMapsApiKey(): string
+    {
+        return trim((string) config('services.yandex_maps.js_api_key', ''));
+    }
+
+    private function yandexRouteUrl(float $latitude, float $longitude): string
+    {
+        return 'https://yandex.com/maps/?rtext=~'.$latitude.','.$longitude.'&rtt=auto';
     }
 
     private function presentWorkshopDetail(array $workshop): array
@@ -591,6 +640,17 @@ class CustomerWebsiteController extends Controller
             'completed' => 'Yakunlandi',
             'cancelled' => 'Bekor qilindi',
             default => 'Kutilmoqda',
+        };
+    }
+
+    private function bookingActorLabel(string $actor): string
+    {
+        return match (trim($actor)) {
+            'customer' => 'Mijoz',
+            'admin' => 'Admin',
+            'owner_panel' => 'Usta paneli',
+            'owner_telegram' => 'Usta Telegram',
+            default => '',
         };
     }
 

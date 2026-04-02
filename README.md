@@ -140,6 +140,18 @@ Laravel backend endi lokal `SQLite` bazada ishlaydi:
 App, service va dev oqimi to'liq Laravel backendga ulangan va keyingi yozuvlar
 shu SQLite bazaga saqlanadi.
 
+Production uchun esa shu backend `database` storage driver bilan
+`PostgreSQL`da ham ishlay oladi:
+- `DB_CONNECTION=pgsql`
+- `USTATOP_STORAGE_DRIVER=database`
+- `USTATOP_STORAGE_DB_CONNECTION=pgsql`
+- `USTATOP_STORAGE_DB_TABLE=ustatop_json_documents`
+
+Forge deploy uchun tayyor fayllar:
+- `backend_laravel/deploy/forge/deploy.sh`
+- `backend_laravel/deploy/forge/daemon-telegram-poll.txt`
+- `backend_laravel/deploy/README_PRODUCTION.md`
+
 Mac service ishlayotgan bo'lsa backup fayllar shu yerga tushadi:
 - `~/Library/Application Support/UstaTopBackend/backups`
 

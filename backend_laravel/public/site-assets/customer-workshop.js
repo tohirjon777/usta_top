@@ -8,6 +8,7 @@
     const workshop = payload.workshop || {};
     const savedVehicles = Array.isArray(payload.savedVehicles) ? payload.savedVehicles : [];
     const hasCustomer = !!payload.currentCustomer;
+    const defaultCenter = [41.3111, 69.2797];
 
     function formatUzs(value) {
         const amount = Number(value || 0);
@@ -20,19 +21,54 @@
             return;
         }
 
-        const map = L.map('detailMap', { scrollWheelZoom: true });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors',
-        }).addTo(map);
-
-        if (workshop.latitude != null && workshop.longitude != null) {
-            const marker = L.marker([workshop.latitude, workshop.longitude]).addTo(map);
-            marker.bindPopup(`<strong>${workshop.name}</strong><br>${workshop.address || ''}`).openPopup();
-            map.setView([workshop.latitude, workshop.longitude], 14);
-        } else {
-            map.setView([41.3111, 69.2797], 11);
+        if (!window.ymaps) {
+            mapNode.innerHTML = '<div class="map-fallback">Yandex Maps yuklanmadi. API key yoki script holatini tekshiring.</div>';
+            return;
         }
+
+        window.ymaps.ready(() => {
+            const map = new window.ymaps.Map('detailMap', {
+                center: defaultCenter,
+                zoom: 11,
+                controls: [],
+            }, {
+                suppressMapOpenBlock: true,
+            });
+
+            if (workshop.latitude != null && workshop.longitude != null) {
+                const marker = new window.ymaps.Placemark(
+                    [workshop.latitude, workshop.longitude],
+                    {
+                        hintContent: workshop.name,
+                    },
+                    {
+                        iconLayout: 'default#image',
+                        iconImageHref: markerDataUrl(),
+                        iconImageSize: [58, 72],
+                        iconImageOffset: [-29, -72],
+                        hideIconOnBalloonOpen: false,
+                    }
+                );
+                map.geoObjects.add(marker);
+                map.setCenter([workshop.latitude, workshop.longitude], 14, { duration: 250 });
+            } else {
+                map.setCenter(defaultCenter, 11, { duration: 250 });
+            }
+        });
+    }
+
+    function markerDataUrl() {
+        const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80" fill="none">
+                <path d="M32 78C32 78 56 52.5 56 31C56 16.6406 45.3594 6 32 6C18.6406 6 8 16.6406 8 31C8 52.5 32 78 32 78Z" fill="#0f766e" stroke="#ffffff" stroke-width="3"/>
+                <rect x="20" y="24" width="24" height="18" rx="4" fill="white" opacity="0.98"/>
+                <path d="M16 42L22 36.5H42L48 42V48C48 49.6569 46.6569 51 45 51H19C17.3431 51 16 49.6569 16 48V42Z" fill="white" opacity="0.98"/>
+                <circle cx="24" cy="48" r="4" fill="#0f766e"/>
+                <circle cx="40" cy="48" r="4" fill="#0f766e"/>
+            </svg>
+        `;
+
+        return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     }
 
     function initBookingForm() {

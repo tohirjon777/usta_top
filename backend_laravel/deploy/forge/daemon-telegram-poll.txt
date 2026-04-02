@@ -1,0 +1,1 @@
+cd /home/forge/REPLACE_WITH_FORGE_SITE_DIRECTORY/backend_laravel && php artisan ustatop:telegram-poll

@@ -296,16 +296,18 @@ class _BookingCard extends StatelessWidget {
                 vehicleTypeById(booking.vehicleTypeId).label(l10n),
               ),
             ),
-            if (booking.status == BookingStatus.rescheduled &&
-                booking.previousDateTime != null)
+            if (booking.previousDateTime != null ||
+                booking.rescheduledByRole.isNotEmpty ||
+                booking.rescheduledAt != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    l10n.rescheduledFromLabel(
-                      AppFormatters.dateTime(booking.previousDateTime!),
+                  if (booking.previousDateTime != null)
+                    Text(
+                      l10n.rescheduledFromLabel(
+                        AppFormatters.dateTime(booking.previousDateTime!),
+                      ),
                     ),
-                  ),
                   if (booking.rescheduledByRole.isNotEmpty)
                     Text(
                       l10n.rescheduledByLabel(

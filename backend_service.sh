@@ -120,6 +120,30 @@ resolve_backup_path() {
   printf '%s\n' "$ROOT_DIR/$raw_path"
 }
 
+runtime_env_value() {
+  local key="$1"
+  local source_file=""
+
+  if [[ -f "$ENV_FILE" ]]; then
+    source_file="$ENV_FILE"
+  elif [[ -f "$RUNTIME_DIR/.env" ]]; then
+    source_file="$RUNTIME_DIR/.env"
+  fi
+
+  if [[ -z "$source_file" ]]; then
+    return 0
+  fi
+
+  awk -F= -v lookup_key="$key" '
+    $1 == lookup_key {
+      sub(/^[^=]+=*/, "", $0)
+      gsub(/^"|"$/, "", $0)
+      print $0
+      exit
+    }
+  ' "$source_file"
+}
+
 write_plist() {
   mkdir -p "$PLIST_DIR" "$LOG_DIR"
 
@@ -321,7 +345,19 @@ show_status() {
 
   if wait_for_health 6 1; then
     printf 'Health: %s OK\n' "$HEALTH_URL"
-    printf 'Storage: SQLite (%s)\n' "$RUNTIME_DIR/storage/app/ustatop/ustatop.sqlite"
+    local storage_driver=""
+    storage_driver="$(runtime_env_value "USTATOP_STORAGE_DRIVER")"
+    if [[ "$storage_driver" == "database" ]]; then
+      local db_connection=""
+      local db_table=""
+      db_connection="$(runtime_env_value "USTATOP_STORAGE_DB_CONNECTION")"
+      db_table="$(runtime_env_value "USTATOP_STORAGE_DB_TABLE")"
+      [[ -z "$db_connection" ]] && db_connection="$(runtime_env_value "DB_CONNECTION")"
+      [[ -z "$db_table" ]] && db_table="ustatop_json_documents"
+      printf 'Storage: Database (%s:%s)\n' "${db_connection:-unknown}" "$db_table"
+    else
+      printf 'Storage: SQLite (%s)\n' "$RUNTIME_DIR/storage/app/ustatop/ustatop.sqlite"
+    fi
     local lan_ip=""
     lan_ip="$(detect_lan_ip || true)"
     if [[ -n "$lan_ip" ]]; then

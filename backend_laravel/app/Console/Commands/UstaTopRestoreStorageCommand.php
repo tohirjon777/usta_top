@@ -21,6 +21,12 @@ class UstaTopRestoreStorageCommand extends Command
 
     public function handle(): int
     {
+        if ($this->store->storageDriverName() !== 'sqlite') {
+            $this->error('Bu restore command hozir faqat SQLite storage uchun. PostgreSQL/MySQL uchun pg_restore yoki provider-native restore ishlating.');
+
+            return self::FAILURE;
+        }
+
         $backupPath = (string) $this->argument('backup');
         $targetPath = $this->store->sqlitePath();
 

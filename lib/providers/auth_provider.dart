@@ -346,6 +346,45 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> uploadCurrentUserAvatar({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authService.uploadCurrentUserAvatar(
+        accessToken: token,
+        bytes: bytes,
+        fileName: fileName,
+      );
+      _errorMessage = null;
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _isLoggedIn = false;
+        _accessToken = null;
+        _currentUser = null;
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Avatarni yangilashda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> addPaymentCard({
     required String holderName,
     required String cardNumber,

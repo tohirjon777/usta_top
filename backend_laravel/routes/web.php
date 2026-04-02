@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\CustomerWebsiteController;
+use App\Http\Controllers\Web\CustomerMediaController;
 use App\Http\Controllers\Web\WorkshopMediaController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,6 +13,7 @@ Route::post('/customer/register', [CustomerWebsiteController::class, 'register']
 Route::post('/customer/logout', [CustomerWebsiteController::class, 'logout']);
 Route::get('/customer/account', [CustomerWebsiteController::class, 'accountPage']);
 Route::post('/customer/profile', [CustomerWebsiteController::class, 'updateProfile']);
+Route::post('/customer/avatar', [CustomerWebsiteController::class, 'updateAvatar']);
 Route::post('/customer/password', [CustomerWebsiteController::class, 'updatePassword']);
 Route::post('/customer/cards', [CustomerWebsiteController::class, 'addCard']);
 Route::post('/customer/cards/{cardId}/update', [CustomerWebsiteController::class, 'updateCard']);
@@ -23,4 +25,6 @@ Route::post('/customer/bookings/{id}/reschedule', [CustomerWebsiteController::cl
 Route::post('/customer/bookings/{id}/accept-reschedule', [CustomerWebsiteController::class, 'acceptRescheduled']);
 Route::post('/customer/bookings/{id}/messages', [CustomerWebsiteController::class, 'sendMessage']);
 Route::get('/media/workshops/{filename}', [WorkshopMediaController::class, 'showWorkshopImage'])
+    ->where('filename', '[A-Za-z0-9._-]+');
+Route::get('/media/customers/{filename}', [CustomerMediaController::class, 'showCustomerAvatar'])
     ->where('filename', '[A-Za-z0-9._-]+');

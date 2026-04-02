@@ -516,6 +516,64 @@ class RemoteAuthService implements AuthService {
   }
 
   @override
+  Future<AuthUser> uploadCurrentUserAvatar({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMeAvatar}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.MultipartRequest request = http.MultipartRequest('POST', uri)
+        ..headers['authorization'] = 'Bearer $accessToken'
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'avatar',
+            bytes,
+            filename: fileName,
+          ),
+        );
+
+      final http.StreamedResponse streamedResponse =
+          await httpClient.send(request).timeout(timeout);
+      final http.Response response =
+          await http.Response.fromStream(streamedResponse);
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic data = body['data'];
+        if (data is! Map<String, dynamic>) {
+          throw const AuthException('Foydalanuvchi ma\'lumoti formatida xato');
+        }
+        return AuthUser.fromJson(data);
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Avatarni yuklab bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Avatarni yuklash vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
   Future<AuthUser> addPaymentCard({
     required String accessToken,
     required String holderName,

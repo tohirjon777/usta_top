@@ -59,6 +59,8 @@ class _MapScreenState extends State<MapScreen> {
   BitmapDescriptor? _selectedOpenMarkerIcon;
   BitmapDescriptor? _selectedClosedMarkerIcon;
   BitmapDescriptor? _userMarkerIcon;
+  String? _appliedViewportSignature;
+  bool _viewportSyncScheduled = false;
 
   @override
   void didChangeDependencies() {
@@ -114,6 +116,12 @@ class _MapScreenState extends State<MapScreen> {
                     latitude: salonsWithCoords.first.latitude!,
                     longitude: salonsWithCoords.first.longitude!,
                   )));
+
+    _scheduleViewportSync(
+      filteredSalons: filteredSalons,
+      selectedSalon: selectedSalon,
+      fallbackCenter: center,
+    );
 
     return SafeArea(
       child: LayoutBuilder(
@@ -179,10 +187,11 @@ class _MapScreenState extends State<MapScreen> {
                                 _buildMapObjects(context, filteredSalons, selectedSalon),
                             onMapCreated: (YandexMapController controller) async {
                               _mapController = controller;
-                              await _moveCamera(
-                                center,
-                                zoom: _currentZoom,
-                                animated: false,
+                              _appliedViewportSignature = null;
+                              await _syncViewportToContent(
+                                filteredSalons: filteredSalons,
+                                selectedSalon: selectedSalon,
+                                fallbackCenter: center,
                               );
                             },
                             onMapTap: (_) => _clearSelectedSalon(),
@@ -306,11 +315,23 @@ class _MapScreenState extends State<MapScreen> {
                                     curve: Curves.easeOutCubic,
                                   ),
                                 );
+                                final Animation<double> scale = Tween<double>(
+                                  begin: 0.96,
+                                  end: 1,
+                                ).animate(
+                                  CurvedAnimation(
+                                    parent: animation,
+                                    curve: Curves.easeOutBack,
+                                  ),
+                                );
                                 return FadeTransition(
                                   opacity: animation,
-                                  child: SlideTransition(
-                                    position: slide,
-                                    child: child,
+                                  child: ScaleTransition(
+                                    scale: scale,
+                                    child: SlideTransition(
+                                      position: slide,
+                                      child: child,
+                                    ),
                                   ),
                                 );
                               },
@@ -465,6 +486,122 @@ class _MapScreenState extends State<MapScreen> {
       return value;
     }
     return '${value.substring(0, maxLength - 1)}…';
+  }
+
+  void _scheduleViewportSync({
+    required List<Salon> filteredSalons,
+    required Salon? selectedSalon,
+    required Point fallbackCenter,
+  }) {
+    final String signature = <String>[
+      _activeFilter.name,
+      selectedSalon?.id ?? 'none',
+      filteredSalons.map((Salon salon) => salon.id).join(','),
+    ].join('|');
+
+    if (_appliedViewportSignature == signature || _viewportSyncScheduled) {
+      return;
+    }
+
+    _viewportSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _viewportSyncScheduled = false;
+      if (!mounted || _appliedViewportSignature == signature) {
+        return;
+      }
+
+      await _syncViewportToContent(
+        filteredSalons: filteredSalons,
+        selectedSalon: selectedSalon,
+        fallbackCenter: fallbackCenter,
+      );
+
+      _appliedViewportSignature = signature;
+    });
+  }
+
+  Future<void> _syncViewportToContent({
+    required List<Salon> filteredSalons,
+    required Salon? selectedSalon,
+    required Point fallbackCenter,
+  }) async {
+    if (selectedSalon != null) {
+      await _moveCamera(
+        Point(
+          latitude: selectedSalon.latitude!,
+          longitude: selectedSalon.longitude!,
+        ),
+        zoom: _currentZoom < _selectedSalonZoom
+            ? _selectedSalonZoom
+            : _currentZoom,
+      );
+      return;
+    }
+
+    if (filteredSalons.isEmpty) {
+      await _moveCamera(
+        fallbackCenter,
+        zoom: _currentZoom,
+      );
+      return;
+    }
+
+    await _fitSalonsOnMap(filteredSalons);
+  }
+
+  Future<void> _fitSalonsOnMap(List<Salon> salons) async {
+    final YandexMapController? controller = _mapController;
+    if (controller == null || salons.isEmpty) {
+      return;
+    }
+
+    if (salons.length == 1) {
+      final Salon salon = salons.first;
+      await _moveCamera(
+        Point(latitude: salon.latitude!, longitude: salon.longitude!),
+        zoom: _currentZoom < _selectedSalonZoom
+            ? _selectedSalonZoom
+            : _currentZoom,
+      );
+      return;
+    }
+
+    double north = salons.first.latitude!;
+    double south = salons.first.latitude!;
+    double east = salons.first.longitude!;
+    double west = salons.first.longitude!;
+
+    for (final Salon salon in salons.skip(1)) {
+      final double lat = salon.latitude!;
+      final double lon = salon.longitude!;
+      if (lat > north) north = lat;
+      if (lat < south) south = lat;
+      if (lon > east) east = lon;
+      if (lon < west) west = lon;
+    }
+
+    const double padding = 0.02;
+
+    await controller.moveCamera(
+      CameraUpdate.newGeometry(
+        Geometry.fromBoundingBox(
+          BoundingBox(
+            northEast: Point(
+              latitude: north + padding,
+              longitude: east + padding,
+            ),
+            southWest: Point(
+              latitude: south - padding,
+              longitude: west - padding,
+            ),
+          ),
+        ),
+      ),
+      animation: const MapAnimation(
+        type: MapAnimationType.smooth,
+        duration: 0.32,
+      ),
+    );
   }
 
   List<Salon> _applyFilter(List<Salon> salons) {
@@ -688,8 +825,18 @@ class _MapScreenState extends State<MapScreen> {
       ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 10);
     final Paint outerPaint = Paint()..color = Colors.white;
     final Paint innerPaint = Paint()..color = fillColor;
-    final Paint corePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.95);
+    final TextPainter iconPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: String.fromCharCode(Icons.garage_rounded.codePoint),
+        style: TextStyle(
+          fontSize: selected ? 70 : 67,
+          color: Colors.white,
+          fontFamily: Icons.garage_rounded.fontFamily,
+          package: Icons.garage_rounded.fontPackage,
+        ),
+      ),
+    )..layout();
 
     canvas.drawCircle(
       Offset(center.dx, center.dy + 3),
@@ -698,7 +845,13 @@ class _MapScreenState extends State<MapScreen> {
     );
     canvas.drawCircle(center, selected ? 22 : 18, outerPaint);
     canvas.drawCircle(center, selected ? 17 : 14, innerPaint);
-    canvas.drawCircle(center, selected ? 5.2 : 4.4, corePaint);
+    iconPainter.paint(
+      canvas,
+      Offset(
+        center.dx - (iconPainter.width / 2),
+        center.dy - (iconPainter.height / 2),
+      ),
+    );
 
     final ui.Image image = await recorder
         .endRecording()
@@ -1337,87 +1490,100 @@ class _MapSalonPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 260,
-      child: Card(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(
-            color: isSelected
-                ? AppColors.primaryToneOf(context)
-                : AppColors.borderOf(context),
-          ),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
+    return AnimatedScale(
+      scale: isSelected ? 1 : 0.975,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: AnimatedSlide(
+        offset: isSelected ? Offset.zero : const Offset(0, 0.015),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: SizedBox(
+          width: 260,
+          child: Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: BorderSide(
+                color: isSelected
+                    ? AppColors.primaryToneOf(context)
+                    : AppColors.borderOf(context),
+              ),
+            ),
+            elevation: isSelected ? 4 : 1,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(22),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.primarySoftOf(context)
-                            : AppColors.chipBackgroundOf(context),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.place_rounded,
-                        color: isSelected
-                            ? AppColors.primaryToneOf(context)
-                            : AppColors.secondaryTextOf(context),
-                      ),
+                    Row(
+                      children: <Widget>[
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primarySoftOf(context)
+                                : AppColors.chipBackgroundOf(context),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.garage_rounded,
+                            color: isSelected
+                                ? AppColors.primaryToneOf(context)
+                                : AppColors.secondaryTextOf(context),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            salon.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        salon.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  salon.address,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.secondaryTextOf(context),
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        AppFormatters.moneyK(salon.startingPrice),
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              color: AppColors.primaryToneOf(context),
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    const Spacer(),
                     Text(
-                      '${salon.distanceKm.toStringAsFixed(1)} km',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      salon.address,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.secondaryTextOf(context),
                           ),
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            AppFormatters.moneyK(salon.startingPrice),
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: AppColors.primaryToneOf(context),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${salon.distanceKm.toStringAsFixed(1)} km',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: AppColors.secondaryTextOf(context),
+                              ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
