@@ -48,6 +48,7 @@
         @yield('content')
     </div>
 
+    <script src="{{ asset('site-assets/customer-shared.js') }}"></script>
     @yield('scripts')
 </body>
 </html>

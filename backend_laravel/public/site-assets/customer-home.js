@@ -8,6 +8,7 @@
     const workshopApiEndpoint = payload.apiEndpoint || '/workshops';
     const fallbackWorkshops = Array.isArray(payload.initialWorkshops) ? payload.initialWorkshops : [];
     const defaultCenter = [41.3111, 69.2797];
+    const shared = window.UstaTopCustomer || {};
 
     let workshops = fallbackWorkshops;
     let selectedWorkshopId = null;
@@ -17,11 +18,9 @@
     let hasFittedInitialBounds = false;
 
     function yandexRouteUrl(latitude, longitude) {
-        if (latitude == null || longitude == null) {
-            return '#';
-        }
-
-        return `https://yandex.com/maps/?rtext=~${latitude},${longitude}&rtt=auto`;
+        return typeof shared.yandexRouteUrl === 'function'
+            ? shared.yandexRouteUrl(latitude, longitude)
+            : '#';
     }
 
     function routeLink(workshop) {
@@ -33,19 +32,9 @@
     }
 
     function markerDataUrl(isSelected) {
-        const fill = isSelected ? '#0f766e' : '#14b8a6';
-        const stroke = isSelected ? '#ffffff' : '#083344';
-        const svg = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80" fill="none">
-                <path d="M32 78C32 78 56 52.5 56 31C56 16.6406 45.3594 6 32 6C18.6406 6 8 16.6406 8 31C8 52.5 32 78 32 78Z" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
-                <rect x="20" y="24" width="24" height="18" rx="4" fill="white" opacity="0.98"/>
-                <path d="M16 42L22 36.5H42L48 42V48C48 49.6569 46.6569 51 45 51H19C17.3431 51 16 49.6569 16 48V42Z" fill="white" opacity="0.98"/>
-                <circle cx="24" cy="48" r="4" fill="${fill}"/>
-                <circle cx="40" cy="48" r="4" fill="${fill}"/>
-            </svg>
-        `;
-
-        return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+        return typeof shared.garageMarkerDataUrl === 'function'
+            ? shared.garageMarkerDataUrl({ isSelected })
+            : '';
     }
 
     function cardTemplate(workshop) {
@@ -324,7 +313,11 @@
                         rating: Number(item.rating || 0).toFixed(1),
                         reviewCount: Number(item.reviewCount || 0),
                         distanceKm: Number(item.distanceKm || 0).toFixed(1),
-                        startingPriceLabel: item.startingPrice ? `${Number(item.startingPrice).toLocaleString('ru-RU')} so'm` : 'Narx so‘rov asosida',
+                        startingPriceLabel: item.startingPrice
+                            ? (typeof shared.formatMoney === 'function'
+                                ? shared.formatMoney(item.startingPrice)
+                                : `${Number(item.startingPrice).toLocaleString('ru-RU')} so'm`)
+                            : 'Narx so‘rov asosida',
                         fullDescription: item.description || '',
                         imageUrl: item.imageUrl || '',
                         serviceNames: (item.services || []).slice(0, 4).map((service) => service.name || ''),
