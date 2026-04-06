@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 class BackendConfig {
   const BackendConfig._();
 
+  static const String releaseBaseUrlRequiredMessage =
+      'Release build requires --dart-define=API_BASE_URL=https://your-domain';
+
   static String? get definedBaseUrl {
     const String fromDefine = String.fromEnvironment('API_BASE_URL');
     if (fromDefine.isEmpty) {
@@ -14,6 +17,8 @@ class BackendConfig {
   static String normalizeBaseUrl(String value) {
     return value.trim().replaceFirst(RegExp(r'/+$'), '');
   }
+
+  static bool get hasDefinedBaseUrl => definedBaseUrl != null;
 
   static String resolveBaseUrl({
     String? overrideBaseUrl,

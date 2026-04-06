@@ -117,12 +117,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               icon: Icons.verified_outlined,
                               label: l10n.verifiedMasters,
                             ),
-                            _AuthFeaturePill(
-                              icon: Icons.hub_rounded,
-                              label: l10n.serverUsing(
-                                widget.currentBackendBaseUrl,
+                            if (!widget.backendBaseUrlLocked)
+                              _AuthFeaturePill(
+                                icon: Icons.hub_rounded,
+                                label: l10n.serverUsing(
+                                  widget.currentBackendBaseUrl,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                         AppSpacing.h20,

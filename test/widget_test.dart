@@ -16,6 +16,7 @@ void main() {
     await tester.pumpWidget(
       MyApp(
         backendEndpointStorage: const BackendEndpointStorage(),
+        startupErrorMessage: null,
         initialBackendBaseUrl: BackendConfig.resolveBaseUrl(),
         backendBaseUrlLocked: false,
       ),

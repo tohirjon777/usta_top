@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
@@ -34,18 +35,32 @@ Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: binding);
   final Stopwatch splashStopwatch = Stopwatch()..start();
+  const bool isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
+  const bool allowBackendOverride = bool.fromEnvironment(
+    'ALLOW_BACKEND_OVERRIDE',
+    defaultValue: !kReleaseMode && !isFlutterTest,
+  );
   const BackendEndpointStorage backendEndpointStorage =
       BackendEndpointStorage();
-  final String? storedBackendBaseUrl =
-      await backendEndpointStorage.loadBaseUrl();
+  final String? storedBackendBaseUrl = allowBackendOverride
+      ? await backendEndpointStorage.loadBaseUrl()
+      : null;
+  if (!allowBackendOverride) {
+    await backendEndpointStorage.clearBaseUrl();
+  }
+  final String? startupErrorMessage =
+      !allowBackendOverride && !BackendConfig.hasDefinedBaseUrl
+          ? BackendConfig.releaseBaseUrlRequiredMessage
+          : null;
 
   runApp(
     MyApp(
       backendEndpointStorage: backendEndpointStorage,
+      startupErrorMessage: startupErrorMessage,
       initialBackendBaseUrl: BackendConfig.resolveBaseUrl(
         overrideBaseUrl: storedBackendBaseUrl,
       ),
-      backendBaseUrlLocked: false,
+      backendBaseUrlLocked: !allowBackendOverride,
     ),
   );
 
@@ -81,11 +96,13 @@ class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
     required this.backendEndpointStorage,
+    required this.startupErrorMessage,
     required this.initialBackendBaseUrl,
     required this.backendBaseUrlLocked,
   });
 
   final BackendEndpointStorage backendEndpointStorage;
+  final String? startupErrorMessage;
   final String initialBackendBaseUrl;
   final bool backendBaseUrlLocked;
 
@@ -127,6 +144,14 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     const bool isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
+    final String? startupErrorMessage = widget.startupErrorMessage;
+    if (startupErrorMessage != null) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: _StartupConfigurationErrorView(message: startupErrorMessage),
+      );
+    }
+
     // Odatdagi ishga tushirishda backend default bo'ladi.
     // Zarurat bo'lsa `--dart-define=USE_BACKEND=false` bilan local rejimga o'tish mumkin.
     const bool useBackend = bool.fromEnvironment(
@@ -228,6 +253,47 @@ class _MyAppState extends State<MyApp> {
         currentBackendBaseUrl: backendBaseUrl,
         backendBaseUrlLocked: widget.backendBaseUrlLocked,
         onUpdateBackendBaseUrl: _updateBackendBaseUrl,
+      ),
+    );
+  }
+}
+
+class _StartupConfigurationErrorView extends StatelessWidget {
+  const _StartupConfigurationErrorView({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Icon(Icons.error_outline_rounded, size: 36),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Release configuration required',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(message),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

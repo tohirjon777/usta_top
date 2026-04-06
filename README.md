@@ -21,6 +21,20 @@ Kerak bo'lsa backend manzilini ham berish mumkin:
 flutter run --dart-define=USE_BACKEND=true --dart-define=API_BASE_URL=http://127.0.0.1:8080
 ```
 
+Release build uchun `API_BASE_URL` berish majburiy. Release'da login sahifadagi
+`Server sozlamalari` yashiriladi va saqlanib qolgan lokal override'lar e'tiborga
+olinmaydi:
+
+```bash
+flutter build apk --release --dart-define=API_BASE_URL=https://api.sizning-domain.uz
+```
+
+Android release signing uchun namuna fayl:
+
+```text
+android/key.properties.example
+```
+
 Ikkalasini birga bitta buyruq bilan ishga tushirish:
 
 ```bash
