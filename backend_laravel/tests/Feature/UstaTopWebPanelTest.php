@@ -25,12 +25,16 @@ class UstaTopWebPanelTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_admin_and_owner_web_routes_are_not_publicly_accessible(): void
+    public function test_admin_and_owner_login_pages_are_public_but_panels_require_authentication(): void
     {
-        $this->get('/admin/login')->assertNotFound();
-        $this->get('/owner/login')->assertNotFound();
-        $this->get('/admin/workshops')->assertNotFound();
-        $this->get('/owner/bookings')->assertNotFound();
+        $this->get('/admin/login')
+            ->assertOk()
+            ->assertSee('Admin login');
+        $this->get('/owner/login')
+            ->assertOk()
+            ->assertSee('Owner login');
+        $this->get('/admin/workshops')->assertRedirect('/admin/login');
+        $this->get('/owner/bookings')->assertRedirect('/owner/login');
     }
 
     public function test_customer_website_renders_public_workshops_and_detail_pages(): void
@@ -68,10 +72,20 @@ class UstaTopWebPanelTest extends TestCase
             ->assertOk()
             ->assertSee('Mijoz kabinetiga kiring');
 
-        $this->post('/customer/register', [
+        $registerStart = $this->post('/customer/register', [
             'fullName' => 'Web Mijoz',
             'phone' => '+998901234500',
             'password' => 'secret123',
+        ]);
+        $registerStart
+            ->assertRedirect('/customer/login')
+            ->assertSessionHas('registerDebugCode');
+
+        $code = (string) session('registerDebugCode');
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $code);
+
+        $this->post('/customer/register', [
+            'code' => $code,
         ])->assertRedirect('/customer/account');
 
         $this->followingRedirects()
@@ -161,5 +175,78 @@ class UstaTopWebPanelTest extends TestCase
             ->assertSee('Web sayt orqali yozilgan test xabar')
             ->assertSee('Ko‘chirdi: Mijoz')
             ->assertSee('Oldingi vaqt:');
+    }
+
+    public function test_owner_can_update_workshop_location_from_panel_with_yandex_map(): void
+    {
+        $this->post('/owner/login', [
+            'workshopId' => 'w-1',
+            'accessCode' => '1111',
+        ])->assertRedirect('/owner/bookings');
+
+        $this->get('/owner/bookings')
+            ->assertOk()
+            ->assertSee('ownerWorkshopMap', false)
+            ->assertSee('data-location-picker', false)
+            ->assertSee('api-maps.yandex.ru/2.1/?apikey=test-yandex-key', false)
+            ->assertSee('/owner/workshop/location', false)
+            ->assertDontSee('Latitude')
+            ->assertDontSee('Longitude');
+
+        $this->post('/owner/workshop/location', [
+            'address' => 'Toshkent, Chilonzor 12',
+            'latitude' => '41.299500',
+            'longitude' => '69.240100',
+        ])->assertRedirect();
+
+        $workshop = app(UstaTopRepository::class)->workshopById('w-1');
+        $this->assertNotNull($workshop);
+        $this->assertSame('Toshkent, Chilonzor 12', (string) ($workshop['address'] ?? ''));
+        $this->assertSame(41.2995, (float) ($workshop['latitude'] ?? 0));
+        $this->assertSame(69.2401, (float) ($workshop['longitude'] ?? 0));
+    }
+
+    public function test_admin_can_manage_workshop_location_from_map_picker(): void
+    {
+        $this->post('/admin/login', [
+            'username' => 'admin',
+            'password' => 'admin123',
+        ])->assertRedirect('/admin/workshops');
+
+        $this->get('/admin/workshops')
+            ->assertOk()
+            ->assertSee('adminWorkshopCreateMap', false)
+            ->assertSee('data-location-picker', false)
+            ->assertSee('api-maps.yandex.ru/2.1/?apikey=test-yandex-key', false)
+            ->assertDontSee('Latitude')
+            ->assertDontSee('Longitude');
+
+        $this->post('/admin/workshops', [
+            'name' => 'Map Picker Workshop',
+            'master' => 'Map Usta',
+            'address' => 'Toshkent, Yunusobod 5',
+            'description' => 'Yandex map bilan tanlangan lokatsiya.',
+            'badge' => 'Map',
+            'latitude' => '41.325500',
+            'longitude' => '69.228800',
+            'startingPrice' => '150000',
+            'ownerAccessCode' => '5555',
+            'telegramChatId' => '',
+            'openingTime' => '09:00',
+            'closingTime' => '19:00',
+            'breakStartTime' => '13:00',
+            'breakEndTime' => '14:00',
+            'closedWeekdays' => '7',
+            'isOpen' => '1',
+            'servicesText' => '',
+        ])->assertRedirect('/admin/workshops');
+
+        $createdWorkshop = collect(app(UstaTopRepository::class)->listWorkshops())
+            ->first(fn (array $workshop): bool => ($workshop['name'] ?? '') === 'Map Picker Workshop');
+
+        $this->assertNotNull($createdWorkshop);
+        $this->assertSame('Toshkent, Yunusobod 5', (string) ($createdWorkshop['address'] ?? ''));
+        $this->assertSame(41.3255, (float) ($createdWorkshop['latitude'] ?? 0));
+        $this->assertSame(69.2288, (float) ($createdWorkshop['longitude'] ?? 0));
     }
 }

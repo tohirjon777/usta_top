@@ -5,22 +5,26 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Support\UstaTop\CustomerAvatarStorage;
 use App\Support\UstaTop\Money;
+use App\Support\UstaTop\SmsVerificationService;
 use App\Support\UstaTop\UstaTopRepository;
 use App\Support\UstaTop\WorkshopNotificationsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use RuntimeException;
 
 class CustomerWebsiteController extends Controller
 {
     private const CUSTOMER_SESSION_TOKEN = 'ustatop_customer_token';
+    private const CUSTOMER_PENDING_REGISTRATION = 'ustatop_customer_pending_registration';
 
     public function __construct(
         private readonly UstaTopRepository $repository,
         private readonly WorkshopNotificationsService $notifications,
         private readonly CustomerAvatarStorage $avatarStorage,
+        private readonly SmsVerificationService $smsVerificationService,
     ) {
     }
 
@@ -113,6 +117,7 @@ class CustomerWebsiteController extends Controller
             'title' => 'Mijoz kirish | Usta Top',
             'currentCustomer' => null,
             'yandexMapsApiKey' => $this->yandexMapsApiKey(),
+            'pendingRegistration' => $this->pendingRegistration($request),
         ]);
     }
 
@@ -135,23 +140,66 @@ class CustomerWebsiteController extends Controller
 
     public function register(Request $request)
     {
+        $code = trim((string) $request->input('code'));
+
         try {
-            $user = $this->repository->createUser(
-                trim((string) $request->input('fullName')),
-                trim((string) $request->input('phone')),
-                (string) $request->input('password')
-            );
-            $auth = $this->repository->login((string) $user['phone'], (string) $user['password']);
-            if (! $auth) {
-                throw new RuntimeException('Akkaunt yaratildi, lekin avtomatik kirib bo‘lmadi');
+            if ($code === '') {
+                $fullName = trim((string) $request->input('fullName'));
+                $phone = trim((string) $request->input('phone'));
+                $password = (string) $request->input('password');
+
+                $result = $this->smsVerificationService->sendRegistrationCode($phone);
+                $request->session()->put(self::CUSTOMER_PENDING_REGISTRATION, [
+                    'fullName' => $fullName,
+                    'phone' => $phone,
+                    'password' => Crypt::encryptString($password),
+                ]);
+
+                $redirect = redirect('/customer/login')
+                    ->with('success', 'SMS tasdiqlash kodi yuborildi. Kodni kiriting.');
+
+                if (app()->environment(['local', 'testing']) && isset($result['debugCode'])) {
+                    $redirect = $redirect->with('registerDebugCode', (string) $result['debugCode']);
+                }
+
+                return $redirect;
             }
 
+            $pending = $request->session()->get(self::CUSTOMER_PENDING_REGISTRATION, []);
+            $fullName = trim((string) ($pending['fullName'] ?? ''));
+            $phone = trim((string) ($pending['phone'] ?? ''));
+            $encryptedPassword = (string) ($pending['password'] ?? '');
+
+            if ($fullName === '' || $phone === '' || $encryptedPassword === '') {
+                throw new RuntimeException('Ro‘yxatdan o‘tishni qaytadan boshlang');
+            }
+
+            $auth = $this->smsVerificationService->verifyRegistrationCode(
+                $fullName,
+                $phone,
+                Crypt::decryptString($encryptedPassword),
+                $code
+            );
+
+            $request->session()->forget(self::CUSTOMER_PENDING_REGISTRATION);
             $request->session()->put(self::CUSTOMER_SESSION_TOKEN, (string) $auth['token']);
 
             return redirect($this->pullIntendedPath($request, '/customer/account'))
                 ->with('success', 'Akkaunt yaratildi');
         } catch (RuntimeException $exception) {
-            return redirect('/customer/login')->with('error', $exception->getMessage());
+            if ($code === '') {
+                $request->session()->forget(self::CUSTOMER_PENDING_REGISTRATION);
+            }
+
+            return redirect('/customer/login')
+                ->withInput($request->except('password', 'code'))
+                ->with('error', $exception->getMessage());
+        } catch (\Throwable $exception) {
+            $request->session()->forget(self::CUSTOMER_PENDING_REGISTRATION);
+
+            return redirect('/customer/login')
+                ->withInput($request->except('password', 'code'))
+                ->with('error', 'Ro‘yxatdan o‘tishni qaytadan boshlang');
         }
     }
 
@@ -502,6 +550,25 @@ class CustomerWebsiteController extends Controller
         }
 
         return $this->repository->authUserFromToken($token);
+    }
+
+    private function pendingRegistration(Request $request): ?array
+    {
+        $pending = $request->session()->get(self::CUSTOMER_PENDING_REGISTRATION, []);
+        if (! is_array($pending)) {
+            return null;
+        }
+
+        $fullName = trim((string) ($pending['fullName'] ?? ''));
+        $phone = trim((string) ($pending['phone'] ?? ''));
+        if ($fullName === '' || $phone === '') {
+            return null;
+        }
+
+        return [
+            'fullName' => $fullName,
+            'phone' => $phone,
+        ];
     }
 
     private function presentCustomer(?array $customer): ?array

@@ -23,8 +23,14 @@
             <input type="text" name="name" value="">
             <label>Usta</label>
             <input type="text" name="master" value="">
-            <label>Manzil</label>
-            <input type="text" name="address" value="">
+            <h3>Lokatsiya</h3>
+            @include('ustatop.partials.panel-location-picker', [
+                'pickerId' => 'adminWorkshopCreateMap',
+                'addressValue' => '',
+                'latitudeValue' => '',
+                'longitudeValue' => '',
+                'routeUrl' => '',
+            ])
             <label>Tavsif</label>
             <textarea name="description"></textarea>
             <label>Badge</label>
@@ -33,16 +39,6 @@
             <input type="url" name="imageUrl" value="" placeholder="https://example.com/ustaxona.jpg">
             <label>Yoki rasm fayli</label>
             <input type="file" name="imageFile" accept="image/*">
-            <div class="grid-two">
-                <div>
-                    <label>Latitude</label>
-                    <input type="number" step="0.000001" name="latitude" value="">
-                </div>
-                <div>
-                    <label>Longitude</label>
-                    <input type="number" step="0.000001" name="longitude" value="">
-                </div>
-            </div>
             <div class="grid-two">
                 <div>
                     <label>Starting price</label>
@@ -113,8 +109,16 @@
                 <input type="text" name="name" value="{{ $workshop['name'] }}">
                 <label>Usta</label>
                 <input type="text" name="master" value="{{ $workshop['master'] ?? '' }}">
-                <label>Manzil</label>
-                <input type="text" name="address" value="{{ $workshop['address'] ?? '' }}">
+                <h3>Lokatsiya</h3>
+                @include('ustatop.partials.panel-location-picker', [
+                    'pickerId' => 'adminWorkshopMap-'.preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($workshop['id'] ?? 'workshop')),
+                    'addressValue' => $workshop['address'] ?? '',
+                    'latitudeValue' => $workshop['latitude'] ?? '',
+                    'longitudeValue' => $workshop['longitude'] ?? '',
+                    'routeUrl' => isset($workshop['latitude'], $workshop['longitude']) && $workshop['latitude'] !== null && $workshop['longitude'] !== null
+                        ? 'https://yandex.com/maps/?rtext=~'.(float) $workshop['latitude'].','.(float) $workshop['longitude'].'&rtt=auto'
+                        : '',
+                ])
                 <label>Tavsif</label>
                 <textarea name="description">{{ $workshop['description'] ?? '' }}</textarea>
                 <label>Badge</label>
@@ -124,16 +128,6 @@
                 <label>Yoki rasm fayli</label>
                 <input type="file" name="imageFile" accept="image/*">
                 <label class="checkbox-row"><input type="checkbox" name="removeImage" value="1"> Rasmni olib tashlash</label>
-                <div class="grid-two">
-                    <div>
-                        <label>Latitude</label>
-                        <input type="number" step="0.000001" name="latitude" value="{{ $workshop['latitude'] ?? '' }}">
-                    </div>
-                    <div>
-                        <label>Longitude</label>
-                        <input type="number" step="0.000001" name="longitude" value="{{ $workshop['longitude'] ?? '' }}">
-                    </div>
-                </div>
                 <div class="grid-two">
                     <div>
                         <label>Starting price</label>

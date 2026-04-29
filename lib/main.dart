@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import 'app/usta_top_app.dart';
@@ -31,6 +32,46 @@ import 'services/remote_booking_service.dart';
 import 'services/remote_workshop_service.dart';
 import 'services/workshop_service.dart';
 
+Future<bool> _isBackendHealthy(String baseUrl) async {
+  try {
+    final Uri uri =
+        Uri.parse('${BackendConfig.normalizeBaseUrl(baseUrl)}/health');
+    final http.Response response =
+        await http.get(uri).timeout(const Duration(seconds: 2));
+    return response.statusCode >= 200 && response.statusCode < 300;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<String?> _restoreReachableBackendBaseUrl({
+  required BackendEndpointStorage backendEndpointStorage,
+  required String? storedBackendBaseUrl,
+}) async {
+  if (storedBackendBaseUrl == null || storedBackendBaseUrl.trim().isEmpty) {
+    return null;
+  }
+
+  final String normalizedStored = BackendConfig.normalizeBaseUrl(
+    storedBackendBaseUrl,
+  );
+  final String defaultBaseUrl = BackendConfig.resolveBaseUrl();
+  if (normalizedStored == defaultBaseUrl) {
+    return normalizedStored;
+  }
+
+  if (await _isBackendHealthy(normalizedStored)) {
+    return normalizedStored;
+  }
+
+  if (await _isBackendHealthy(defaultBaseUrl)) {
+    await backendEndpointStorage.clearBaseUrl();
+    return null;
+  }
+
+  return normalizedStored;
+}
+
 Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: binding);
@@ -42,12 +83,17 @@ Future<void> main() async {
   );
   const BackendEndpointStorage backendEndpointStorage =
       BackendEndpointStorage();
-  final String? storedBackendBaseUrl = allowBackendOverride
-      ? await backendEndpointStorage.loadBaseUrl()
-      : null;
+  final String? storedBackendBaseUrl =
+      allowBackendOverride ? await backendEndpointStorage.loadBaseUrl() : null;
   if (!allowBackendOverride) {
     await backendEndpointStorage.clearBaseUrl();
   }
+  final String? restoredBackendBaseUrl = allowBackendOverride
+      ? await _restoreReachableBackendBaseUrl(
+          backendEndpointStorage: backendEndpointStorage,
+          storedBackendBaseUrl: storedBackendBaseUrl,
+        )
+      : null;
   final String? startupErrorMessage =
       !allowBackendOverride && !BackendConfig.hasDefinedBaseUrl
           ? BackendConfig.releaseBaseUrlRequiredMessage
@@ -58,7 +104,7 @@ Future<void> main() async {
       backendEndpointStorage: backendEndpointStorage,
       startupErrorMessage: startupErrorMessage,
       initialBackendBaseUrl: BackendConfig.resolveBaseUrl(
-        overrideBaseUrl: storedBackendBaseUrl,
+        overrideBaseUrl: restoredBackendBaseUrl,
       ),
       backendBaseUrlLocked: !allowBackendOverride,
     ),

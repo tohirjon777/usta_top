@@ -541,7 +541,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text(
                         isCodeStep
                             ? l10n.verificationStepSubtitle(
-                                lastRequestedPhone ?? phoneController.text.trim(),
+                                lastRequestedPhone ??
+                                    phoneController.text.trim(),
                               )
                             : l10n.signUpDescription,
                         style: Theme.of(context).textTheme.bodyMedium,
@@ -901,7 +902,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text(
                         isCodeStep
                             ? l10n.verificationStepSubtitle(
-                                lastRequestedPhone ?? phoneController.text.trim(),
+                                lastRequestedPhone ??
+                                    phoneController.text.trim(),
                               )
                             : l10n.forgotPasswordDescription,
                         style: Theme.of(context).textTheme.bodyMedium,

@@ -90,6 +90,7 @@ class AdminController extends Controller
             'title' => 'Admin workshops',
             'workshops' => $workshops,
             'telegramConfigured' => $this->telegramBot->isConfigured(),
+            'panelYandexMapsApiKey' => $this->yandexMapsApiKey(),
         ]);
     }
 
@@ -614,5 +615,10 @@ class AdminController extends Controller
     private function isAdmin(Request $request): bool
     {
         return (bool) $request->session()->get('ustatop_admin');
+    }
+
+    private function yandexMapsApiKey(): string
+    {
+        return trim((string) config('services.yandex_maps.js_api_key', ''));
     }
 }

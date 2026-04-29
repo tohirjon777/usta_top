@@ -7,16 +7,41 @@ ENV_FILE="$BACKEND_DIR/.env.local"
 SECRETS_ENV_FILE="$BACKEND_DIR/secrets/local.env"
 LOG_DIR="$BACKEND_DIR/storage/logs"
 
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:$PATH"
+
+find_binary() {
+  local name="$1"
+  shift
+
+  if command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+    return 0
+  fi
+
+  local candidate=""
+  for candidate in "$@"; do
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+PHP_BIN="$(find_binary php /opt/homebrew/bin/php /usr/local/bin/php || true)"
+COMPOSER_BIN="$(find_binary composer "$HOME/.local/bin/composer" /opt/homebrew/bin/composer /usr/local/bin/composer || true)"
+
 mkdir -p "$LOG_DIR" "$BACKEND_DIR/storage/app/ustatop"
 
 cd "$BACKEND_DIR"
 
-if ! command -v php >/dev/null 2>&1; then
+if [[ -z "$PHP_BIN" ]]; then
   echo "PHP topilmadi. Avval PHP ni o'rnating." >&2
   exit 1
 fi
 
-if ! command -v composer >/dev/null 2>&1; then
+if [[ -z "$COMPOSER_BIN" ]]; then
   echo "Composer topilmadi. Avval Composer ni o'rnating." >&2
   exit 1
 fi
@@ -39,12 +64,14 @@ fi
 set +a
 
 if [[ ! -d "vendor" || "composer.json" -nt "vendor" || "composer.lock" -nt "vendor" ]]; then
-  composer install --no-interaction --prefer-dist
+  "$COMPOSER_BIN" install --no-interaction --prefer-dist
 fi
 
-php artisan key:generate --force >/dev/null 2>&1 || true
-php artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
-php artisan migrate --force >/dev/null 2>&1 || true
+if ! grep -Eq '^APP_KEY=.+$' ".env" 2>/dev/null; then
+  "$PHP_BIN" artisan key:generate --force >/dev/null 2>&1 || true
+fi
+"$PHP_BIN" artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
+"$PHP_BIN" artisan migrate --force >/dev/null 2>&1 || true
 
 export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}"
 
@@ -65,11 +92,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
-  php artisan ustatop:telegram-poll >> "$LOG_DIR/telegram-poll.out.log" 2>> "$LOG_DIR/telegram-poll.err.log" &
+  "$PHP_BIN" artisan ustatop:telegram-poll >> "$LOG_DIR/telegram-poll.out.log" 2>> "$LOG_DIR/telegram-poll.err.log" &
   POLL_PID="$!"
 fi
 
-php artisan serve --host="${HOST:-127.0.0.1}" --port="${PORT:-8080}" &
+"$PHP_BIN" artisan serve --host="${HOST:-127.0.0.1}" --port="${PORT:-8080}" &
 SERVER_PID="$!"
 
 wait "$SERVER_PID"

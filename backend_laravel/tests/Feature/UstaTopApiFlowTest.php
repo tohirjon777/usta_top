@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\UstaTop\JsonFileStore;
 use App\Support\UstaTop\UstaTopRepository;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -31,14 +32,7 @@ class UstaTopApiFlowTest extends TestCase
     {
         $phone = '+99890'.random_int(1000000, 9999999);
 
-        $registerResponse = $this->postJson('/auth/register', [
-            'fullName' => 'Laravel Flow',
-            'phone' => $phone,
-            'password' => 'secret123',
-        ]);
-        $registerResponse->assertOk();
-
-        $token = (string) $registerResponse->json('data.token');
+        $token = $this->registerCustomerViaOtp('Laravel Flow', $phone);
         $this->assertNotSame('', $token);
 
         $headers = ['Authorization' => 'Bearer '.$token];
@@ -155,13 +149,7 @@ class UstaTopApiFlowTest extends TestCase
         CarbonImmutable::setTestNow('2026-03-30 14:10:00');
 
         $phone = '+99890'.random_int(1000000, 9999999);
-        $registerResponse = $this->postJson('/auth/register', [
-            'fullName' => 'Time Guard',
-            'phone' => $phone,
-            'password' => 'secret123',
-        ])->assertOk();
-
-        $token = (string) $registerResponse->json('data.token');
+        $token = $this->registerCustomerViaOtp('Time Guard', $phone);
         $headers = ['Authorization' => 'Bearer '.$token];
 
         $availabilityResponse = $this->getJson('/workshops/w-1/availability?serviceId=srv-1&date=2026-03-30')
@@ -212,14 +200,7 @@ class UstaTopApiFlowTest extends TestCase
     {
         $phone = '+99890'.random_int(1000000, 9999999);
 
-        $registerResponse = $this->postJson('/auth/register', [
-            'fullName' => 'Accept Flow',
-            'phone' => $phone,
-            'password' => 'secret123',
-        ]);
-        $registerResponse->assertOk();
-
-        $token = (string) $registerResponse->json('data.token');
+        $token = $this->registerCustomerViaOtp('Accept Flow', $phone);
         $headers = ['Authorization' => 'Bearer '.$token];
 
         $calendarResponse = $this->getJson('/workshops/w-1/availability/calendar?serviceId=srv-1&from=2026-03-30&days=7');
@@ -279,14 +260,7 @@ class UstaTopApiFlowTest extends TestCase
     {
         $phone = '+99890'.random_int(1000000, 9999999);
 
-        $registerResponse = $this->postJson('/auth/register', [
-            'fullName' => 'Card Flow',
-            'phone' => $phone,
-            'password' => 'secret123',
-        ]);
-        $registerResponse->assertOk();
-
-        $token = (string) $registerResponse->json('data.token');
+        $token = $this->registerCustomerViaOtp('Card Flow', $phone);
         $headers = ['Authorization' => 'Bearer '.$token];
 
         $createResponse = $this->withHeaders($headers)->postJson('/auth/me/cards', [
@@ -372,5 +346,90 @@ class UstaTopApiFlowTest extends TestCase
             'phone' => $phone,
             'password' => 'newsecret123',
         ])->assertOk();
+    }
+
+    public function test_direct_auth_mutations_require_verification_code(): void
+    {
+        $phone = '+99890'.random_int(1000000, 9999999);
+
+        $this->postJson('/auth/register', [
+            'fullName' => 'No Code',
+            'phone' => $phone,
+            'password' => 'secret123',
+        ])
+            ->assertStatus(400)
+            ->assertJsonPath('error', 'Tasdiqlash kodi kerak. Avval /auth/register/send-code orqali SMS kod oling');
+
+        $this->registerCustomerViaOtp('Reset Guard', $phone);
+
+        $this->postJson('/auth/forgot-password', [
+            'phone' => $phone,
+            'newPassword' => 'newsecret123',
+        ])
+            ->assertStatus(400)
+            ->assertJsonPath('error', 'Tasdiqlash kodi kerak. Avval /auth/password/send-code orqali SMS kod oling');
+    }
+
+    public function test_passwords_are_hashed_and_legacy_plaintext_passwords_are_upgraded_on_login(): void
+    {
+        $phone = '+99890'.random_int(1000000, 9999999);
+        $this->registerCustomerViaOtp('Hash Flow', $phone);
+
+        $store = app(JsonFileStore::class);
+        $usersPath = (string) config('ustatop.users_file');
+        $users = $store->readArray($usersPath, []);
+        $registeredUser = collect($users)->first(fn (array $user): bool => ($user['phone'] ?? '') === $phone);
+
+        $this->assertIsArray($registeredUser);
+        $this->assertNotSame('secret123', (string) ($registeredUser['password'] ?? ''));
+        $this->assertTrue(password_verify('secret123', (string) ($registeredUser['password'] ?? '')));
+
+        $users[] = [
+            'id' => 'u-legacy-1',
+            'fullName' => 'Legacy User',
+            'phone' => '+998900000222',
+            'password' => 'legacy123',
+            'avatarUrl' => '',
+            'pushTokens' => [],
+            'savedVehicles' => [],
+            'paymentCards' => [],
+        ];
+        $store->writeArray($usersPath, $users);
+
+        $this->postJson('/auth/login', [
+            'phone' => '+998900000222',
+            'password' => 'legacy123',
+        ])->assertOk();
+
+        $upgradedUsers = $store->readArray($usersPath, []);
+        $legacyUser = collect($upgradedUsers)->first(fn (array $user): bool => ($user['id'] ?? '') === 'u-legacy-1');
+
+        $this->assertIsArray($legacyUser);
+        $this->assertNotSame('legacy123', (string) ($legacyUser['password'] ?? ''));
+        $this->assertTrue(password_verify('legacy123', (string) ($legacyUser['password'] ?? '')));
+    }
+
+    private function registerCustomerViaOtp(
+        string $fullName,
+        string $phone,
+        string $password = 'secret123'
+    ): string {
+        $sendRegisterCode = $this->postJson('/auth/register/send-code', [
+            'phone' => $phone,
+        ]);
+        $sendRegisterCode->assertOk();
+
+        $registerCode = (string) $sendRegisterCode->json('data.debugCode');
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $registerCode);
+
+        $verifyRegisterCode = $this->postJson('/auth/register/verify-code', [
+            'fullName' => $fullName,
+            'phone' => $phone,
+            'password' => $password,
+            'code' => $registerCode,
+        ]);
+        $verifyRegisterCode->assertOk();
+
+        return (string) $verifyRegisterCode->json('data.token');
     }
 }

@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'Usta Top Panel' }}</title>
+    @php($panelYandexMapsApiKey = trim((string) ($panelYandexMapsApiKey ?? '')))
+    @if ($panelYandexMapsApiKey !== '')
+        <script src="https://api-maps.yandex.ru/2.1/?apikey={{ urlencode($panelYandexMapsApiKey) }}&lang=ru_RU" type="text/javascript"></script>
+    @endif
     <style>
         :root {
             color-scheme: light only;
@@ -299,6 +303,38 @@
             background: #faf7f1;
         }
 
+        .map-picker {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .map-picker-toolbar,
+        .map-picker-meta {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .map-picker-canvas {
+            width: 100%;
+            height: 320px;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid var(--line-strong);
+            background: #ece6dc;
+        }
+
+        .map-picker-toolbar button {
+            width: auto;
+        }
+
+        .map-picker-meta .ghost-link {
+            width: auto;
+        }
+
         .login-shell {
             max-width: 520px;
             margin: 0 auto;
@@ -402,6 +438,211 @@
 
             sessionStorage.setItem(scrollKey, String(window.scrollY));
             sessionStorage.setItem(actionKey, form.getAttribute('action') || '');
+        });
+    })();
+
+    (() => {
+        if (!window.ymaps || typeof window.ymaps.ready !== 'function') {
+            return;
+        }
+
+        const pickers = Array.from(document.querySelectorAll('[data-location-picker]'));
+        if (!pickers.length) {
+            return;
+        }
+
+        const defaultCenter = [41.311081, 69.240562];
+        const parseCoord = (value) => {
+            const number = Number.parseFloat(String(value ?? '').trim());
+
+            return Number.isFinite(number) ? number : null;
+        };
+        const normalizeCoords = (coords) => [
+            Number(coords[0].toFixed(6)),
+            Number(coords[1].toFixed(6)),
+        ];
+        const routeUrl = (coords) => `https://yandex.com/maps/?rtext=~${coords[0]},${coords[1]}&rtt=auto`;
+
+        window.ymaps.ready(() => {
+            pickers.forEach((picker, index) => {
+                const canvas = picker.querySelector('[data-map-canvas]');
+                const addressInput = picker.querySelector('[data-map-address]');
+                const latInput = picker.querySelector('[data-map-lat]');
+                const lngInput = picker.querySelector('[data-map-lng]');
+                const clearButton = picker.querySelector('[data-map-clear]');
+                const statusNode = picker.querySelector('[data-map-status]');
+                const routeLink = picker.querySelector('[data-map-route]');
+
+                if (!(canvas instanceof HTMLElement) || !(latInput instanceof HTMLInputElement) || !(lngInput instanceof HTMLInputElement)) {
+                    return;
+                }
+
+                if (!canvas.id) {
+                    canvas.id = `ustatopPanelMap${index + 1}`;
+                }
+
+                const currentCoords = () => {
+                    const lat = parseCoord(latInput.value);
+                    const lng = parseCoord(lngInput.value);
+
+                    return lat === null || lng === null ? null : [lat, lng];
+                };
+
+                const setStatus = (message) => {
+                    if (statusNode) {
+                        statusNode.textContent = message;
+                    }
+                };
+
+                const updateRouteLink = (coords) => {
+                    if (!routeLink) {
+                        return;
+                    }
+
+                    if (!coords) {
+                        routeLink.hidden = true;
+                        routeLink.setAttribute('href', '#');
+                        return;
+                    }
+
+                    routeLink.hidden = false;
+                    routeLink.setAttribute('href', routeUrl(coords));
+                };
+
+                const map = new window.ymaps.Map(canvas.id, {
+                    center: currentCoords() ?? defaultCenter,
+                    zoom: currentCoords() ? 15 : 11,
+                    controls: ['zoomControl', 'geolocationControl'],
+                }, {
+                    suppressMapOpenBlock: true,
+                });
+                const searchControl = new window.ymaps.control.SearchControl({
+                    options: {
+                        noPlacemark: true,
+                        position: {
+                            top: 12,
+                            left: 12,
+                        },
+                    },
+                });
+                map.controls.add(searchControl);
+
+                let placemark = null;
+
+                const removePlacemark = () => {
+                    if (!placemark) {
+                        return;
+                    }
+
+                    map.geoObjects.remove(placemark);
+                    placemark = null;
+                };
+
+                const syncAddressFromMap = async (coords) => {
+                    if (!(addressInput instanceof HTMLInputElement)) {
+                        return;
+                    }
+
+                    try {
+                        const result = await window.ymaps.geocode(coords);
+                        const firstGeoObject = result.geoObjects.get(0);
+                        if (!firstGeoObject) {
+                            return;
+                        }
+
+                        const addressLine = typeof firstGeoObject.getAddressLine === 'function'
+                            ? firstGeoObject.getAddressLine()
+                            : firstGeoObject.properties.get('text') || firstGeoObject.properties.get('name') || '';
+
+                        if (addressLine) {
+                            addressInput.value = addressLine;
+                        }
+                    } catch (_) {
+                        // Geocoder javobi bo'lmasa ham koordinata saqlanishi kerak.
+                    }
+                };
+
+                const applyCoords = async (coords, options = {}) => {
+                    if (!coords) {
+                        latInput.value = '';
+                        lngInput.value = '';
+                        removePlacemark();
+                        updateRouteLink(null);
+                        setStatus('Lokatsiya hali tanlanmagan.');
+                        return;
+                    }
+
+                    const normalized = normalizeCoords(coords);
+                    latInput.value = normalized[0].toFixed(6);
+                    lngInput.value = normalized[1].toFixed(6);
+                    updateRouteLink(normalized);
+                    setStatus('Lokatsiya tanlandi. Saqlashni unutmang.');
+
+                    if (!placemark) {
+                        placemark = new window.ymaps.Placemark(normalized, {
+                            hintContent: 'Ustaxona lokatsiyasi',
+                        }, {
+                            draggable: true,
+                        });
+                        placemark.events.add('dragend', () => {
+                            const draggedCoords = placemark.geometry.getCoordinates();
+                            void applyCoords(draggedCoords, { recenter: false, syncAddress: true });
+                        });
+                        map.geoObjects.add(placemark);
+                    } else {
+                        placemark.geometry.setCoordinates(normalized);
+                    }
+
+                    if (options.recenter !== false) {
+                        map.setCenter(normalized, Math.max(map.getZoom(), 15), { duration: 200 });
+                    }
+
+                    if (options.syncAddress !== false) {
+                        if (typeof options.address === 'string' && options.address.trim() !== '' && addressInput instanceof HTMLInputElement) {
+                            addressInput.value = options.address.trim();
+                        } else {
+                            await syncAddressFromMap(normalized);
+                        }
+                    }
+                };
+
+                map.events.add('click', (event) => {
+                    void applyCoords(event.get('coords'), { syncAddress: true });
+                });
+
+                searchControl.events.add('resultselect', (event) => {
+                    searchControl.getResult(event.get('index')).then((result) => {
+                        const geometry = result && result.geometry ? result.geometry : null;
+                        const coords = geometry && typeof geometry.getCoordinates === 'function'
+                            ? geometry.getCoordinates()
+                            : null;
+
+                        if (!coords) {
+                            return;
+                        }
+
+                        const address = typeof result.getAddressLine === 'function'
+                            ? result.getAddressLine()
+                            : result.properties.get('text') || result.properties.get('name') || '';
+
+                        void applyCoords(coords, { syncAddress: true, address });
+                    });
+                });
+
+                if (clearButton) {
+                    clearButton.addEventListener('click', () => {
+                        void applyCoords(null);
+                    });
+                }
+
+                const initialCoords = currentCoords();
+                if (initialCoords) {
+                    void applyCoords(initialCoords, { recenter: false, syncAddress: false });
+                } else {
+                    updateRouteLink(null);
+                    setStatus('Lokatsiya hali tanlanmagan.');
+                }
+            });
         });
     })();
 </script>

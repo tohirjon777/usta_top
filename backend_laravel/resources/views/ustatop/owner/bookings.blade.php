@@ -35,6 +35,27 @@
     </article>
 
     <article class="card">
+        <div class="card-head">
+            <div>
+                <h2>Lokatsiya</h2>
+                <p class="muted">Ustaxona lokatsiyasini faqat xarita orqali tanlang.</p>
+            </div>
+        </div>
+
+        <form method="post" action="/owner/workshop/location">
+            @csrf
+            @include('ustatop.partials.panel-location-picker', [
+                'pickerId' => 'ownerWorkshopMap',
+                'addressValue' => $workshop['address'] ?? '',
+                'latitudeValue' => $workshop['latitude'] ?? '',
+                'longitudeValue' => $workshop['longitude'] ?? '',
+                'routeUrl' => $workshopRouteUrl ?? '',
+            ])
+            <button type="submit">Lokatsiyani saqlash</button>
+        </form>
+    </article>
+
+    <article class="card">
         <h2>Telegram</h2>
         <p><strong>Bot holati:</strong> {{ $telegramConfigured ? 'yoqilgan' : 'o‘chiq' }}</p>
         <p><strong>Chat ID:</strong> {{ !empty($workshop['telegramChatId']) ? $workshop['telegramChatId'] : 'ulanmagan' }}</p>
@@ -198,4 +219,5 @@
             </form>
         </article>
     @endforeach
+
 @endsection

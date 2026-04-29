@@ -131,7 +131,7 @@ class PushNotificationsProvider extends ChangeNotifier {
       iOS: DarwinInitializationSettings(),
     );
     await _localNotificationsPlugin.initialize(
-      settings,
+      settings: settings,
       onDidReceiveNotificationResponse: (
         NotificationResponse response,
       ) {
@@ -267,10 +267,10 @@ class PushNotificationsProvider extends ChangeNotifier {
     );
 
     await _localNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      details,
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: details,
       payload: _encodePayload(message.data),
     );
   }

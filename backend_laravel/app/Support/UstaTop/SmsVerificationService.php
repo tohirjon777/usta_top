@@ -43,8 +43,8 @@ class SmsVerificationService
         }
 
         $this->consumeCode($normalizedPhone, self::PURPOSE_REGISTER, $code);
-        $user = $this->repository->createUser(trim($fullName), $normalizedPhone, $password);
-        $auth = $this->repository->login($user['phone'], $user['password']);
+        $this->repository->createUser(trim($fullName), $normalizedPhone, $password);
+        $auth = $this->repository->login($normalizedPhone, $password);
 
         if (! is_array($auth)) {
             throw new RuntimeException('Akkaunt yaratildi, lekin kirib bo‘lmadi');

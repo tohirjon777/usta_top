@@ -121,6 +121,8 @@ class OwnerController extends Controller
             'weekdayOptions' => $weekdayOptions,
             'pricingRuleCount' => $pricingRuleCount,
             'telegramConfigured' => $this->telegramBot->isConfigured(),
+            'panelYandexMapsApiKey' => $this->yandexMapsApiKey(),
+            'workshopRouteUrl' => $this->workshopRouteUrl($workshop),
         ]);
     }
 
@@ -421,6 +423,46 @@ class OwnerController extends Controller
         return redirect()->back()->with('success', 'Ustaxona rasmi yangilandi');
     }
 
+    public function updateWorkshopLocation(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $latitude = trim((string) $request->input('latitude'));
+            $longitude = trim((string) $request->input('longitude'));
+
+            if (($latitude === '') xor ($longitude === '')) {
+                throw new RuntimeException('Latitude va longitude ikkalasi ham to‘ldirilishi kerak');
+            }
+
+            if ($latitude !== '' && (! is_numeric($latitude) || (float) $latitude < -90 || (float) $latitude > 90)) {
+                throw new RuntimeException('Latitude -90 va 90 oralig‘ida bo‘lishi kerak');
+            }
+
+            if ($longitude !== '' && (! is_numeric($longitude) || (float) $longitude < -180 || (float) $longitude > 180)) {
+                throw new RuntimeException('Longitude -180 va 180 oralig‘ida bo‘lishi kerak');
+            }
+
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'address' => trim((string) $request->input('address', (string) ($workshop['address'] ?? ''))),
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Lokatsiya yangilandi');
+    }
+
     private function ownerWorkshopId(Request $request): string
     {
         return (string) $request->session()->get('ustatop_owner_workshop_id', '');
@@ -496,5 +538,19 @@ class OwnerController extends Controller
             'breakEndTime' => $breakEndTime,
             'closedWeekdays' => $closedWeekdays === [] ? [7] : $closedWeekdays,
         ];
+    }
+
+    private function yandexMapsApiKey(): string
+    {
+        return trim((string) config('services.yandex_maps.js_api_key', ''));
+    }
+
+    private function workshopRouteUrl(array $workshop): ?string
+    {
+        if (! isset($workshop['latitude'], $workshop['longitude'])) {
+            return null;
+        }
+
+        return 'https://yandex.com/maps/?rtext=~'.(float) $workshop['latitude'].','.(float) $workshop['longitude'].'&rtt=auto';
     }
 }

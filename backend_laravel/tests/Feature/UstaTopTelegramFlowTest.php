@@ -36,17 +36,11 @@ class UstaTopTelegramFlowTest extends TestCase
         Http::fake([
             'https://api.telegram.org/*/sendMessage' => Http::response([
                 'ok' => true,
-                'result' => ['message_id' => 1],
-            ], 200),
+            'result' => ['message_id' => 1],
+        ], 200),
         ]);
 
-        $register = $this->postJson('/auth/register', [
-            'fullName' => 'Telegram Flow',
-            'phone' => '+99890'.random_int(1000000, 9999999),
-            'password' => 'secret123',
-        ])->assertOk();
-
-        $token = (string) $register->json('data.token');
+        $token = $this->registerCustomerViaOtp('Telegram Flow', '+99890'.random_int(1000000, 9999999));
         $calendar = $this->getJson('/workshops/w-1/availability/calendar?serviceId=srv-1&from=2026-03-30&days=7')
             ->assertOk();
 
@@ -97,5 +91,29 @@ class UstaTopTelegramFlowTest extends TestCase
             return str_contains($text, 'Usta Top: yangi sharh qoldirildi')
                 && str_contains($text, 'Sharh ID:');
         });
+    }
+
+    private function registerCustomerViaOtp(
+        string $fullName,
+        string $phone,
+        string $password = 'secret123'
+    ): string {
+        $sendRegisterCode = $this->postJson('/auth/register/send-code', [
+            'phone' => $phone,
+        ]);
+        $sendRegisterCode->assertOk();
+
+        $code = (string) $sendRegisterCode->json('data.debugCode');
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $code);
+
+        $verifyRegisterCode = $this->postJson('/auth/register/verify-code', [
+            'fullName' => $fullName,
+            'phone' => $phone,
+            'password' => $password,
+            'code' => $code,
+        ]);
+        $verifyRegisterCode->assertOk();
+
+        return (string) $verifyRegisterCode->json('data.token');
     }
 }

@@ -37,9 +37,7 @@ class AuthProvider extends ChangeNotifier {
     final bool hasSession = await _tokenStorage.hasValidSession();
     final String? token = await _tokenStorage.getAccessToken();
     if (!hasSession || token == null || token.isEmpty) {
-      _isLoggedIn = false;
-      _accessToken = null;
-      _currentUser = null;
+      _clearAuthState();
       _isLoadingSession = false;
       notifyListeners();
       return;
@@ -581,11 +579,15 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> signOut() async {
     await _tokenStorage.clearSession();
+    _clearAuthState();
+    notifyListeners();
+  }
+
+  void _clearAuthState() {
     _isLoggedIn = false;
     _accessToken = null;
     _currentUser = null;
     _errorMessage = null;
-    notifyListeners();
   }
 
   void rememberVehicleProfile(SavedVehicleProfile vehicle) {
@@ -622,8 +624,10 @@ class AuthProvider extends ChangeNotifier {
       if (!a.isDefault && b.isDefault) {
         return 1;
       }
-      final DateTime aTime = a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final DateTime bTime = b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime aTime =
+          a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime bTime =
+          b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bTime.compareTo(aTime);
     });
 

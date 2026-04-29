@@ -41,24 +41,49 @@
                 <div class="section-title auth-title">
                     <div>
                         <h2>Ro‘yxatdan o‘tish</h2>
-                        <p>Yangi mijoz akkauntini bir necha soniyada yarating.</p>
+                        <p>
+                            @if($pendingRegistration)
+                                Endi telefoningizga yuborilgan SMS kodni kiriting.
+                            @else
+                                Yangi mijoz akkauntini xavfsiz tarzda SMS tasdiqlash bilan yarating.
+                            @endif
+                        </p>
                     </div>
                 </div>
                 <form method="post" action="/customer/register" class="form-grid">
                     @csrf
-                    <label class="field">
-                        <span>To‘liq ism</span>
-                        <input type="text" name="fullName" placeholder="Toxirjon Aliyev" value="{{ old('fullName') }}" required>
-                    </label>
-                    <label class="field">
-                        <span>Telefon</span>
-                        <input type="text" name="phone" placeholder="+99890 123 45 67" value="{{ old('phone') }}" required>
-                    </label>
-                    <label class="field">
-                        <span>Parol</span>
-                        <input type="password" name="password" placeholder="Kamida 6 belgi" required>
-                    </label>
-                    <button class="button button-block" type="submit">Akkaunt yaratish</button>
+                    @if($pendingRegistration)
+                        <div class="feature">
+                            <strong>Telefon:</strong> {{ $pendingRegistration['phone'] }}
+                        </div>
+                        <div class="feature">
+                            <strong>Ism:</strong> {{ $pendingRegistration['fullName'] }}
+                        </div>
+                        @if(session('registerDebugCode'))
+                            <div class="feature">
+                                <strong>Test kodi:</strong> {{ session('registerDebugCode') }}
+                            </div>
+                        @endif
+                        <label class="field">
+                            <span>SMS kodi</span>
+                            <input type="text" name="code" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" required>
+                        </label>
+                        <button class="button button-block" type="submit">SMS kodni tasdiqlash</button>
+                    @else
+                        <label class="field">
+                            <span>To‘liq ism</span>
+                            <input type="text" name="fullName" placeholder="Toxirjon Aliyev" value="{{ old('fullName') }}" required>
+                        </label>
+                        <label class="field">
+                            <span>Telefon</span>
+                            <input type="text" name="phone" placeholder="+99890 123 45 67" value="{{ old('phone') }}" required>
+                        </label>
+                        <label class="field">
+                            <span>Parol</span>
+                            <input type="password" name="password" placeholder="Kamida 6 belgi" required>
+                        </label>
+                        <button class="button button-block" type="submit">SMS kod yuborish</button>
+                    @endif
                 </form>
             </article>
         </div>

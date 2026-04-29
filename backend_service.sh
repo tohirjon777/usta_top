@@ -19,8 +19,9 @@ LABEL="com.ustatop.backend"
 LAUNCH_DOMAIN="gui/$(id -u)"
 OUT_LOG="$LOG_DIR/backend.out.log"
 ERR_LOG="$LOG_DIR/backend.err.log"
-SERVICE_HOST="${SERVICE_HOST:-0.0.0.0}"
+SERVICE_HOST="${SERVICE_HOST:-127.0.0.1}"
 SERVICE_PORT="${SERVICE_PORT:-8080}"
+SERVICE_PATH="${SERVICE_PATH:-$HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin}"
 HEALTH_URL="http://127.0.0.1:${SERVICE_PORT}/health"
 
 usage() {
@@ -163,7 +164,7 @@ write_plist() {
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>$PATH</string>
+    <string>$SERVICE_PATH</string>
     <key>HOME</key>
     <string>$HOME</string>
     <key>HOST</key>

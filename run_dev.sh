@@ -108,7 +108,9 @@ if [[ "$SKIP_PUB_GET" -eq 0 ]]; then
     fi
     mkdir -p storage/app/ustatop
     composer install --no-interaction --prefer-dist
-    php artisan key:generate --force >/dev/null 2>&1 || true
+    if ! grep -Eq '^APP_KEY=.+$' ".env" 2>/dev/null; then
+      php artisan key:generate --force >/dev/null 2>&1 || true
+    fi
     php artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
     php artisan migrate --force >/dev/null 2>&1 || true
   )
@@ -167,7 +169,9 @@ else
       cp .env.example .env
     fi
     mkdir -p storage/app/ustatop
-    php artisan key:generate --force >/dev/null 2>&1 || true
+    if ! grep -Eq '^APP_KEY=.+$' ".env" 2>/dev/null; then
+      php artisan key:generate --force >/dev/null 2>&1 || true
+    fi
     php artisan ustatop:bootstrap-storage >/dev/null 2>&1 || true
     php artisan migrate --force >/dev/null 2>&1 || true
     if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then

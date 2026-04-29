@@ -147,7 +147,8 @@ class LocalAuthService implements AuthService {
     required String code,
   }) async {
     final String normalizedPhone = _normalizePhone(phone);
-    if (_otpByPhoneAndPurpose['password_reset:$normalizedPhone'] != code.trim()) {
+    if (_otpByPhoneAndPurpose['password_reset:$normalizedPhone'] !=
+        code.trim()) {
       throw const AuthException('Tasdiqlash kodi noto\'g\'ri');
     }
     _otpByPhoneAndPurpose.remove('password_reset:$normalizedPhone');
@@ -197,9 +198,8 @@ class LocalAuthService implements AuthService {
     required String fileName,
   }) async {
     final AuthUser current = _requireUserByToken(accessToken);
-    final String extension = fileName.contains('.')
-        ? fileName.split('.').last.toLowerCase()
-        : 'png';
+    final String extension =
+        fileName.contains('.') ? fileName.split('.').last.toLowerCase() : 'png';
     final String mimeType = switch (extension) {
       'jpg' || 'jpeg' => 'image/jpeg',
       'webp' => 'image/webp',
@@ -291,7 +291,8 @@ class LocalAuthService implements AuthService {
       maskedNumber: digits.isEmpty
           ? existing.maskedNumber
           : SavedPaymentCard.maskDigits(digits),
-      last4: digits.isEmpty ? existing.last4 : digits.substring(digits.length - 4),
+      last4:
+          digits.isEmpty ? existing.last4 : digits.substring(digits.length - 4),
       expiryMonth: expiryMonth,
       expiryYear: expiryYear,
       isDefault: isDefault,
@@ -429,7 +430,8 @@ class LocalAuthService implements AuthService {
 
   void _validateCardHolderName(String value) {
     if (value.length < 2) {
-      throw const AuthException('Karta egasi ismi kamida 2 ta harfdan iborat bo\'lsin');
+      throw const AuthException(
+          'Karta egasi ismi kamida 2 ta harfdan iborat bo\'lsin');
     }
   }
 
@@ -458,8 +460,11 @@ class LocalAuthService implements AuthService {
       return const <SavedPaymentCard>[];
     }
 
-    final bool hasDefault = cards.any((SavedPaymentCard card) => card.isDefault);
-    final String defaultId = hasDefault ? cards.firstWhere((SavedPaymentCard card) => card.isDefault).id : cards.first.id;
+    final bool hasDefault =
+        cards.any((SavedPaymentCard card) => card.isDefault);
+    final String defaultId = hasDefault
+        ? cards.firstWhere((SavedPaymentCard card) => card.isDefault).id
+        : cards.first.id;
 
     return List<SavedPaymentCard>.unmodifiable(
       cards.map((SavedPaymentCard card) {

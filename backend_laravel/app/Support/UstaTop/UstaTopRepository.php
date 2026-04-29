@@ -4,6 +4,7 @@ namespace App\Support\UstaTop;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -133,7 +134,7 @@ class UstaTopRepository
             'id' => $this->id('u'),
             'fullName' => trim($fullName),
             'phone' => $normalizedPhone,
-            'password' => $password,
+            'password' => $this->hashPassword($password),
             'avatarUrl' => '',
             'pushTokens' => [],
             'savedVehicles' => [],
@@ -150,12 +151,22 @@ class UstaTopRepository
     public function login(string $phone, string $password): ?array
     {
         $phoneKey = $this->normalizePhoneKey($phone);
-        foreach ($this->users() as $user) {
-            if (
-                $this->normalizePhoneKey((string) ($user['phone'] ?? '')) !== $phoneKey
-                || ($user['password'] ?? '') !== $password
-            ) {
+        $users = $this->users();
+
+        foreach ($users as $index => $user) {
+            if ($this->normalizePhoneKey((string) ($user['phone'] ?? '')) !== $phoneKey) {
                 continue;
+            }
+
+            $storedPassword = (string) ($user['password'] ?? '');
+            if (! $this->passwordMatches($storedPassword, $password)) {
+                continue;
+            }
+
+            if ($this->shouldUpgradePasswordHash($storedPassword)) {
+                $users[$index]['password'] = $this->hashPassword($password);
+                $this->saveUsers($users);
+                $user = $users[$index];
             }
 
             $token = 'token-'.Str::lower(Str::random(24));
@@ -185,7 +196,7 @@ class UstaTopRepository
                 continue;
             }
 
-            $users[$index]['password'] = $newPassword;
+            $users[$index]['password'] = $this->hashPassword($newPassword);
             $this->saveUsers($users);
             $this->dropSessionsForUser((string) $user['id']);
 
@@ -346,11 +357,11 @@ class UstaTopRepository
                 continue;
             }
 
-            if (($user['password'] ?? '') !== $currentPassword) {
+            if (! $this->passwordMatches((string) ($user['password'] ?? ''), $currentPassword)) {
                 throw new RuntimeException('Joriy parol noto‘g‘ri');
             }
 
-            $users[$index]['password'] = $newPassword;
+            $users[$index]['password'] = $this->hashPassword($newPassword);
             $this->saveUsers($users);
             $this->dropSessionsForUser($userId);
 
@@ -1975,6 +1986,42 @@ class UstaTopRepository
     private function normalizePhoneKey(string $phone): string
     {
         return preg_replace('/\s+/', '', trim($phone)) ?? '';
+    }
+
+    private function hashPassword(string $password): string
+    {
+        return Hash::make($password);
+    }
+
+    private function passwordMatches(string $storedPassword, string $password): bool
+    {
+        if ($storedPassword === '') {
+            return false;
+        }
+
+        if ($this->looksLikePasswordHash($storedPassword)) {
+            return Hash::check($password, $storedPassword);
+        }
+
+        return hash_equals($storedPassword, $password);
+    }
+
+    private function shouldUpgradePasswordHash(string $storedPassword): bool
+    {
+        if ($storedPassword === '') {
+            return false;
+        }
+
+        if (! $this->looksLikePasswordHash($storedPassword)) {
+            return true;
+        }
+
+        return Hash::needsRehash($storedPassword);
+    }
+
+    private function looksLikePasswordHash(string $storedPassword): bool
+    {
+        return Str::startsWith($storedPassword, ['$2y$', '$2a$', '$2b$', '$argon2i$', '$argon2id$']);
     }
 
     private function dayTime(CarbonImmutable $day, string $time): CarbonImmutable

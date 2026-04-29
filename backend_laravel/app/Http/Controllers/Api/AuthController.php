@@ -42,19 +42,19 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         try {
-            $user = $this->repository->createUser(
-                trim((string) $request->input('fullName')),
-                trim((string) $request->input('phone')),
-                (string) $request->input('password')
-            );
-            $auth = $this->repository->login($user['phone'], $user['password']);
+            $code = trim((string) $request->input('code'));
+            if ($code === '') {
+                throw new RuntimeException('Tasdiqlash kodi kerak. Avval /auth/register/send-code orqali SMS kod oling');
+            }
 
             return response()->json([
                 'data' => [
-                    'token' => $auth['token'],
-                    'refreshToken' => 'refresh-'.$auth['token'],
-                    'expiresAt' => now()->addDays(30)->toIso8601String(),
-                    'user' => $auth['user'],
+                    ...$this->smsVerificationService->verifyRegistrationCode(
+                        trim((string) $request->input('fullName')),
+                        trim((string) $request->input('phone')),
+                        (string) $request->input('password'),
+                        $code
+                    ),
                 ],
             ]);
         } catch (RuntimeException $exception) {
@@ -104,9 +104,15 @@ class AuthController extends Controller
     public function forgotPassword(Request $request)
     {
         try {
-            $this->repository->resetPassword(
+            $code = trim((string) $request->input('code'));
+            if ($code === '') {
+                throw new RuntimeException('Tasdiqlash kodi kerak. Avval /auth/password/send-code orqali SMS kod oling');
+            }
+
+            $this->smsVerificationService->verifyPasswordResetCode(
                 trim((string) $request->input('phone')),
-                (string) $request->input('newPassword')
+                (string) $request->input('newPassword'),
+                $code
             );
 
             return response()->json(['data' => ['ok' => true]]);
