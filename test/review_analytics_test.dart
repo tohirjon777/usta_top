@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_top/models/review_analytics.dart';
-import 'package:usta_top/models/salon.dart';
-import 'package:usta_top/models/salon_review.dart';
+import 'package:automaster/models/review_analytics.dart';
+import 'package:automaster/models/salon.dart';
+import 'package:automaster/models/salon_review.dart';
 
 void main() {
   test('review analytics summarizes stars and top services', () {

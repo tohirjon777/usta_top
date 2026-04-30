@@ -52,7 +52,7 @@ class CustomerWebsiteController extends Controller
             ->all();
 
         return view('ustatop.customer.home', [
-            'title' => 'Usta Top',
+            'title' => 'AutoMaster',
             'currentCustomer' => $this->presentCustomer($this->currentCustomer($request)),
             'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'initialWorkshops' => $workshops->all(),
@@ -77,7 +77,7 @@ class CustomerWebsiteController extends Controller
 
         if ($request->boolean('embedded')) {
             return view('ustatop.customer.workshop-embed', [
-                'title' => ($presented['name'] ?? 'Usta Top').' | Usta Top',
+                'title' => ($presented['name'] ?? 'AutoMaster').' | AutoMaster',
                 'workshop' => $presented,
                 'currentCustomer' => $this->presentCustomer($customer),
             ]);
@@ -91,7 +91,7 @@ class CustomerWebsiteController extends Controller
             ->all();
 
         return view('ustatop.customer.workshop', [
-            'title' => ($presented['name'] ?? 'Usta Top').' | Usta Top',
+            'title' => ($presented['name'] ?? 'AutoMaster').' | AutoMaster',
             'currentCustomer' => $this->presentCustomer($customer),
             'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'workshop' => $presented,
@@ -114,7 +114,7 @@ class CustomerWebsiteController extends Controller
         }
 
         return view('ustatop.customer.auth', [
-            'title' => 'Mijoz kirish | Usta Top',
+            'title' => 'Mijoz kirish | AutoMaster',
             'currentCustomer' => null,
             'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'pendingRegistration' => $this->pendingRegistration($request),
@@ -224,7 +224,7 @@ class CustomerWebsiteController extends Controller
             ->all();
 
         return view('ustatop.customer.account', [
-            'title' => 'Mening kabinetim | Usta Top',
+            'title' => 'Mening kabinetim | AutoMaster',
             'currentCustomer' => $this->presentCustomer($customer),
             'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'bookings' => $bookings,

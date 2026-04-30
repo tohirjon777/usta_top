@@ -16,7 +16,7 @@ TELEGRAM_BOT_TOKEN=""
 SMS_DRIVER="devsms"
 SMS_BASE_URL="https://devsms.uz/api"
 SMS_BEARER_TOKEN=""
-SMS_SERVICE_NAME="Usta Top"
+SMS_SERVICE_NAME="AutoMaster"
 QUEUE_CONNECTION="sync"
 PHP_BIN=""
 
@@ -43,7 +43,7 @@ Optional:
   --sms-driver       SMS driver (default: devsms)
   --sms-base-url     SMS base URL (default: https://devsms.uz/api)
   --sms-token        SMS bearer token
-  --sms-service      SMS sender/service name (default: Usta Top)
+  --sms-service      SMS sender/service name (default: AutoMaster)
   --queue            Queue connection (default: sync)
   --help             Show this help
 EOF
@@ -178,7 +178,7 @@ elif [[ ! "$APP_URL" =~ ^https?:// ]]; then
 fi
 
 cat <<EOF
-APP_NAME="Usta Top"
+APP_NAME="AutoMaster"
 APP_ENV=production
 APP_KEY=$APP_KEY
 APP_DEBUG=false

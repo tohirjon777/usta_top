@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT="8080"
 API_BASE_URL=""
 SKIP_PUB_GET=0
-OUTPUT_PATH="$HOME/Downloads/UstaTop-phone-debug.apk"
+OUTPUT_PATH="$HOME/Downloads/AutoMaster-phone-debug.apk"
 
 usage() {
   cat <<'EOF'
@@ -22,7 +22,7 @@ Options:
 
 Examples:
   ./build_phone_apk.sh
-  ./build_phone_apk.sh --output ~/Downloads/usta-top.apk
+  ./build_phone_apk.sh --output ~/Downloads/AutoMaster.apk
   ./build_phone_apk.sh --api-base-url http://192.168.100.222:8080
 EOF
 }

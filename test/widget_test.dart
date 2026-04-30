@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:usta_top/main.dart';
-import 'package:usta_top/core/config/backend_config.dart';
-import 'package:usta_top/core/storage/backend_endpoint_storage.dart';
+import 'package:automaster/main.dart';
+import 'package:automaster/core/config/backend_config.dart';
+import 'package:automaster/core/storage/backend_endpoint_storage.dart';
 
 void main() {
   testWidgets('shows app home and bottom navigation', (
@@ -23,7 +23,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('Usta Top'), findsOneWidget);
+    expect(find.text('AutoMaster'), findsOneWidget);
     expect(find.text('Asosiy'), findsAtLeastNWidgets(1));
     expect(find.text('Xarita'), findsAtLeastNWidgets(1));
     expect(find.text('Buyurtmalar'), findsAtLeastNWidgets(1));

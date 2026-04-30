@@ -4,22 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:usta_top/core/localization/app_language.dart';
-import 'package:usta_top/core/localization/app_localizations.dart';
-import 'package:usta_top/core/storage/auth_token_storage.dart';
-import 'package:usta_top/core/storage/notification_settings_storage.dart';
-import 'package:usta_top/core/storage/theme_mode_storage.dart';
-import 'package:usta_top/models/booking_item.dart';
-import 'package:usta_top/models/saved_payment_card.dart';
-import 'package:usta_top/providers/app_navigation_provider.dart';
-import 'package:usta_top/providers/auth_provider.dart';
-import 'package:usta_top/providers/booking_provider.dart';
-import 'package:usta_top/providers/language_provider.dart';
-import 'package:usta_top/providers/notification_settings_provider.dart';
-import 'package:usta_top/providers/push_notifications_provider.dart';
-import 'package:usta_top/providers/theme_provider.dart';
-import 'package:usta_top/screens/profile_screen.dart';
-import 'package:usta_top/services/auth_service.dart';
+import 'package:automaster/core/localization/app_language.dart';
+import 'package:automaster/core/localization/app_localizations.dart';
+import 'package:automaster/core/storage/auth_token_storage.dart';
+import 'package:automaster/core/storage/notification_settings_storage.dart';
+import 'package:automaster/core/storage/theme_mode_storage.dart';
+import 'package:automaster/models/booking_item.dart';
+import 'package:automaster/models/saved_payment_card.dart';
+import 'package:automaster/providers/app_navigation_provider.dart';
+import 'package:automaster/providers/auth_provider.dart';
+import 'package:automaster/providers/booking_provider.dart';
+import 'package:automaster/providers/language_provider.dart';
+import 'package:automaster/providers/notification_settings_provider.dart';
+import 'package:automaster/providers/push_notifications_provider.dart';
+import 'package:automaster/providers/theme_provider.dart';
+import 'package:automaster/screens/profile_screen.dart';
+import 'package:automaster/services/auth_service.dart';
 
 void main() {
   Future<AuthProvider> buildAuthProvider(

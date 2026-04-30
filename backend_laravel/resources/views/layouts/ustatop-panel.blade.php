@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title ?? 'Usta Top Panel' }}</title>
+    <title>{{ $title ?? 'AutoMaster Panel' }}</title>
     @php($panelYandexMapsApiKey = trim((string) ($panelYandexMapsApiKey ?? '')))
     @if ($panelYandexMapsApiKey !== '')
         <script src="https://api-maps.yandex.ru/2.1/?apikey={{ urlencode($panelYandexMapsApiKey) }}&lang=ru_RU" type="text/javascript"></script>

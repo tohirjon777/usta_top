@@ -1,4 +1,4 @@
-# Usta Top Production Deploy
+# AutoMaster Production Deploy
 
 Bu loyiha uchun tunnel yoki lokal Mac emas, alohida Linux server eng to'g'ri yechim.
 

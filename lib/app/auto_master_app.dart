@@ -12,8 +12,8 @@ import '../screens/login_screen.dart';
 import '../ui/app_loading_view.dart';
 import 'main_navigation_shell.dart';
 
-class UstaTopApp extends StatelessWidget {
-  const UstaTopApp({
+class AutoMasterApp extends StatelessWidget {
+  const AutoMasterApp({
     super.key,
     required this.currentBackendBaseUrl,
     required this.backendBaseUrlLocked,

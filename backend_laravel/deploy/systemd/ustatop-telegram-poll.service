@@ -1,5 +1,5 @@
 [Unit]
-Description=Usta Top Telegram Poller
+Description=AutoMaster Telegram Poller
 After=network.target
 Wants=network.target
 

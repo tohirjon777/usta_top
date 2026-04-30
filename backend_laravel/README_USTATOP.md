@@ -1,4 +1,4 @@
-# Usta Top Laravel Backend
+# AutoMaster Laravel Backend
 
 Bu loyiha uchun asosiy backend endi shu papka ichidagi Laravel servisidir.
 Asosiy saqlash qatlam:
@@ -44,7 +44,7 @@ SMS OTP:
 1. `backend_laravel/secrets/local.env` ichiga quyidagini yozing:
    - `SMS_DRIVER=devsms`
    - `SMS_BEARER_TOKEN=...`
-   - `SMS_SERVICE_NAME="Usta Top"`
+   - `SMS_SERVICE_NAME="AutoMaster"`
 2. `../backend_service.sh restart`
 3. Register va parol tiklash oqimi SMS kod bilan ishlaydi.
 

@@ -233,7 +233,7 @@ class UstaTopTelegramCallbackCommandTest extends TestCase
                         'chat' => ['id' => '99887766'],
                         'reply_to_message' => [
                             'message_id' => 81,
-                            'text' => "Usta Top: yangi sharh qoldirildi\nSharh ID: ".($review['id'] ?? ''),
+                            'text' => "AutoMaster: yangi sharh qoldirildi\nSharh ID: ".($review['id'] ?? ''),
                         ],
                     ],
                 ]],

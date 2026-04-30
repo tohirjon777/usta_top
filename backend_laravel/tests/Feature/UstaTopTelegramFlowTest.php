@@ -88,7 +88,7 @@ class UstaTopTelegramFlowTest extends TestCase
 
             $text = (string) ($request->data()['text'] ?? '');
 
-            return str_contains($text, 'Usta Top: yangi sharh qoldirildi')
+            return str_contains($text, 'AutoMaster: yangi sharh qoldirildi')
                 && str_contains($text, 'Sharh ID:');
         });
     }

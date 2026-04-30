@@ -1,4 +1,4 @@
-# Usta Top
+# AutoMaster
 
 Flutter frontend va Laravel backend bilan avto-servis ilovasi.
 
@@ -96,7 +96,7 @@ Yoki public URL bilan APK'ni bir yo'la tayyorlang:
 ```
 
 Bu `backend_tunnel.sh` orqali public URL olib, APK'ni shu manzil bilan
-`~/Downloads/UstaTop-public-debug.apk` qilib yig'adi.
+`~/Downloads/AutoMaster-public-debug.apk` qilib yig'adi.
 
 Telefonni USBsiz ishlatish uchun tayyor APK ham yig'ish mumkin:
 
@@ -104,7 +104,7 @@ Telefonni USBsiz ishlatish uchun tayyor APK ham yig'ish mumkin:
 ./build_phone_apk.sh
 ```
 
-Bu script joriy lokal IP bilan APK yig'adi va uni `~/Downloads/UstaTop-phone-debug.apk`
+Bu script joriy lokal IP bilan APK yig'adi va uni `~/Downloads/AutoMaster-phone-debug.apk`
  sifatida tayyorlaydi.
 
 VPS production backend bilan telefonga o'rnatiladigan APK:
@@ -114,7 +114,7 @@ VPS production backend bilan telefonga o'rnatiladigan APK:
 ```
 
 Bu script APK'ni `http://45.80.148.221` backendiga bog'lab
-`~/Downloads/UstaTop-vps-release.apk` sifatida tayyorlaydi.
+`~/Downloads/AutoMaster-vps-release.apk` sifatida tayyorlaydi.
 
 Telegram bot yoqilgan bo'lsa, ustaxona Telegram sozlamalari runtime ma'lumotda
 saqlanadi va yangi zakaz/status xabarlari yuboriladi.

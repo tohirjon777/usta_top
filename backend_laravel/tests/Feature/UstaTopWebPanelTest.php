@@ -41,7 +41,7 @@ class UstaTopWebPanelTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Usta Top')
+            ->assertSee('AutoMaster')
             ->assertSee('Ustaxonalar katalogi')
             ->assertSee('api-maps.yandex.ru/2.1/?apikey=test-yandex-key', false)
             ->assertSee('id="mapPanel" class="map-panel is-hidden"', false)

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_top/models/booking_item.dart';
-import 'package:usta_top/state/booking_controller.dart';
+import 'package:automaster/models/booking_item.dart';
+import 'package:automaster/state/booking_controller.dart';
 
 void main() {
   test('adds and cancels booking with counters update', () {

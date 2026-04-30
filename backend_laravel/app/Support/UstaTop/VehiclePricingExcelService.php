@@ -70,7 +70,7 @@ class VehiclePricingExcelService
         $infoSheet = $spreadsheet->createSheet();
         $infoSheet->setTitle(self::SHEET_INFO);
         $infoSheet->fromArray([
-            ['Usta Top vehicle pricing template'],
+            ['AutoMaster vehicle pricing template'],
             ['1. pricing_matrix ichida price_uzs ustunini to‘liq UZS qiymatida kiriting.'],
             ['2. catalog_vehicle_id bo‘sh bo‘lsa, brand + model + vehicle_type_id bilan custom model qo‘shishingiz mumkin.'],
             ['3. service_id va price_uzs majburiy. Masalan: 100000 yoki 150000 UZS.'],

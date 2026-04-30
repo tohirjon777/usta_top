@@ -3,11 +3,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:usta_top/core/localization/app_language.dart';
-import 'package:usta_top/core/localization/app_localizations.dart';
-import 'package:usta_top/models/booking_item.dart';
-import 'package:usta_top/providers/booking_provider.dart';
-import 'package:usta_top/screens/my_bookings_screen.dart';
+import 'package:automaster/core/localization/app_language.dart';
+import 'package:automaster/core/localization/app_localizations.dart';
+import 'package:automaster/models/booking_item.dart';
+import 'package:automaster/providers/booking_provider.dart';
+import 'package:automaster/screens/my_bookings_screen.dart';
 
 void main() {
   Widget buildTestApp(List<BookingItem> bookings) {

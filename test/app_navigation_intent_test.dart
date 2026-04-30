@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_top/models/app_navigation_intent.dart';
+import 'package:automaster/models/app_navigation_intent.dart';
 
 void main() {
   test('parses review reminder push into composer intent', () {

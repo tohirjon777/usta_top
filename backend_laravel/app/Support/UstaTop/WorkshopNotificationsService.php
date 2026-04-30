@@ -20,7 +20,7 @@ class WorkshopNotificationsService
     public function sendTestNotification(array $workshop): void
     {
         $this->sendToWorkshop($workshop, implode("\n", [
-            'Usta Top Telegram ulanishi tayyor.',
+            'AutoMaster Telegram ulanishi tayyor.',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Workshop ID: '.($workshop['id'] ?? ''),
@@ -51,7 +51,7 @@ class WorkshopNotificationsService
     public function sendReviewReplyReminder(array $workshop, array $review): void
     {
         $this->sendToWorkshop($workshop, implode("\n", [
-            'Usta Top: sharh javobi eslatmasi',
+            'AutoMaster: sharh javobi eslatmasi',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Sharh ID: '.($review['id'] ?? ''),
@@ -67,7 +67,7 @@ class WorkshopNotificationsService
     public function newBookingText(array $workshop, array $booking, bool $includeStatus = false): string
     {
         $lines = [
-            'Usta Top: yangi zakaz tushdi',
+            'AutoMaster: yangi zakaz tushdi',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Zakaz ID: '.($booking['id'] ?? ''),
@@ -89,7 +89,7 @@ class WorkshopNotificationsService
     public function bookingStatusText(array $workshop, array $booking, string $actor): string
     {
         $lines = [
-            'Usta Top: zakaz statusi yangilandi',
+            'AutoMaster: zakaz statusi yangilandi',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Zakaz ID: '.($booking['id'] ?? ''),
@@ -116,7 +116,7 @@ class WorkshopNotificationsService
     public function reviewText(array $workshop, array $review, bool $includeOwnerReply = true): string
     {
         $lines = [
-            'Usta Top: yangi sharh qoldirildi',
+            'AutoMaster: yangi sharh qoldirildi',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Sharh ID: '.($review['id'] ?? ''),
@@ -145,7 +145,7 @@ class WorkshopNotificationsService
     public function reviewReplySavedText(array $workshop, array $review): string
     {
         return implode("\n", [
-            'Usta Top: sharhga javob saqlandi',
+            'AutoMaster: sharhga javob saqlandi',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Sharh ID: '.($review['id'] ?? ''),
@@ -168,7 +168,7 @@ class WorkshopNotificationsService
             ));
 
         return implode("\n", [
-            'Usta Top: yangi vaqtni tanlang',
+            'AutoMaster: yangi vaqtni tanlang',
             '',
             'Ustaxona: '.($workshop['name'] ?? ''),
             'Zakaz ID: '.($booking['id'] ?? ''),

@@ -1,6 +1,6 @@
 # API Keys Checklist (To'lovsiz)
 
-Quyidagi ro'yxat hozirgi `Usta Top` loyihasi uchun.
+Quyidagi ro'yxat hozirgi `AutoMaster` loyihasi uchun.
 
 ## Hozir majburiy bo'lganlar
 

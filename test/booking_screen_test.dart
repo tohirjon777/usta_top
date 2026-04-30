@@ -3,21 +3,21 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:usta_top/core/localization/app_language.dart';
-import 'package:usta_top/core/localization/app_localizations.dart';
-import 'package:usta_top/core/storage/auth_token_storage.dart';
-import 'package:usta_top/models/booking_availability.dart';
-import 'package:usta_top/models/booking_availability_calendar.dart';
-import 'package:usta_top/models/booking_chat_message.dart';
-import 'package:usta_top/models/booking_item.dart';
-import 'package:usta_top/models/salon.dart';
-import 'package:usta_top/models/service_price_quote.dart';
-import 'package:usta_top/providers/auth_provider.dart';
-import 'package:usta_top/providers/booking_provider.dart';
-import 'package:usta_top/screens/booking_screen.dart';
-import 'package:usta_top/services/auth_service.dart';
-import 'package:usta_top/services/booking_service.dart';
-import 'package:usta_top/ui/booking_reschedule_sheet.dart';
+import 'package:automaster/core/localization/app_language.dart';
+import 'package:automaster/core/localization/app_localizations.dart';
+import 'package:automaster/core/storage/auth_token_storage.dart';
+import 'package:automaster/models/booking_availability.dart';
+import 'package:automaster/models/booking_availability_calendar.dart';
+import 'package:automaster/models/booking_chat_message.dart';
+import 'package:automaster/models/booking_item.dart';
+import 'package:automaster/models/salon.dart';
+import 'package:automaster/models/service_price_quote.dart';
+import 'package:automaster/providers/auth_provider.dart';
+import 'package:automaster/providers/booking_provider.dart';
+import 'package:automaster/screens/booking_screen.dart';
+import 'package:automaster/services/auth_service.dart';
+import 'package:automaster/services/booking_service.dart';
+import 'package:automaster/ui/booking_reschedule_sheet.dart';
 
 void main() {
   Widget buildTestApp({

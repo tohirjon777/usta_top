@@ -6,7 +6,7 @@
             <div class="eyebrow">API bilan ishlaydigan customer website</div>
             <h1>Yaqin ustaxonani toping, xaritada ko‘ring va yo‘lga chiqing.</h1>
             <p>
-                Usta Top endi mijozlar uchun ham web’da ishlaydi. Xizmatlarni solishtiring, ustaxona tavsifini ko‘ring,
+                AutoMaster endi mijozlar uchun ham web’da ishlaydi. Xizmatlarni solishtiring, ustaxona tavsifini ko‘ring,
                 xaritada marker ustiga bosing va marshrutni bir tugma bilan oching.
             </p>
             <div class="hero-actions">

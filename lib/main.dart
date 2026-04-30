@@ -4,7 +4,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
-import 'app/usta_top_app.dart';
+import 'app/auto_master_app.dart';
 import 'core/config/backend_config.dart';
 import 'core/localization/app_language.dart';
 import 'core/storage/auth_token_storage.dart';
@@ -295,7 +295,7 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
       ],
-      child: UstaTopApp(
+      child: AutoMasterApp(
         currentBackendBaseUrl: backendBaseUrl,
         backendBaseUrlLocked: widget.backendBaseUrlLocked,
         onUpdateBackendBaseUrl: _updateBackendBaseUrl,

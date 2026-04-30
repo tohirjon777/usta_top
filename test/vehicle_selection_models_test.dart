@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_top/models/saved_vehicle_profile.dart';
-import 'package:usta_top/models/vehicle_catalog.dart';
+import 'package:automaster/models/saved_vehicle_profile.dart';
+import 'package:automaster/models/vehicle_catalog.dart';
 
 void main() {
   test('catalog prioritizes Uzbekistan GM models before other cars', () {

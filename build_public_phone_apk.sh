@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_PATH="$HOME/Downloads/UstaTop-public-debug.apk"
+OUTPUT_PATH="$HOME/Downloads/AutoMaster-public-debug.apk"
 SKIP_PUB_GET=0
 
 usage() {

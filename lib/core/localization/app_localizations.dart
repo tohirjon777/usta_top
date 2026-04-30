@@ -29,7 +29,7 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _strings =
       <String, Map<String, String>>{
     'en': <String, String>{
-      'appTitle': 'Usta Top',
+      'appTitle': 'AutoMaster',
       'navHome': 'Home',
       'navMap': 'Map',
       'navBookings': 'Requests',
@@ -415,7 +415,7 @@ class AppLocalizations {
       'russian': 'Russian',
     },
     'uz': <String, String>{
-      'appTitle': 'Usta Top',
+      'appTitle': 'AutoMaster',
       'navHome': 'Asosiy',
       'navMap': 'Xarita',
       'navBookings': 'Buyurtmalar',
@@ -809,7 +809,7 @@ class AppLocalizations {
       'russian': 'Ruscha',
     },
     'ru': <String, String>{
-      'appTitle': 'Usta Top',
+      'appTitle': 'AutoMaster',
       'navHome': 'Главная',
       'navMap': 'Карта',
       'navBookings': 'Заявки',

@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://45.80.148.221}"
-OUTPUT_PATH="$HOME/Downloads/UstaTop-vps-release.apk"
+OUTPUT_PATH="$HOME/Downloads/AutoMaster-vps-release.apk"
 BUILD_MODE="release"
 SKIP_PUB_GET=0
 SKIP_HEALTH_CHECK=0

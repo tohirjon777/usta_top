@@ -14,7 +14,7 @@ class TelegramPollCommand extends Command
 {
     protected $signature = 'ustatop:telegram-poll {--once : Process one updates batch and exit}';
 
-    protected $description = 'Process Telegram callback actions for Usta Top bookings';
+    protected $description = 'Process Telegram callback actions for AutoMaster bookings';
 
     public function __construct(
         private readonly TelegramBotService $telegramBot,
@@ -295,7 +295,7 @@ class TelegramPollCommand extends Command
 
         $this->telegramBot->sendMessage(
             $chatId,
-            'Usta Top: Telegram ushbu ustaxonaga muvaffaqiyatli ulandi.',
+            'AutoMaster: Telegram ushbu ustaxonaga muvaffaqiyatli ulandi.',
         );
     }
 

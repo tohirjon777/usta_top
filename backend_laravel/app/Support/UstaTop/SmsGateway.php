@@ -27,7 +27,7 @@ class SmsGateway
         }
 
         $baseUrl = rtrim((string) config('services.sms.base_url', 'https://devsms.uz/api'), '/');
-        $serviceName = trim((string) config('services.sms.service_name', 'Usta Top'));
+        $serviceName = trim((string) config('services.sms.service_name', 'AutoMaster'));
         $templateType = match ($purpose) {
             'register' => 3,
             'password_reset' => 2,

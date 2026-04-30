@@ -70,7 +70,7 @@ Bu sizga Forge > Environment ga qo'yadigan final `.env` matnini chiqaradi.
 Minimal kerakli qiymatlar:
 
 ```env
-APP_NAME="Usta Top"
+APP_NAME="AutoMaster"
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://api.sizning-domain.uz
@@ -94,7 +94,7 @@ TELEGRAM_BOT_TOKEN=
 SMS_DRIVER=devsms
 SMS_BASE_URL=https://devsms.uz/api
 SMS_BEARER_TOKEN=
-SMS_SERVICE_NAME="Usta Top"
+SMS_SERVICE_NAME="AutoMaster"
 ```
 
 ## 5. Deploy script

@@ -1,11 +1,11 @@
 {
-    "name": "usta_top",
-    "short_name": "usta_top",
+    "name": "AutoMaster",
+    "short_name": "AutoMaster",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "AutoMaster avto servis ilovasi.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

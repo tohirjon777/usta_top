@@ -18,7 +18,7 @@ TELEGRAM_BOT_TOKEN=""
 SMS_DRIVER="devsms"
 SMS_BASE_URL="https://devsms.uz/api"
 SMS_BEARER_TOKEN=""
-SMS_SERVICE_NAME="Usta Top"
+SMS_SERVICE_NAME="AutoMaster"
 QUEUE_CONNECTION="sync"
 PHP_VERSION="8.3"
 APP_OWNER=""
@@ -341,7 +341,7 @@ systemctl reload nginx
 
 cat > /etc/systemd/system/ustatop-telegram-poll.service <<EOF
 [Unit]
-Description=Usta Top Telegram Poller
+Description=AutoMaster Telegram Poller
 After=network.target
 Wants=network.target
 
