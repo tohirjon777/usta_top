@@ -107,6 +107,15 @@ Telefonni USBsiz ishlatish uchun tayyor APK ham yig'ish mumkin:
 Bu script joriy lokal IP bilan APK yig'adi va uni `~/Downloads/UstaTop-phone-debug.apk`
  sifatida tayyorlaydi.
 
+VPS production backend bilan telefonga o'rnatiladigan APK:
+
+```bash
+./build_vps_phone_apk.sh
+```
+
+Bu script APK'ni `http://45.80.148.221` backendiga bog'lab
+`~/Downloads/UstaTop-vps-release.apk` sifatida tayyorlaydi.
+
 Telegram bot yoqilgan bo'lsa, ustaxona Telegram sozlamalari runtime ma'lumotda
 saqlanadi va yangi zakaz/status xabarlari yuboriladi.
 Tokenlar Laravel backend uchun
