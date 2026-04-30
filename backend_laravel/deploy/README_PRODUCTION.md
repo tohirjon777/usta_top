@@ -188,3 +188,44 @@ Deploydan keyin yoki muammo qidirayotganda:
 php artisan ustatop:doctor
 php artisan ustatop:doctor --json
 ```
+
+## One-command VPS
+
+Ubuntu VPS uchun avtomatik oqim ham tayyor:
+
+- remote installer: `deploy/vps/remote_install.sh`
+- server bootstrap: `deploy/vps/bootstrap_ubuntu.sh`
+- keyingi update deploy: `deploy/vps/deploy.sh`
+
+Lokal kompyuterdan bir martalik o'rnatish:
+
+```bash
+cd backend_laravel
+./deploy/vps/remote_install.sh \
+  --host 203.0.113.10 \
+  --user root \
+  --repo-url https://github.com/ORG/REPO.git \
+  --app-url https://api.example.com \
+  --db-password 'change-me' \
+  --certbot-email you@example.com
+```
+
+Agar hozircha domain bo'lmasa:
+
+```bash
+cd backend_laravel
+./deploy/vps/remote_install.sh \
+  --host 203.0.113.10 \
+  --user root \
+  --repo-url https://github.com/ORG/REPO.git \
+  --app-url http://203.0.113.10 \
+  --db-password 'change-me' \
+  --skip-ssl
+```
+
+Keyingi release/update uchun serverning o'zida:
+
+```bash
+cd /var/www/ustatop/backend_laravel
+./deploy/vps/deploy.sh --app-dir /var/www/ustatop --branch main
+```

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DOMAIN=""
+APP_URL=""
 APP_KEY=""
 DB_HOST="127.0.0.1"
 DB_PORT="5432"
@@ -17,14 +18,17 @@ SMS_BASE_URL="https://devsms.uz/api"
 SMS_BEARER_TOKEN=""
 SMS_SERVICE_NAME="Usta Top"
 QUEUE_CONNECTION="sync"
+PHP_BIN=""
 
 usage() {
   cat <<'EOF'
 Usage:
   ./generate_env.sh --domain api.example.com --db-password secret [options]
+  ./generate_env.sh --app-url https://api.example.com --db-password secret [options]
 
 Required:
   --domain           Production domain, e.g. api.example.com
+  --app-url          Full APP_URL, e.g. https://api.example.com or http://1.2.3.4
   --db-password      PostgreSQL password
 
 Optional:
@@ -46,17 +50,21 @@ EOF
 }
 
 generate_app_key() {
-  php -r 'echo "base64:".base64_encode(random_bytes(32));'
+  "$PHP_BIN" -r 'echo "base64:".base64_encode(random_bytes(32));'
 }
 
 generate_password() {
-  php -r 'echo bin2hex(random_bytes(12));'
+  "$PHP_BIN" -r 'echo bin2hex(random_bytes(12));'
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --domain)
       DOMAIN="${2:-}"
+      shift 2
+      ;;
+    --app-url)
+      APP_URL="${2:-}"
       shift 2
       ;;
     --app-key)
@@ -127,8 +135,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$DOMAIN" || -z "$DB_PASSWORD" ]]; then
-  echo "Error: --domain and --db-password are required." >&2
+if command -v php >/dev/null 2>&1; then
+  PHP_BIN="$(command -v php)"
+else
+  for candidate in /opt/homebrew/bin/php /usr/local/bin/php /usr/bin/php; do
+    if [[ -x "$candidate" ]]; then
+      PHP_BIN="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -z "$PHP_BIN" ]]; then
+  echo "Error: php topilmadi." >&2
+  exit 1
+fi
+
+if [[ -z "$DOMAIN" && -z "$APP_URL" ]]; then
+  echo "Error: either --domain or --app-url is required." >&2
+  usage >&2
+  exit 1
+fi
+
+if [[ -z "$DB_PASSWORD" ]]; then
+  echo "Error: --db-password is required." >&2
   usage >&2
   exit 1
 fi
@@ -141,12 +171,18 @@ if [[ -z "$ADMIN_PASSWORD" ]]; then
   ADMIN_PASSWORD="$(generate_password)"
 fi
 
+if [[ -z "$APP_URL" ]]; then
+  APP_URL="https://$DOMAIN"
+elif [[ ! "$APP_URL" =~ ^https?:// ]]; then
+  APP_URL="https://$APP_URL"
+fi
+
 cat <<EOF
 APP_NAME="Usta Top"
 APP_ENV=production
 APP_KEY=$APP_KEY
 APP_DEBUG=false
-APP_URL=https://$DOMAIN
+APP_URL=$APP_URL
 
 APP_LOCALE=en
 APP_FALLBACK_LOCALE=en
