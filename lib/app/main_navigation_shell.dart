@@ -30,6 +30,7 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   static const Duration _bookingRefreshInterval = Duration(seconds: 20);
+  static const Duration _workshopRefreshInterval = Duration(minutes: 1);
   static const Duration _recentCompletionPromptWindow = Duration(hours: 24);
 
   int _currentIndex = 0;
@@ -38,8 +39,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   late final _LifecycleObserver _lifecycleObserver;
   late final AppNavigationProvider _appNavigationProvider;
   Timer? _bookingRefreshTimer;
+  Timer? _workshopRefreshTimer;
   bool _isReviewPromptOpen = false;
   bool _isHandlingNavigationIntent = false;
+  bool _isRefreshingWorkshops = false;
 
   @override
   void initState() {
@@ -52,7 +55,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       if (!mounted) {
         return;
       }
-      context.read<WorkshopProvider>().loadWorkshops();
+      unawaited(_bootstrapWorkshops());
+      _startWorkshopRefreshTimer();
       _bootstrapBookings();
       unawaited(_consumePendingNavigationIntent());
     });
@@ -61,6 +65,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
   void dispose() {
     _bookingRefreshTimer?.cancel();
+    _workshopRefreshTimer?.cancel();
     _appNavigationProvider
         .removeListener(_handlePendingNavigationIntentChanged);
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
@@ -215,7 +220,48 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
 
   Future<void> _handleAppResumed() async {
+    await _refreshWorkshops(silent: true);
+    await _refreshWorkshopDistances(requestPermission: false);
     await _refreshBookings();
+  }
+
+  Future<void> _bootstrapWorkshops() async {
+    final WorkshopProvider workshopProvider = context.read<WorkshopProvider>();
+    await workshopProvider.loadWorkshops();
+    await _refreshWorkshopDistances(requestPermission: true);
+  }
+
+  void _startWorkshopRefreshTimer() {
+    _workshopRefreshTimer?.cancel();
+    _workshopRefreshTimer = Timer.periodic(
+      _workshopRefreshInterval,
+      (_) => unawaited(_refreshWorkshops(silent: true)),
+    );
+  }
+
+  Future<void> _refreshWorkshops({required bool silent}) async {
+    if (!mounted || _isRefreshingWorkshops) {
+      return;
+    }
+
+    _isRefreshingWorkshops = true;
+    try {
+      await context.read<WorkshopProvider>().loadWorkshops(silent: silent);
+    } finally {
+      _isRefreshingWorkshops = false;
+    }
+  }
+
+  Future<void> _refreshWorkshopDistances({
+    required bool requestPermission,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+
+    await context.read<WorkshopProvider>().refreshDistancesFromCurrentLocation(
+          requestPermission: requestPermission,
+        );
   }
 
   Future<void> _refreshBookings({

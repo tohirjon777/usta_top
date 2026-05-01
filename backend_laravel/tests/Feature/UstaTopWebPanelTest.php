@@ -206,6 +206,42 @@ class UstaTopWebPanelTest extends TestCase
         $this->assertSame(69.2401, (float) ($workshop['longitude'] ?? 0));
     }
 
+    public function test_owner_can_add_service_from_panel(): void
+    {
+        $this->post('/owner/login', [
+            'workshopId' => 'w-1',
+            'accessCode' => '1111',
+        ])->assertRedirect('/owner/bookings');
+
+        $this->get('/owner/bookings')
+            ->assertOk()
+            ->assertSee('Yangi xizmat qo‘shish')
+            ->assertSee('/owner/services', false);
+
+        $this->post('/owner/services', [
+            'name' => 'Generator ta’miri',
+            'price' => '250000',
+            'durationMinutes' => '55',
+            'prepaymentPercent' => '20',
+        ])->assertRedirect('/owner/bookings');
+
+        $workshop = app(UstaTopRepository::class)->workshopById('w-1');
+        $this->assertNotNull($workshop);
+        $service = collect($workshop['services'] ?? [])
+            ->first(fn (array $item): bool => ($item['name'] ?? '') === 'Generator ta’miri');
+
+        $this->assertNotNull($service);
+        $this->assertStringStartsWith('srv-', (string) ($service['id'] ?? ''));
+        $this->assertSame(250, (int) ($service['price'] ?? 0));
+        $this->assertSame(55, (int) ($service['durationMinutes'] ?? 0));
+        $this->assertSame(20, (int) ($service['prepaymentPercent'] ?? 0));
+
+        $this->followingRedirects()
+            ->get('/owner/bookings')
+            ->assertOk()
+            ->assertSee('Generator ta’miri');
+    }
+
     public function test_admin_can_manage_workshop_location_from_map_picker(): void
     {
         $this->post('/admin/login', [

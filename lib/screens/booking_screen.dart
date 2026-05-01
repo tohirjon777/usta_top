@@ -1605,7 +1605,7 @@ class _BookingHeroCard extends StatelessWidget {
                 ),
                 _BookingTag(
                   icon: Icons.location_on_outlined,
-                  text: '${salon.distanceKm} km',
+                  text: '${salon.distanceKm.toStringAsFixed(1)} km',
                 ),
                 _BookingTag(
                   icon: Icons.tune_outlined,

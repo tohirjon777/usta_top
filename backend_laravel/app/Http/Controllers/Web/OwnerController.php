@@ -10,6 +10,7 @@ use App\Support\UstaTop\WorkshopImageStorage;
 use App\Support\UstaTop\WorkshopNotificationsService;
 use App\Support\UstaTop\VehiclePricingExcelService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class OwnerController extends Controller
@@ -174,30 +175,68 @@ class OwnerController extends Controller
             return redirect('/owner/login');
         }
 
-        $services = array_map(function (array $service) use ($id, $request): array {
-            if (($service['id'] ?? '') !== $id) {
-                return $service;
+        try {
+            $found = false;
+            $services = array_map(function (array $service) use ($id, $request, &$found): array {
+                if (($service['id'] ?? '') !== $id) {
+                    return $service;
+                }
+
+                $found = true;
+
+                return $this->servicePayloadFromRequest($request, $service, $id);
+            }, $workshop['services'] ?? []);
+
+            if (! $found) {
+                throw new RuntimeException('Xizmat topilmadi');
             }
 
-            $service['price'] = Money::parseStoredAmount((string) $request->input(
-                'price',
-                Money::inputValue((int) ($service['price'] ?? 0))
-            )) ?? (int) ($service['price'] ?? 0);
-            $service['durationMinutes'] = max(15, (int) $request->input('durationMinutes', $service['durationMinutes'] ?? 30));
-            $service['prepaymentPercent'] = max(0, min(100, (int) $request->input('prepaymentPercent', $service['prepaymentPercent'] ?? 0)));
-
-            return $service;
-        }, $workshop['services'] ?? []);
-
-        try {
             $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
                 'services' => $services,
+                'startingPrice' => $this->startingPriceFromServices(
+                    $services,
+                    (int) ($workshop['startingPrice'] ?? 0)
+                ),
             ]));
         } catch (RuntimeException $exception) {
             return redirect()->back()->with('error', $exception->getMessage());
         }
 
         return redirect()->back()->with('success', 'Xizmat yangilandi');
+    }
+
+    public function createService(Request $request)
+    {
+        $workshopId = $this->ownerWorkshopId($request);
+        if ($workshopId === '') {
+            return redirect('/owner/login');
+        }
+
+        $workshop = $this->repository->workshopById($workshopId);
+        if (! $workshop) {
+            return redirect('/owner/login');
+        }
+
+        try {
+            $services = array_values($workshop['services'] ?? []);
+            $services[] = $this->servicePayloadFromRequest(
+                $request,
+                null,
+                $this->newServiceId($services)
+            );
+
+            $this->repository->updateWorkshop($workshopId, $this->workshopPayload($workshop, [
+                'services' => $services,
+                'startingPrice' => $this->startingPriceFromServices(
+                    $services,
+                    (int) ($workshop['startingPrice'] ?? 0)
+                ),
+            ]));
+        } catch (RuntimeException $exception) {
+            return redirect()->back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Xizmat qo‘shildi');
     }
 
     public function replyReview(Request $request, string $id)
@@ -512,6 +551,57 @@ class OwnerController extends Controller
         }
 
         return $this->imageStorage->normalizeStoredUrl($imageUrl);
+    }
+
+    private function servicePayloadFromRequest(Request $request, ?array $current, string $serviceId): array
+    {
+        $name = trim((string) $request->input('name', $current['name'] ?? ''));
+        if ($name === '') {
+            throw new RuntimeException('Xizmat nomi kerak');
+        }
+
+        $price = Money::parseStoredAmount((string) $request->input(
+            'price',
+            Money::inputValue((int) ($current['price'] ?? 0))
+        ));
+
+        return [
+            'id' => $serviceId,
+            'name' => $name,
+            'price' => max(0, $price ?? (int) ($current['price'] ?? 0)),
+            'durationMinutes' => max(15, (int) $request->input(
+                'durationMinutes',
+                $current['durationMinutes'] ?? 30
+            )),
+            'prepaymentPercent' => max(0, min(100, (int) $request->input(
+                'prepaymentPercent',
+                $current['prepaymentPercent'] ?? 0
+            ))),
+        ];
+    }
+
+    private function newServiceId(array $services): string
+    {
+        $existingIds = array_map(
+            static fn (array $service): string => (string) ($service['id'] ?? ''),
+            $services
+        );
+
+        do {
+            $id = 'srv-'.Str::lower(Str::random(10));
+        } while (in_array($id, $existingIds, true));
+
+        return $id;
+    }
+
+    private function startingPriceFromServices(array $services, int $fallback): int
+    {
+        $prices = array_values(array_filter(array_map(
+            static fn (array $service): int => max(0, (int) ($service['price'] ?? 0)),
+            $services
+        ), static fn (int $price): bool => $price > 0));
+
+        return $prices === [] ? $fallback : min($prices);
     }
 
     private function parseSchedule(Request $request): array

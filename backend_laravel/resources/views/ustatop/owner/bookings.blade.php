@@ -198,11 +198,35 @@
     @endforelse
 
     <h1>Xizmatlar</h1>
-    @foreach ($services as $service)
+    <article class="card">
+        <h2>Yangi xizmat qo‘shish</h2>
+        <form method="post" action="/owner/services">
+            @csrf
+            <label>Xizmat nomi</label>
+            <input type="text" name="name" required placeholder="Masalan: Generator ta'miri">
+            <div class="grid-two">
+                <div>
+                    <label>Narx</label>
+                    <input type="number" min="0" name="price" required placeholder="120000">
+                </div>
+                <div>
+                    <label>Davomiyligi (min)</label>
+                    <input type="number" min="15" step="5" name="durationMinutes" value="30">
+                </div>
+            </div>
+            <label>Avans foizi</label>
+            <input type="number" min="0" max="100" name="prepaymentPercent" value="0">
+            <button type="submit">Xizmat qo‘shish</button>
+        </form>
+    </article>
+
+    @forelse ($services as $service)
         <article class="card">
             <h2>{{ $service['name'] }}</h2>
             <form method="post" action="/owner/services/{{ urlencode((string) $service['id']) }}/price">
                 @csrf
+                <label>Xizmat nomi</label>
+                <input type="text" name="name" value="{{ $service['name'] }}" required>
                 <div class="grid-two">
                     <div>
                         <label>Narx</label>
@@ -218,6 +242,11 @@
                 <button type="submit">Yangilash</button>
             </form>
         </article>
-    @endforeach
+    @empty
+        <article class="card empty-state">
+            <h2>Xizmatlar yo‘q</h2>
+            <p class="muted">Birinchi xizmatni yuqoridagi forma orqali qo‘shing.</p>
+        </article>
+    @endforelse
 
 @endsection

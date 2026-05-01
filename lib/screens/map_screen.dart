@@ -705,6 +705,10 @@ class _MapScreenState extends State<MapScreen> {
         return;
       }
 
+      context.read<WorkshopProvider>().updateDistancesFromCoordinates(
+            latitude: position.latitude,
+            longitude: position.longitude,
+          );
       setState(() {
         _userLocation = point;
       });

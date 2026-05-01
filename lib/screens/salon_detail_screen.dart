@@ -663,7 +663,7 @@ class _DetailHeroCard extends StatelessWidget {
                 ),
                 _MetaPill(
                   icon: Icons.place_outlined,
-                  text: '${salon.distanceKm} km',
+                  text: '${salon.distanceKm.toStringAsFixed(1)} km',
                 ),
                 _MetaPill(
                   icon: Icons.circle,

@@ -938,7 +938,7 @@ class _SalonCard extends StatelessWidget {
                   ),
                   _InfoChip(
                     icon: Icons.place_outlined,
-                    text: '${salon.distanceKm} km',
+                    text: '${salon.distanceKm.toStringAsFixed(1)} km',
                   ),
                   _InfoChip(
                     icon: Icons.circle,

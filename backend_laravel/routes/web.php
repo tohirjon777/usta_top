@@ -66,6 +66,7 @@ Route::prefix('owner')->controller(OwnerController::class)->group(function (): v
 
     Route::get('/bookings', 'bookingsPage');
     Route::post('/bookings/{id}/status', 'updateStatus');
+    Route::post('/services', 'createService');
     Route::post('/services/{id}/price', 'updateService');
     Route::post('/reviews/{id}/reply', 'replyReview');
 
