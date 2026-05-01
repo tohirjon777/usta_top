@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-
 import 'app/auto_master_app.dart';
 import 'core/config/backend_config.dart';
 import 'core/localization/app_language.dart';

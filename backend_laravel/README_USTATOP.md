@@ -48,10 +48,10 @@ SMS OTP:
 2. `../backend_service.sh restart`
 3. Register va parol tiklash oqimi SMS kod bilan ishlaydi.
 
-Yandex Maps (website):
+Yandex Maps (website, admin va owner panel):
 1. `backend_laravel/secrets/local.env` ichiga `YANDEX_MAPS_JS_API_KEY=...` yozing
 2. `../backend_service.sh restart`
-3. Public website xaritalari Yandex Maps bilan ishlaydi
+3. Public website, admin panel va owner panel xaritalari Yandex Maps bilan ishlaydi
 
 Eslatma:
 - root-level `../backend_service.sh` va `../run_dev.sh` faqat Laravel backendni ishga tushiradi
