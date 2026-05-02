@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'app/auto_master_app.dart';
 import 'core/config/backend_config.dart';
@@ -31,71 +29,14 @@ import 'services/remote_booking_service.dart';
 import 'services/remote_workshop_service.dart';
 import 'services/workshop_service.dart';
 
-Future<bool> _isBackendHealthy(String baseUrl) async {
-  try {
-    final Uri uri =
-        Uri.parse('${BackendConfig.normalizeBaseUrl(baseUrl)}/health');
-    final http.Response response =
-        await http.get(uri).timeout(const Duration(seconds: 2));
-    return response.statusCode >= 200 && response.statusCode < 300;
-  } catch (_) {
-    return false;
-  }
-}
-
-Future<String?> _restoreReachableBackendBaseUrl({
-  required BackendEndpointStorage backendEndpointStorage,
-  required String? storedBackendBaseUrl,
-}) async {
-  if (storedBackendBaseUrl == null || storedBackendBaseUrl.trim().isEmpty) {
-    return null;
-  }
-
-  final String normalizedStored = BackendConfig.normalizeBaseUrl(
-    storedBackendBaseUrl,
-  );
-  final String defaultBaseUrl = BackendConfig.resolveBaseUrl();
-  if (normalizedStored == defaultBaseUrl) {
-    return normalizedStored;
-  }
-
-  if (await _isBackendHealthy(normalizedStored)) {
-    return normalizedStored;
-  }
-
-  if (await _isBackendHealthy(defaultBaseUrl)) {
-    await backendEndpointStorage.clearBaseUrl();
-    return null;
-  }
-
-  return normalizedStored;
-}
-
 Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: binding);
   final Stopwatch splashStopwatch = Stopwatch()..start();
-  const bool isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
-  const bool allowBackendOverride = bool.fromEnvironment(
-    'ALLOW_BACKEND_OVERRIDE',
-    defaultValue: !kReleaseMode && !isFlutterTest,
-  );
   const BackendEndpointStorage backendEndpointStorage =
       BackendEndpointStorage();
-  final String? storedBackendBaseUrl =
-      allowBackendOverride ? await backendEndpointStorage.loadBaseUrl() : null;
-  if (!allowBackendOverride) {
-    await backendEndpointStorage.clearBaseUrl();
-  }
-  final String? restoredBackendBaseUrl = allowBackendOverride
-      ? await _restoreReachableBackendBaseUrl(
-          backendEndpointStorage: backendEndpointStorage,
-          storedBackendBaseUrl: storedBackendBaseUrl,
-        )
-      : null;
-  final String? startupErrorMessage = !allowBackendOverride &&
-          !BackendConfig.hasDefinedBaseUrl &&
-          BackendConfig.productionBaseUrl.isEmpty
+  await backendEndpointStorage.clearBaseUrl();
+  final String? startupErrorMessage = BackendConfig.productionBaseUrl.isEmpty
       ? BackendConfig.releaseBaseUrlRequiredMessage
       : null;
 
@@ -103,10 +44,8 @@ Future<void> main() async {
     MyApp(
       backendEndpointStorage: backendEndpointStorage,
       startupErrorMessage: startupErrorMessage,
-      initialBackendBaseUrl: BackendConfig.resolveBaseUrl(
-        overrideBaseUrl: restoredBackendBaseUrl,
-      ),
-      backendBaseUrlLocked: !allowBackendOverride,
+      initialBackendBaseUrl: BackendConfig.resolveBaseUrl(),
+      backendBaseUrlLocked: true,
     ),
   );
 
@@ -198,12 +137,8 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    // Odatdagi ishga tushirishda backend default bo'ladi.
-    // Zarurat bo'lsa `--dart-define=USE_BACKEND=false` bilan local rejimga o'tish mumkin.
-    const bool useBackend = bool.fromEnvironment(
-      'USE_BACKEND',
-      defaultValue: !isFlutterTest,
-    );
+    // Real app hamma ma'lumotni VPS backenddan oladi.
+    const bool useBackend = !isFlutterTest;
     final bool enablePushNotifications = useBackend && !isFlutterTest;
     final String backendBaseUrl = _backendBaseUrl;
     const AuthTokenStorage tokenStorage = AuthTokenStorage();
