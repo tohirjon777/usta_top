@@ -28,7 +28,7 @@ class RemoteWorkshopService implements WorkshopService {
     // JSON namunalari: core/config/api_endpoints.dart ichida.
     final Map<String, dynamic> body = await _request(
       method: _HttpMethod.get,
-      path: ApiEndpoints.workshops,
+      path: _withRefreshToken(ApiEndpoints.workshops),
     );
     final dynamic data = body['data'];
     if (data is! List) {
@@ -46,7 +46,7 @@ class RemoteWorkshopService implements WorkshopService {
     // JSON namunalari: core/config/api_endpoints.dart ichida.
     final Map<String, dynamic> body = await _request(
       method: _HttpMethod.get,
-      path: ApiEndpoints.workshopById(id),
+      path: _withRefreshToken(ApiEndpoints.workshopById(id)),
     );
     final dynamic data = body['data'];
     if (data is! Map<String, dynamic>) {
@@ -99,21 +99,17 @@ class RemoteWorkshopService implements WorkshopService {
       late final http.Response response;
       switch (method) {
         case _HttpMethod.get:
-          response = await httpClient.get(
-            uri,
-            headers: <String, String>{
-              'authorization': 'Bearer $token',
-              'content-type': 'application/json; charset=utf-8',
-            },
-          ).timeout(timeout);
+          response = await httpClient
+              .get(
+                uri,
+                headers: _headers(token),
+              )
+              .timeout(timeout);
         case _HttpMethod.post:
           response = await httpClient
               .post(
                 uri,
-                headers: <String, String>{
-                  'authorization': 'Bearer $token',
-                  'content-type': 'application/json; charset=utf-8',
-                },
+                headers: _headers(token),
                 body: jsonEncode(payload ?? <String, Object>{}),
               )
               .timeout(timeout);
@@ -143,6 +139,25 @@ class RemoteWorkshopService implements WorkshopService {
         httpClient.close();
       }
     }
+  }
+
+  Map<String, String> _headers(String token) {
+    return <String, String>{
+      'authorization': 'Bearer $token',
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-cache',
+      'pragma': 'no-cache',
+    };
+  }
+
+  String _withRefreshToken(String path) {
+    final Uri uri = Uri.parse(path);
+    return uri.replace(
+      queryParameters: <String, String>{
+        ...uri.queryParameters,
+        'refresh': DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+    ).toString();
   }
 
   Map<String, dynamic> _decodeObject(String raw) {

@@ -93,10 +93,11 @@ Future<void> main() async {
           storedBackendBaseUrl: storedBackendBaseUrl,
         )
       : null;
-  final String? startupErrorMessage =
-      !allowBackendOverride && !BackendConfig.hasDefinedBaseUrl
-          ? BackendConfig.releaseBaseUrlRequiredMessage
-          : null;
+  final String? startupErrorMessage = !allowBackendOverride &&
+          !BackendConfig.hasDefinedBaseUrl &&
+          BackendConfig.productionBaseUrl.isEmpty
+      ? BackendConfig.releaseBaseUrlRequiredMessage
+      : null;
 
   runApp(
     MyApp(

@@ -7,6 +7,7 @@ use App\Support\UstaTop\UstaTopRepository;
 use App\Support\UstaTop\WorkshopNotificationsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use RuntimeException;
 
 class WorkshopController extends Controller
@@ -19,7 +20,7 @@ class WorkshopController extends Controller
 
     public function index()
     {
-        return response()->json([
+        return $this->freshJson([
             'data' => $this->repository->listWorkshops(),
         ]);
     }
@@ -31,7 +32,7 @@ class WorkshopController extends Controller
             return response()->json(['error' => 'Servis topilmadi'], 404);
         }
 
-        return response()->json(['data' => $workshop]);
+        return $this->freshJson(['data' => $workshop]);
     }
 
     public function availability(Request $request, string $id)
@@ -118,5 +119,14 @@ class WorkshopController extends Controller
         $token = trim(str_replace('Bearer', '', (string) $request->header('Authorization')));
 
         return $this->repository->authUserFromToken($token);
+    }
+
+    private function freshJson(array $payload, int $status = 200): JsonResponse
+    {
+        return response()
+            ->json($payload, $status)
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 }

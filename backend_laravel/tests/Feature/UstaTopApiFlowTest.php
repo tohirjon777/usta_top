@@ -143,6 +143,21 @@ class UstaTopApiFlowTest extends TestCase
             ->assertJsonPath('data.0.reviewId', fn ($value) => is_string($value) && $value !== '');
     }
 
+    public function test_workshop_api_responses_are_not_cached(): void
+    {
+        $response = $this->getJson('/workshops')->assertOk();
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+        $this->assertStringContainsString('no-store', $cacheControl);
+        $this->assertStringContainsString('no-cache', $cacheControl);
+        $this->assertSame('no-cache', $response->headers->get('Pragma'));
+
+        $detailResponse = $this->getJson('/workshops/w-1')->assertOk();
+        $this->assertStringContainsString(
+            'no-store',
+            (string) $detailResponse->headers->get('Cache-Control')
+        );
+    }
+
     public function test_today_availability_hides_past_slots_and_old_booking_is_rejected(): void
     {
         Carbon::setTestNow('2026-03-30 14:10:00');

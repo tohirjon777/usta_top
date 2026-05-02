@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 class BackendConfig {
   const BackendConfig._();
 
+  static const String productionBaseUrl = 'http://45.80.148.221';
+
   static const String releaseBaseUrlRequiredMessage =
       'Release build requires --dart-define=API_BASE_URL=https://your-domain';
 
@@ -23,10 +25,10 @@ class BackendConfig {
   static String resolveBaseUrl({
     String? overrideBaseUrl,
   }) {
-    final String? normalizedOverride = overrideBaseUrl == null ||
-            overrideBaseUrl.trim().isEmpty
-        ? null
-        : normalizeBaseUrl(overrideBaseUrl);
+    final String? normalizedOverride =
+        overrideBaseUrl == null || overrideBaseUrl.trim().isEmpty
+            ? null
+            : normalizeBaseUrl(overrideBaseUrl);
     if (normalizedOverride != null) {
       return normalizedOverride;
     }
@@ -35,6 +37,10 @@ class BackendConfig {
     final String? fromDefine = definedBaseUrl;
     if (fromDefine != null) {
       return fromDefine;
+    }
+
+    if (kReleaseMode) {
+      return productionBaseUrl;
     }
 
     if (kIsWeb) {
