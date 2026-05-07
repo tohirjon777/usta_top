@@ -6,6 +6,8 @@ import '../core/localization/app_language.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_theme_preference.dart';
+import '../core/utils/formatters.dart';
+import '../models/cashback_transaction.dart';
 import '../models/saved_payment_card.dart';
 import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
@@ -72,12 +74,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       authProvider.currentUser?.phone,
       l10n.profileUnknownPhone,
     );
-    final String? avatarUrl = authProvider.currentUser?.avatarUrl?.trim().isEmpty ?? true
-        ? null
-        : authProvider.currentUser?.avatarUrl;
+    final String? avatarUrl =
+        authProvider.currentUser?.avatarUrl?.trim().isEmpty ?? true
+            ? null
+            : authProvider.currentUser?.avatarUrl;
     final List<SavedPaymentCard> savedPaymentCards =
         authProvider.currentUser?.savedPaymentCards ??
             const <SavedPaymentCard>[];
+    final List<CashbackTransaction> cashbackTransactions =
+        authProvider.currentUser?.cashbackTransactions ??
+            const <CashbackTransaction>[];
+    final List<CashbackTransaction> latestCashbackTransactions =
+        cashbackTransactions.take(5).toList(growable: false);
     final bool canManageCards =
         !isLoadingProfile && authProvider.currentUser != null;
 
@@ -137,26 +145,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           AppReveal(
             delay: const Duration(milliseconds: 130),
-            child: Row(
+            child: Column(
               children: <Widget>[
-                Expanded(
-                  child: _StatCard(
-                    label: l10n.totalBookings,
-                    value: '${bookingProvider.totalBookings}',
-                    icon: Icons.bar_chart_rounded,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _StatCard(
+                        label: l10n.totalBookings,
+                        value: '${bookingProvider.totalBookings}',
+                        icon: Icons.bar_chart_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StatCard(
+                        label: l10n.upcoming,
+                        value: '${bookingProvider.upcomingBookings}',
+                        icon: Icons.event_available_rounded,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _StatCard(
-                    label: l10n.upcoming,
-                    value: '${bookingProvider.upcomingBookings}',
-                    icon: Icons.event_available_rounded,
+                const SizedBox(height: 10),
+                _StatCard(
+                  label: l10n.cashbackTrialBalance,
+                  value: AppFormatters.moneyK(
+                    authProvider.currentUser?.cashbackBalance ?? 0,
                   ),
+                  icon: Icons.savings_outlined,
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 18),
+          AppReveal(
+            delay: const Duration(milliseconds: 165),
+            child: _ProfileSectionHeader(
+              title: l10n.cashbackHistoryTitle,
+              subtitle: l10n.cashbackHistorySubtitle,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (cashbackTransactions.isEmpty)
+            AppReveal(
+              delay: const Duration(milliseconds: 190),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    l10n.cashbackHistoryEmpty,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.secondaryTextOf(context),
+                        ),
+                  ),
+                ),
+              ),
+            )
+          else
+            ...latestCashbackTransactions.asMap().entries.map(
+                  (MapEntry<int, CashbackTransaction> entry) => Padding(
+                    padding: EdgeInsets.only(
+                      bottom: entry.key == latestCashbackTransactions.length - 1
+                          ? 0
+                          : 10,
+                    ),
+                    child: AppReveal(
+                      delay: Duration(milliseconds: 190 + (entry.key * 35)),
+                      child: _CashbackTransactionTile(
+                        transaction: entry.value,
+                        l10n: l10n,
+                      ),
+                    ),
+                  ),
+                ),
           const SizedBox(height: 18),
           AppReveal(
             delay: const Duration(milliseconds: 170),
@@ -176,26 +237,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: canManageCards ? _showAddPaymentCardSheet : null,
               ),
             )
-          else ...savedPaymentCards.asMap().entries.map(
-                (MapEntry<int, SavedPaymentCard> entry) => Padding(
-                  padding: EdgeInsets.only(bottom: entry.key == savedPaymentCards.length - 1 ? 0 : 10),
-                  child: AppReveal(
-                    delay: Duration(milliseconds: 210 + (entry.key * 40)),
-                    child: _PaymentCardTile(
-                      card: entry.value,
-                      editLabel: l10n.editPaymentCard,
-                      deleteLabel: l10n.deletePaymentCard,
-                      defaultLabel: l10n.paymentCardDefault,
-                      onEdit: canManageCards
-                          ? () => _showEditPaymentCardSheet(entry.value)
-                          : null,
-                      onDelete: canManageCards
-                          ? () => _confirmDeletePaymentCard(entry.value)
-                          : null,
+          else
+            ...savedPaymentCards.asMap().entries.map(
+                  (MapEntry<int, SavedPaymentCard> entry) => Padding(
+                    padding: EdgeInsets.only(
+                        bottom:
+                            entry.key == savedPaymentCards.length - 1 ? 0 : 10),
+                    child: AppReveal(
+                      delay: Duration(milliseconds: 210 + (entry.key * 40)),
+                      child: _PaymentCardTile(
+                        card: entry.value,
+                        editLabel: l10n.editPaymentCard,
+                        deleteLabel: l10n.deletePaymentCard,
+                        defaultLabel: l10n.paymentCardDefault,
+                        onEdit: canManageCards
+                            ? () => _showEditPaymentCardSheet(entry.value)
+                            : null,
+                        onDelete: canManageCards
+                            ? () => _confirmDeletePaymentCard(entry.value)
+                            : null,
+                      ),
                     ),
                   ),
                 ),
-              ),
           const SizedBox(height: 12),
           AppReveal(
             delay: Duration(
@@ -778,7 +842,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : '${l10n.paymentCardNumberEditHint}\n${card.maskedNumber}',
                         ),
                         validator: (String? value) {
-                          final String digits = SavedPaymentCard.normalizeDigits(
+                          final String digits =
+                              SavedPaymentCard.normalizeDigits(
                             value ?? '',
                           );
                           if (card == null && digits.isEmpty) {
@@ -1200,7 +1265,8 @@ class _ProfileHeroCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: isDark
               ? <Color>[
-                  Color.lerp(AppColors.primaryToneOf(context), Colors.black, 0.16)!,
+                  Color.lerp(
+                      AppColors.primaryToneOf(context), Colors.black, 0.16)!,
                   Color.lerp(
                     AppColors.accentOf(context),
                     AppColors.primaryToneOf(context),
@@ -1332,7 +1398,9 @@ class _HeroActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor.withValues(alpha: isDark ? 0.20 : 0.9),
+          color: Theme.of(context)
+              .cardColor
+              .withValues(alpha: isDark ? 0.20 : 0.9),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDark
@@ -1442,7 +1510,8 @@ class _PaymentCardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ({Color start, Color end}) colors = _colorsForBrand(context, card.brand);
+    final ({Color start, Color end}) colors =
+        _colorsForBrand(context, card.brand);
 
     return Container(
       decoration: BoxDecoration(
@@ -1488,17 +1557,19 @@ class _PaymentCardTile extends StatelessWidget {
                       children: <Widget>[
                         Text(
                           card.brandLabel,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           card.holderName,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.88),
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                  ),
                         ),
                       ],
                     ),
@@ -1515,10 +1586,11 @@ class _PaymentCardTile extends StatelessWidget {
                       ),
                       child: Text(
                         defaultLabel,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                     ),
                 ],
@@ -1587,7 +1659,8 @@ class _PaymentCardTile extends StatelessWidget {
     );
   }
 
-  ({Color start, Color end}) _colorsForBrand(BuildContext context, String brand) {
+  ({Color start, Color end}) _colorsForBrand(
+      BuildContext context, String brand) {
     switch (brand.trim().toLowerCase()) {
       case 'visa':
         return (
@@ -1731,6 +1804,120 @@ class _StatCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _CashbackTransactionTile extends StatelessWidget {
+  const _CashbackTransactionTile({
+    required this.transaction,
+    required this.l10n,
+  });
+
+  final CashbackTransaction transaction;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isCredit = transaction.amount > 0;
+    final Color accent = isCredit
+        ? AppColors.primaryToneOf(context)
+        : Theme.of(context).colorScheme.error;
+    final String amount = AppFormatters.moneyK(transaction.amount.abs());
+    final String amountText = isCredit ? '+$amount' : '-$amount';
+    final String subtitle = <String>[
+      if (transaction.serviceName.isNotEmpty) transaction.serviceName,
+      if (transaction.workshopName.isNotEmpty) transaction.workshopName,
+      if (transaction.createdAt != null)
+        AppFormatters.dateTime(transaction.createdAt!),
+    ].join(' - ');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: accent.withValues(alpha: 0.18)),
+              ),
+              child: Icon(_iconForType(transaction.type), color: accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    _titleForType(transaction.type),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  if (subtitle.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.secondaryTextOf(context),
+                          ),
+                    ),
+                  ],
+                  const SizedBox(height: 3),
+                  Text(
+                    l10n.cashbackBalanceAfterLabel(
+                      AppFormatters.moneyK(transaction.balanceAfter),
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.secondaryTextOf(context),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              amountText,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _titleForType(String type) {
+    switch (type) {
+      case 'earned':
+        return l10n.cashbackTransactionEarned;
+      case 'redeemed':
+        return l10n.cashbackTransactionRedeemed;
+      case 'refunded':
+        return l10n.cashbackTransactionRefunded;
+      default:
+        return l10n.cashbackHistoryTitle;
+    }
+  }
+
+  IconData _iconForType(String type) {
+    switch (type) {
+      case 'earned':
+        return Icons.savings_outlined;
+      case 'redeemed':
+        return Icons.payments_outlined;
+      case 'refunded':
+        return Icons.undo_rounded;
+      default:
+        return Icons.account_balance_wallet_outlined;
+    }
   }
 }
 

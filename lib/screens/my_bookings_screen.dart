@@ -87,7 +87,8 @@ class MyBookingsScreen extends StatelessWidget {
     }
 
     Future<void> acceptRescheduledBooking(BookingItem booking) async {
-      final bool changed = await bookingProvider.acceptRescheduledBookingRequest(
+      final bool changed =
+          await bookingProvider.acceptRescheduledBookingRequest(
         booking.id,
       );
       if (!context.mounted) {
@@ -131,7 +132,7 @@ class MyBookingsScreen extends StatelessWidget {
                 errorMessage,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.warning,
-                ),
+                    ),
               ),
             ],
             const SizedBox(height: 18),
@@ -139,8 +140,9 @@ class MyBookingsScreen extends StatelessWidget {
               delay: const Duration(milliseconds: 90),
               child: _BookingsSectionHeader(
                 title: l10n.bookingHistory,
-                subtitle:
-                    bookings.isEmpty ? l10n.bookingsEmptyHint : '${bookings.length}',
+                subtitle: bookings.isEmpty
+                    ? l10n.bookingsEmptyHint
+                    : '${bookings.length}',
               ),
             ),
             const SizedBox(height: 12),
@@ -158,7 +160,8 @@ class MyBookingsScreen extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: AppReveal(
-                    delay: Duration(milliseconds: 150 + (bookings.indexOf(booking) * 45)),
+                    delay: Duration(
+                        milliseconds: 150 + (bookings.indexOf(booking) * 45)),
                     child: _BookingCard(
                       l10n: l10n,
                       booking: booking,
@@ -193,12 +196,13 @@ class MyBookingsScreen extends StatelessWidget {
                                   acceptRescheduledBooking(booking);
                                 }
                               : null,
-                      onWriteReview: booking.status == BookingStatus.completed &&
-                              !booking.hasReview
-                          ? () {
-                              openReviewForBooking(booking);
-                            }
-                          : null,
+                      onWriteReview:
+                          booking.status == BookingStatus.completed &&
+                                  !booking.hasReview
+                              ? () {
+                                  openReviewForBooking(booking);
+                                }
+                              : null,
                     ),
                   ),
                 );
@@ -257,9 +261,10 @@ class _BookingCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         booking.salonName,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -285,7 +290,8 @@ class _BookingCard extends StatelessWidget {
                 ),
                 _BookingInfoPill(
                   icon: Icons.calendar_today_outlined,
-                  text: l10n.dateLabel(AppFormatters.dateTime(booking.dateTime)),
+                  text:
+                      l10n.dateLabel(AppFormatters.dateTime(booking.dateTime)),
                 ),
               ],
             ),
@@ -366,6 +372,34 @@ class _BookingCard extends StatelessWidget {
               Text(
                 l10n.paymentMethodValueLabel(
                   _paymentMethodText(booking.paymentMethod),
+                ),
+              ),
+            if (booking.cashbackAppliedAmount > 0)
+              Text(
+                booking.cashbackAppliedStatus == 'refunded'
+                    ? l10n.cashbackAppliedRefundedBookingLabel(
+                        AppFormatters.moneyK(booking.cashbackAppliedAmount),
+                      )
+                    : l10n.cashbackAppliedBookingLabel(
+                        AppFormatters.moneyK(booking.cashbackAppliedAmount),
+                      ),
+                style: TextStyle(
+                  color: AppColors.primaryToneOf(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            if (booking.cashbackAmount > 0)
+              Text(
+                booking.cashbackStatus == 'credited_test'
+                    ? l10n.cashbackTrialBookingLabel(
+                        AppFormatters.moneyK(booking.cashbackAmount),
+                      )
+                    : l10n.cashbackTrialPendingBookingLabel(
+                        AppFormatters.moneyK(booking.cashbackAmount),
+                      ),
+                style: TextStyle(
+                  color: AppColors.primaryToneOf(context),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             if (booking.status == BookingStatus.cancelled) ...<Widget>[
@@ -600,9 +634,10 @@ class _BookingsHeroCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                     ),
                     const SizedBox(height: 6),
                     Text(

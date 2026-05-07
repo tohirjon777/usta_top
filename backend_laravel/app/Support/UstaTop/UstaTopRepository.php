@@ -10,6 +10,25 @@ use RuntimeException;
 
 class UstaTopRepository
 {
+    private const TRIAL_CASHBACK_PERCENT = 5;
+
+    private const DEFAULT_EMERGENCY_SERVICES = [
+        [
+            'id' => 'emergency-tire-change',
+            'name' => 'Favqulodda balon almashtirish',
+            'price' => 80,
+            'durationMinutes' => 30,
+            'prepaymentPercent' => 0,
+        ],
+        [
+            'id' => 'emergency-fuel-delivery',
+            'name' => 'Ko‘chma benzin yetkazish',
+            'price' => 150,
+            'durationMinutes' => 40,
+            'prepaymentPercent' => 0,
+        ],
+    ];
+
     public function __construct(
         private readonly JsonFileStore $store,
     ) {
@@ -139,6 +158,8 @@ class UstaTopRepository
             'pushTokens' => [],
             'savedVehicles' => [],
             'paymentCards' => [],
+            'cashbackBalance' => 0,
+            'cashbackEarnedTotal' => 0,
         ];
 
         $users = $this->users();
@@ -554,9 +575,27 @@ class UstaTopRepository
             $vehicleModelName,
             $vehicleTypeId
         );
-        $paymentStatus = $quote['prepaymentPercent'] > 0
-            ? ($paymentMethod === 'test_card' ? 'paid' : 'pending')
-            : 'not_required';
+        $originalPrice = (int) $quote['price'];
+        $cashbackAppliedAmount = min(
+            $this->cashbackBalanceForUser((string) $user['id']),
+            $originalPrice
+        );
+        $payablePrice = max(0, $originalPrice - $cashbackAppliedAmount);
+        $prepaymentPercent = (int) ($quote['prepaymentPercent'] ?? 0);
+        $prepaymentAmount = $prepaymentPercent > 0
+            ? (int) ceil($payablePrice * $prepaymentPercent / 100)
+            : 0;
+        $remainingAmount = max(0, $payablePrice - $prepaymentAmount);
+
+        if ($paymentMethod === 'test_card' && $payablePrice > 0 && count($user['paymentCards'] ?? []) === 0) {
+            throw new RuntimeException('Test karta bilan to‘lash uchun avval kartani kiriting');
+        }
+
+        $paymentStatus = $paymentMethod === 'test_card'
+            ? ($payablePrice > 0 ? 'paid' : 'not_required')
+            : ($prepaymentAmount > 0 ? 'pending' : 'not_required');
+        $cashbackPercent = $paymentMethod === 'test_card' && $payablePrice > 0 ? self::TRIAL_CASHBACK_PERCENT : 0;
+        $cashbackAmount = $cashbackPercent > 0 ? (int) floor($payablePrice * $cashbackPercent / 100) : 0;
 
         $booking = [
             'id' => $this->id('b'),
@@ -576,20 +615,37 @@ class UstaTopRepository
             'isCustomVehicle' => $isCustomVehicle,
             'dateTime' => $dateTime->toIso8601String(),
             'basePrice' => $quote['basePrice'],
-            'price' => $quote['price'],
+            'originalPrice' => $originalPrice,
+            'price' => $payablePrice,
             'status' => 'upcoming',
             'createdAt' => now()->toIso8601String(),
-            'prepaymentPercent' => $quote['prepaymentPercent'],
-            'prepaymentAmount' => $quote['prepaymentAmount'],
-            'remainingAmount' => $quote['remainingAmount'],
+            'prepaymentPercent' => $prepaymentPercent,
+            'prepaymentAmount' => $prepaymentAmount,
+            'remainingAmount' => $remainingAmount,
             'paymentStatus' => $paymentStatus,
             'paymentMethod' => $paymentMethod,
             'paidAt' => $paymentStatus === 'paid' ? now()->toIso8601String() : null,
+            'cashbackAppliedAmount' => $cashbackAppliedAmount,
+            'cashbackAppliedStatus' => $cashbackAppliedAmount > 0 ? 'applied' : 'not_used',
+            'cashbackAppliedAt' => $cashbackAppliedAmount > 0 ? now()->toIso8601String() : null,
+            'cashbackPercent' => $cashbackPercent,
+            'cashbackAmount' => $cashbackAmount,
+            'cashbackStatus' => $cashbackAmount > 0 ? 'pending_completion' : 'not_eligible',
+            'cashbackCreditedAt' => null,
         ];
 
         $bookings = $this->rawBookings();
         $bookings[] = $booking;
         $this->saveBookings($bookings);
+        $this->debitTrialCashback(
+            (string) $user['id'],
+            $cashbackAppliedAmount,
+            [
+                'bookingId' => $booking['id'],
+                'workshopName' => $booking['workshopName'],
+                'serviceName' => $booking['serviceName'],
+            ]
+        );
 
         $this->rememberVehicle(
             $user['id'],
@@ -619,6 +675,7 @@ class UstaTopRepository
             $booking['cancelledByRole'] = 'customer';
             $booking['cancelledAt'] = now()->toIso8601String();
             $booking['completedAt'] = null;
+            $booking = $this->refundAppliedCashback($booking);
 
             return $booking;
         });
@@ -699,6 +756,7 @@ class UstaTopRepository
                 $booking['cancelReasonId'] = '';
                 $booking['cancelledByRole'] = '';
                 $booking['cancelledAt'] = null;
+                $booking = $this->creditBookingCashback($booking);
             }
 
             if ($normalizedStatus === 'cancelled') {
@@ -706,6 +764,7 @@ class UstaTopRepository
                 $booking['cancelledByRole'] = (string) ($options['actorRole'] ?? 'admin');
                 $booking['cancelledAt'] = now()->toIso8601String();
                 $booking['completedAt'] = null;
+                $booking = $this->refundAppliedCashback($booking);
             }
 
             return $booking;
@@ -1180,6 +1239,9 @@ class UstaTopRepository
             'avatarUrl' => trim((string) ($user['avatarUrl'] ?? '')),
             'savedVehicles' => array_values($user['savedVehicles'] ?? []),
             'savedPaymentCards' => array_values($user['paymentCards'] ?? []),
+            'cashbackBalance' => (int) ($user['cashbackBalance'] ?? 0),
+            'cashbackEarnedTotal' => (int) ($user['cashbackEarnedTotal'] ?? ($user['cashbackBalance'] ?? 0)),
+            'cashbackTransactions' => $this->cashbackTransactionsForUser((string) ($user['id'] ?? '')),
         ];
     }
 
@@ -1194,6 +1256,12 @@ class UstaTopRepository
                 $workshops[$index]['ownerAccessCode'] = $resolvedAccessCode;
                 $changed = true;
             }
+
+            $withEmergencyServices = $this->withEmergencyServices($workshops[$index]);
+            if ($withEmergencyServices !== $workshops[$index]) {
+                $workshops[$index] = $withEmergencyServices;
+                $changed = true;
+            }
         }
 
         if ($changed) {
@@ -1206,6 +1274,11 @@ class UstaTopRepository
     private function rawBookings(): array
     {
         return array_values($this->store->readArray(config('ustatop.bookings_file')));
+    }
+
+    private function rawCashbackTransactions(): array
+    {
+        return array_values($this->store->readArray(config('ustatop.cashback_transactions_file')));
     }
 
     private function rawReviews(): array
@@ -1228,14 +1301,221 @@ class UstaTopRepository
         $this->store->writeArray(config('ustatop.users_file'), array_values($users));
     }
 
+    private function cashbackBalanceForUser(string $userId): int
+    {
+        foreach ($this->users() as $user) {
+            if (($user['id'] ?? '') === $userId) {
+                return max(0, (int) ($user['cashbackBalance'] ?? 0));
+            }
+        }
+
+        return 0;
+    }
+
+    private function cashbackTransactionsForUser(string $userId, int $limit = 10): array
+    {
+        $transactions = array_values(array_filter(
+            $this->rawCashbackTransactions(),
+            fn (array $transaction): bool => ($transaction['userId'] ?? '') === $userId
+        ));
+
+        usort(
+            $transactions,
+            function (array $a, array $b): int {
+                $sequenceCompare = ((int) ($b['sequence'] ?? 0)) <=> ((int) ($a['sequence'] ?? 0));
+                if ($sequenceCompare !== 0) {
+                    return $sequenceCompare;
+                }
+
+                return strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? ''));
+            }
+        );
+
+        return array_slice(array_map(
+            fn (array $transaction): array => $this->normalizeCashbackTransaction($transaction),
+            $transactions
+        ), 0, $limit);
+    }
+
+    private function debitTrialCashback(string $userId, int $amount, array $context = []): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $users = $this->users();
+        foreach ($users as $index => $user) {
+            if (($user['id'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $users[$index]['cashbackBalance'] = max(0, (int) ($user['cashbackBalance'] ?? 0) - $amount);
+            $users[$index]['cashbackEarnedTotal'] = (int) ($user['cashbackEarnedTotal'] ?? 0);
+            $this->saveUsers($users);
+            $this->appendCashbackTransaction(
+                $userId,
+                -$amount,
+                'redeemed',
+                $users[$index]['cashbackBalance'],
+                $context
+            );
+
+            return;
+        }
+    }
+
+    private function creditTrialCashback(string $userId, int $amount, bool $countAsEarned = true, array $context = []): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $users = $this->users();
+        foreach ($users as $index => $user) {
+            if (($user['id'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $users[$index]['cashbackBalance'] = (int) ($user['cashbackBalance'] ?? 0) + $amount;
+            $users[$index]['cashbackEarnedTotal'] = (int) ($user['cashbackEarnedTotal'] ?? 0) + ($countAsEarned ? $amount : 0);
+            $this->saveUsers($users);
+            $this->appendCashbackTransaction(
+                $userId,
+                $amount,
+                $countAsEarned ? 'earned' : 'refunded',
+                $users[$index]['cashbackBalance'],
+                $context
+            );
+
+            return;
+        }
+    }
+
+    private function creditBookingCashback(array $booking): array
+    {
+        $amount = (int) ($booking['cashbackAmount'] ?? 0);
+        $status = (string) ($booking['cashbackStatus'] ?? '');
+        if ($amount <= 0 || $status === 'credited_test') {
+            return $booking;
+        }
+
+        $this->creditTrialCashback(
+            (string) ($booking['userId'] ?? ''),
+            $amount,
+            true,
+            [
+                'bookingId' => $booking['id'] ?? '',
+                'workshopName' => $booking['workshopName'] ?? '',
+                'serviceName' => $booking['serviceName'] ?? '',
+            ]
+        );
+        $booking['cashbackStatus'] = 'credited_test';
+        $booking['cashbackCreditedAt'] = now()->toIso8601String();
+
+        return $booking;
+    }
+
+    private function refundAppliedCashback(array $booking): array
+    {
+        $amount = (int) ($booking['cashbackAppliedAmount'] ?? 0);
+        $status = (string) ($booking['cashbackAppliedStatus'] ?? '');
+        if ($amount <= 0 || $status === 'refunded') {
+            return $booking;
+        }
+
+        $this->creditTrialCashback(
+            (string) ($booking['userId'] ?? ''),
+            $amount,
+            false,
+            [
+                'bookingId' => $booking['id'] ?? '',
+                'workshopName' => $booking['workshopName'] ?? '',
+                'serviceName' => $booking['serviceName'] ?? '',
+            ]
+        );
+        $booking['cashbackAppliedStatus'] = 'refunded';
+        $booking['cashbackRefundedAt'] = now()->toIso8601String();
+
+        return $booking;
+    }
+
+    private function appendCashbackTransaction(
+        string $userId,
+        int $amount,
+        string $type,
+        int $balanceAfter,
+        array $context = []
+    ): void {
+        if ($userId === '' || $amount === 0) {
+            return;
+        }
+
+        $transactions = $this->rawCashbackTransactions();
+        $transactions[] = $this->normalizeCashbackTransaction([
+            'id' => $this->id('cb'),
+            'userId' => $userId,
+            'bookingId' => trim((string) ($context['bookingId'] ?? '')),
+            'type' => $type,
+            'sequence' => count($transactions) + 1,
+            'amount' => $amount,
+            'balanceAfter' => max(0, $balanceAfter),
+            'workshopName' => trim((string) ($context['workshopName'] ?? '')),
+            'serviceName' => trim((string) ($context['serviceName'] ?? '')),
+            'createdAt' => now()->toIso8601String(),
+        ]);
+
+        $this->saveCashbackTransactions($transactions);
+    }
+
+    private function normalizeCashbackTransaction(array $transaction): array
+    {
+        return [
+            'id' => trim((string) ($transaction['id'] ?? '')),
+            'userId' => trim((string) ($transaction['userId'] ?? '')),
+            'bookingId' => trim((string) ($transaction['bookingId'] ?? '')),
+            'type' => trim((string) ($transaction['type'] ?? '')),
+            'sequence' => (int) ($transaction['sequence'] ?? 0),
+            'amount' => (int) ($transaction['amount'] ?? 0),
+            'balanceAfter' => max(0, (int) ($transaction['balanceAfter'] ?? 0)),
+            'workshopName' => trim((string) ($transaction['workshopName'] ?? '')),
+            'serviceName' => trim((string) ($transaction['serviceName'] ?? '')),
+            'createdAt' => trim((string) ($transaction['createdAt'] ?? '')),
+        ];
+    }
+
     private function saveBookings(array $bookings): void
     {
         $this->store->writeArray(config('ustatop.bookings_file'), array_values($bookings));
     }
 
+    private function saveCashbackTransactions(array $transactions): void
+    {
+        $this->store->writeArray(config('ustatop.cashback_transactions_file'), array_values($transactions));
+    }
+
     private function saveWorkshops(array $workshops): void
     {
         $this->store->writeArray(config('ustatop.workshops_file'), array_values($workshops));
+    }
+
+    private function withEmergencyServices(array $workshop): array
+    {
+        $services = array_values($workshop['services'] ?? []);
+        $serviceIds = array_map(
+            fn (array $service): string => (string) ($service['id'] ?? ''),
+            $services
+        );
+
+        foreach (self::DEFAULT_EMERGENCY_SERVICES as $service) {
+            if (! in_array($service['id'], $serviceIds, true)) {
+                $services[] = $service;
+                $serviceIds[] = $service['id'];
+            }
+        }
+
+        $workshop['services'] = $services;
+
+        return $workshop;
     }
 
     private function saveReviews(array $reviews): void
@@ -1626,6 +1906,7 @@ class UstaTopRepository
     private function enrichBooking(array $booking): array
     {
         $booking['basePrice'] = (int) ($booking['basePrice'] ?? $booking['price'] ?? 0);
+        $booking['originalPrice'] = (int) ($booking['originalPrice'] ?? $booking['price'] ?? 0);
         $booking['price'] = (int) ($booking['price'] ?? 0);
         $booking['prepaymentPercent'] = (int) ($booking['prepaymentPercent'] ?? 0);
         $booking['prepaymentAmount'] = (int) ($booking['prepaymentAmount'] ?? 0);
@@ -1633,6 +1914,17 @@ class UstaTopRepository
             0,
             $booking['price'] - $booking['prepaymentAmount']
         ));
+        $booking['cashbackAppliedAmount'] = (int) ($booking['cashbackAppliedAmount'] ?? 0);
+        $booking['cashbackAppliedStatus'] = trim((string) ($booking['cashbackAppliedStatus'] ?? ''));
+        if ($booking['cashbackAppliedStatus'] === '') {
+            $booking['cashbackAppliedStatus'] = $booking['cashbackAppliedAmount'] > 0 ? 'applied' : 'not_used';
+        }
+        $booking['cashbackPercent'] = (int) ($booking['cashbackPercent'] ?? 0);
+        $booking['cashbackAmount'] = (int) ($booking['cashbackAmount'] ?? 0);
+        $booking['cashbackStatus'] = trim((string) ($booking['cashbackStatus'] ?? ''));
+        if ($booking['cashbackStatus'] === '') {
+            $booking['cashbackStatus'] = $booking['cashbackAmount'] > 0 ? 'pending_completion' : 'not_eligible';
+        }
 
         $messages = array_values(array_filter(
             $this->rawBookingMessages(),

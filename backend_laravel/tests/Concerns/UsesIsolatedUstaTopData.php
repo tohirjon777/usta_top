@@ -26,6 +26,7 @@ trait UsesIsolatedUstaTopData
         $this->writeFixtureJson($dataDir.'/users.json', $this->seedUsers());
         $this->writeFixtureJson($dataDir.'/workshops.json', $this->seedWorkshops());
         $this->writeFixtureJson($dataDir.'/bookings.json', $this->seedBookings());
+        $this->writeFixtureJson($dataDir.'/cashback_transactions.json', []);
         $this->writeFixtureJson($dataDir.'/reviews.json', []);
         $this->writeFixtureJson($dataDir.'/booking_messages.json', []);
         $this->writeFixtureJson($dataDir.'/workshop_locations.json', $this->seedWorkshopLocations());
@@ -36,6 +37,7 @@ trait UsesIsolatedUstaTopData
         config()->set('ustatop.users_file', $dataDir.'/users.json');
         config()->set('ustatop.workshops_file', $dataDir.'/workshops.json');
         config()->set('ustatop.bookings_file', $dataDir.'/bookings.json');
+        config()->set('ustatop.cashback_transactions_file', $dataDir.'/cashback_transactions.json');
         config()->set('ustatop.reviews_file', $dataDir.'/reviews.json');
         config()->set('ustatop.booking_messages_file', $dataDir.'/booking_messages.json');
         config()->set('ustatop.workshop_locations_file', $dataDir.'/workshop_locations.json');

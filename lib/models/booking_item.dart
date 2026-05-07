@@ -34,12 +34,19 @@ class BookingItem {
     required this.dateTime,
     required this.basePrice,
     required this.price,
+    this.originalPrice = 0,
     this.prepaymentPercent = 0,
     this.prepaymentAmount = 0,
     this.remainingAmount = 0,
     this.paymentStatus = BookingPaymentStatus.notRequired,
     this.paymentMethod = '',
     this.paidAt,
+    this.cashbackAppliedAmount = 0,
+    this.cashbackAppliedStatus = '',
+    this.cashbackPercent = 0,
+    this.cashbackAmount = 0,
+    this.cashbackStatus = '',
+    this.cashbackCreditedAt,
     this.status = BookingStatus.upcoming,
     this.acceptedAt,
     this.completedAt,
@@ -69,12 +76,19 @@ class BookingItem {
   final DateTime dateTime;
   final int basePrice;
   final int price;
+  final int originalPrice;
   final int prepaymentPercent;
   final int prepaymentAmount;
   final int remainingAmount;
   final BookingPaymentStatus paymentStatus;
   final String paymentMethod;
   final DateTime? paidAt;
+  final int cashbackAppliedAmount;
+  final String cashbackAppliedStatus;
+  final int cashbackPercent;
+  final int cashbackAmount;
+  final String cashbackStatus;
+  final DateTime? cashbackCreditedAt;
   final BookingStatus status;
   final DateTime? acceptedAt;
   final DateTime? completedAt;
@@ -114,6 +128,9 @@ class BookingItem {
           ? _toInt(json['price'])
           : _toInt(json['basePrice']),
       price: _toInt(json['price']),
+      originalPrice: _toInt(json['originalPrice']) == 0
+          ? _toInt(json['price'])
+          : _toInt(json['originalPrice']),
       prepaymentPercent: _toInt(json['prepaymentPercent']),
       prepaymentAmount: _toInt(json['prepaymentAmount']),
       remainingAmount: _toInt(json['remainingAmount']),
@@ -122,13 +139,19 @@ class BookingItem {
       ),
       paymentMethod: (json['paymentMethod'] ?? '').toString().trim(),
       paidAt: _parseDateTime(json['paidAt']),
+      cashbackAppliedAmount: _toInt(json['cashbackAppliedAmount']),
+      cashbackAppliedStatus:
+          (json['cashbackAppliedStatus'] ?? '').toString().trim(),
+      cashbackPercent: _toInt(json['cashbackPercent']),
+      cashbackAmount: _toInt(json['cashbackAmount']),
+      cashbackStatus: (json['cashbackStatus'] ?? '').toString().trim(),
+      cashbackCreditedAt: _parseDateTime(json['cashbackCreditedAt']),
       status: _statusFromString((json['status'] ?? '').toString()),
       acceptedAt: _parseDateTime(json['acceptedAt']),
       completedAt: _parseDateTime(json['completedAt']),
       previousDateTime: _parseDateTime(json['previousDateTime']),
       rescheduledAt: _parseDateTime(json['rescheduledAt']),
-      rescheduledByRole:
-          (json['rescheduledByRole'] ?? '').toString().trim(),
+      rescheduledByRole: (json['rescheduledByRole'] ?? '').toString().trim(),
       reviewId: (json['reviewId'] ?? '').toString().trim(),
       reviewSubmittedAt: _parseDateTime(json['reviewSubmittedAt']),
       messageCount: _toInt(json['messageCount']),
@@ -154,12 +177,19 @@ class BookingItem {
     DateTime? dateTime,
     int? basePrice,
     int? price,
+    int? originalPrice,
     int? prepaymentPercent,
     int? prepaymentAmount,
     int? remainingAmount,
     BookingPaymentStatus? paymentStatus,
     String? paymentMethod,
     DateTime? paidAt,
+    int? cashbackAppliedAmount,
+    String? cashbackAppliedStatus,
+    int? cashbackPercent,
+    int? cashbackAmount,
+    String? cashbackStatus,
+    DateTime? cashbackCreditedAt,
     BookingStatus? status,
     DateTime? acceptedAt,
     DateTime? completedAt,
@@ -189,12 +219,21 @@ class BookingItem {
       dateTime: dateTime ?? this.dateTime,
       basePrice: basePrice ?? this.basePrice,
       price: price ?? this.price,
+      originalPrice: originalPrice ?? this.originalPrice,
       prepaymentPercent: prepaymentPercent ?? this.prepaymentPercent,
       prepaymentAmount: prepaymentAmount ?? this.prepaymentAmount,
       remainingAmount: remainingAmount ?? this.remainingAmount,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paidAt: paidAt ?? this.paidAt,
+      cashbackAppliedAmount:
+          cashbackAppliedAmount ?? this.cashbackAppliedAmount,
+      cashbackAppliedStatus:
+          cashbackAppliedStatus ?? this.cashbackAppliedStatus,
+      cashbackPercent: cashbackPercent ?? this.cashbackPercent,
+      cashbackAmount: cashbackAmount ?? this.cashbackAmount,
+      cashbackStatus: cashbackStatus ?? this.cashbackStatus,
+      cashbackCreditedAt: cashbackCreditedAt ?? this.cashbackCreditedAt,
       status: status ?? this.status,
       acceptedAt: acceptedAt ?? this.acceptedAt,
       completedAt: completedAt ?? this.completedAt,

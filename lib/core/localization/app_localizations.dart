@@ -100,6 +100,13 @@ class AppLocalizations {
       'searchHint': 'Search workshop, district, or auto service',
       'salonsNearby': '{count} workshops nearby',
       'workshopsMetricLabel': 'Workshops',
+      'emergencyServicesTitle': 'Emergency services',
+      'emergencyServicesSubtitle': 'Fast help for road situations',
+      'emergencyTireChange': 'Tire change',
+      'emergencyFuelDelivery': 'Mobile fuel delivery',
+      'emergencyServiceProviders': '{count} providers',
+      'emergencyServiceUnavailable':
+          'This emergency service is not available yet',
       'fastConfirmation': 'Quick approval',
       'verifiedMasters': 'Certified masters',
       'masterPrefix': 'Master: {name}',
@@ -185,6 +192,26 @@ class AppLocalizations {
       'testPaymentHint':
           'No real money is charged. Press the button below to continue in test mode.',
       'testPaymentConfirm': 'Confirm test payment',
+      'paymentCardRequiredForTestPayment':
+          'Add a card before using test card payment.',
+      'addCardToPay': 'Add card and continue',
+      'cashbackTrialTitle': 'Trial cashback',
+      'cashbackAutoApplySummary': 'Cashback applied: -{price}',
+      'cashbackTrialSummary': 'Cashback after completion ({percent}%): {price}',
+      'cashbackTrialEarn':
+          '{price} trial cashback will be added after completion.',
+      'cashbackTrialBookingLabel': 'Cashback credited: {price}',
+      'cashbackTrialPendingBookingLabel': 'Cashback after completion: {price}',
+      'cashbackAppliedBookingLabel': 'Cashback used: -{price}',
+      'cashbackAppliedRefundedBookingLabel': 'Cashback refunded: {price}',
+      'cashbackTrialBalance': 'Cashback balance',
+      'cashbackHistoryTitle': 'Cashback history',
+      'cashbackHistorySubtitle': 'Latest balance changes',
+      'cashbackHistoryEmpty': 'No cashback activity yet',
+      'cashbackTransactionEarned': 'Service completed',
+      'cashbackTransactionRedeemed': 'Used for next booking',
+      'cashbackTransactionRefunded': 'Returned after cancellation',
+      'cashbackBalanceAfterLabel': 'Balance: {price}',
       'bookingTimeRequired': 'Choose one of the available times',
       'chatWithWorkshop': 'Chat with workshop',
       'chatOpen': 'Chat',
@@ -322,10 +349,12 @@ class AppLocalizations {
       'paymentCardHolderName': 'Card holder',
       'paymentCardHolderHint': 'Enter card holder name',
       'paymentCardHolderRequired': 'Card holder name is required',
-      'paymentCardHolderShort': 'Card holder name must be at least 2 characters',
+      'paymentCardHolderShort':
+          'Card holder name must be at least 2 characters',
       'paymentCardNumber': 'Card number',
       'paymentCardNumberHint': '8600 1234 5678 9012',
-      'paymentCardNumberEditHint': 'Leave empty to keep the current card number',
+      'paymentCardNumberEditHint':
+          'Leave empty to keep the current card number',
       'paymentCardRequired': 'Card number is required',
       'paymentCardInvalid': 'Enter a valid card number',
       'paymentCardExpiry': 'Expiry date',
@@ -486,6 +515,14 @@ class AppLocalizations {
       'searchHint': 'Servis markazi, tuman yoki xizmatni qidiring',
       'salonsNearby': 'Yaqin atrofda {count} ta servis',
       'workshopsMetricLabel': 'Ustaxonalar',
+      'emergencyServicesTitle': 'Favqulodda xizmatlar',
+      'emergencyServicesSubtitle':
+          'Yo‘lda qolganingizda tezkor yordam chaqiring',
+      'emergencyTireChange': 'Balon almashtirish',
+      'emergencyFuelDelivery': 'Ko‘chma benzin',
+      'emergencyServiceProviders': '{count} ta usta',
+      'emergencyServiceUnavailable':
+          'Bu favqulodda xizmat hozircha mavjud emas',
       'fastConfirmation': 'Tez tasdiq',
       'verifiedMasters': 'Tasdiqlangan ustalar',
       'masterPrefix': 'Usta: {name}',
@@ -574,6 +611,27 @@ class AppLocalizations {
       'testPaymentHint':
           'Bu yerda haqiqiy pul yechilmaydi. Pastdagi tugma orqali test rejimda davom eting.',
       'testPaymentConfirm': 'Test to‘lovni tasdiqlash',
+      'paymentCardRequiredForTestPayment':
+          'Test karta bilan to‘lash uchun avval kartani kiriting.',
+      'addCardToPay': 'Karta qo‘shib davom etish',
+      'cashbackTrialTitle': 'Sinov cashback',
+      'cashbackAutoApplySummary': 'Cashback ishlatildi: -{price}',
+      'cashbackTrialSummary': 'Xizmat tugaganda cashback ({percent}%): {price}',
+      'cashbackTrialEarn':
+          'Xizmat yakunlangandan keyin {price} sinov cashback tushadi.',
+      'cashbackTrialBookingLabel': 'Cashback qo‘shildi: {price}',
+      'cashbackTrialPendingBookingLabel':
+          'Xizmat tugaganda cashback tushadi: {price}',
+      'cashbackAppliedBookingLabel': 'Cashback ishlatildi: -{price}',
+      'cashbackAppliedRefundedBookingLabel': 'Cashback qaytarildi: {price}',
+      'cashbackTrialBalance': 'Cashback balansi',
+      'cashbackHistoryTitle': 'Cashback tarixi',
+      'cashbackHistorySubtitle': 'Balansdagi oxirgi o‘zgarishlar',
+      'cashbackHistoryEmpty': 'Hali cashback harakati yo‘q',
+      'cashbackTransactionEarned': 'Xizmat yakunlandi',
+      'cashbackTransactionRedeemed': 'Keyingi zakazga ishlatildi',
+      'cashbackTransactionRefunded': 'Bekor qilingani uchun qaytarildi',
+      'cashbackBalanceAfterLabel': 'Balans: {price}',
       'bookingTimeRequired': 'Mavjud vaqtlarning birini tanlang',
       'chatWithWorkshop': 'Usta bilan chat',
       'chatOpen': 'Chat',
@@ -879,6 +937,12 @@ class AppLocalizations {
       'searchHint': 'Поиск сервиса, района или услуги',
       'salonsNearby': 'Сервисов рядом: {count}',
       'workshopsMetricLabel': 'Автосервисы',
+      'emergencyServicesTitle': 'Экстренные услуги',
+      'emergencyServicesSubtitle': 'Быстрая помощь в дорожных ситуациях',
+      'emergencyTireChange': 'Замена колеса',
+      'emergencyFuelDelivery': 'Выездная заправка',
+      'emergencyServiceProviders': '{count} мастеров',
+      'emergencyServiceUnavailable': 'Эта экстренная услуга пока недоступна',
       'fastConfirmation': 'Быстрое подтверждение',
       'verifiedMasters': 'Проверенные мастера',
       'masterPrefix': 'Мастер: {name}',
@@ -966,6 +1030,26 @@ class AppLocalizations {
       'testPaymentHint':
           'Реальные деньги не списываются. Нажмите кнопку ниже, чтобы продолжить в тестовом режиме.',
       'testPaymentConfirm': 'Подтвердить тестовую оплату',
+      'paymentCardRequiredForTestPayment':
+          'Добавьте карту перед тестовой оплатой картой.',
+      'addCardToPay': 'Добавить карту и продолжить',
+      'cashbackTrialTitle': 'Тестовый кешбэк',
+      'cashbackAutoApplySummary': 'Кешбэк применен: -{price}',
+      'cashbackTrialSummary': 'Кешбэк после завершения ({percent}%): {price}',
+      'cashbackTrialEarn':
+          '{price} тестового кешбэка будет начислено после завершения.',
+      'cashbackTrialBookingLabel': 'Кешбэк начислен: {price}',
+      'cashbackTrialPendingBookingLabel': 'Кешбэк после завершения: {price}',
+      'cashbackAppliedBookingLabel': 'Кешбэк использован: -{price}',
+      'cashbackAppliedRefundedBookingLabel': 'Кешбэк возвращен: {price}',
+      'cashbackTrialBalance': 'Баланс кешбэка',
+      'cashbackHistoryTitle': 'История кешбэка',
+      'cashbackHistorySubtitle': 'Последние изменения баланса',
+      'cashbackHistoryEmpty': 'Движений кешбэка пока нет',
+      'cashbackTransactionEarned': 'Услуга завершена',
+      'cashbackTransactionRedeemed': 'Использован для следующего заказа',
+      'cashbackTransactionRefunded': 'Возвращен после отмены',
+      'cashbackBalanceAfterLabel': 'Баланс: {price}',
       'bookingTimeRequired': 'Выберите один из доступных слотов',
       'chatWithWorkshop': 'Чат с мастером',
       'chatOpen': 'Чат',
@@ -1097,8 +1181,7 @@ class AppLocalizations {
       'profileNameUpdated': 'Имя успешно обновлено',
       'profileNameUpdateFailed': 'Не удалось обновить имя',
       'savedCardsTitle': 'Сохранённые карты',
-      'savedCardsSubtitle':
-          'Управляйте картами для более быстрого демо-оплаты',
+      'savedCardsSubtitle': 'Управляйте картами для более быстрого демо-оплаты',
       'addPaymentCard': 'Добавить карту',
       'editPaymentCard': 'Редактировать карту',
       'deletePaymentCard': 'Удалить карту',
@@ -1395,6 +1478,16 @@ class AppLocalizations {
   String get paymentMethodPayme => _text('paymentMethodPayme');
   String get paymentMethodUzum => _text('paymentMethodUzum');
   String get paymentMethodBankCard => _text('paymentMethodBankCard');
+  String get emergencyServicesTitle => _text('emergencyServicesTitle');
+  String get emergencyServicesSubtitle => _text('emergencyServicesSubtitle');
+  String get emergencyTireChange => _text('emergencyTireChange');
+  String get emergencyFuelDelivery => _text('emergencyFuelDelivery');
+  String emergencyServiceProviders(int count) => _fmt(
+        'emergencyServiceProviders',
+        <String, Object>{'count': count},
+      );
+  String get emergencyServiceUnavailable =>
+      _text('emergencyServiceUnavailable');
   String vehiclePriceRuleLabel(String vehicle) =>
       _fmt('vehiclePriceRuleLabel', <String, Object>{'vehicle': vehicle});
   String get vehiclePriceLoadFailed => _text('vehiclePriceLoadFailed');
@@ -1414,6 +1507,43 @@ class AppLocalizations {
       _fmt('testPaymentAmountLabel', <String, Object>{'price': price});
   String get testPaymentHint => _text('testPaymentHint');
   String get testPaymentConfirm => _text('testPaymentConfirm');
+  String get paymentCardRequiredForTestPayment =>
+      _text('paymentCardRequiredForTestPayment');
+  String get addCardToPay => _text('addCardToPay');
+  String get cashbackTrialTitle => _text('cashbackTrialTitle');
+  String cashbackAutoApplySummary(String price) =>
+      _fmt('cashbackAutoApplySummary', <String, Object>{'price': price});
+  String cashbackTrialSummary(int percent, String price) => _fmt(
+        'cashbackTrialSummary',
+        <String, Object>{'percent': percent, 'price': price},
+      );
+  String cashbackTrialEarn(String price) =>
+      _fmt('cashbackTrialEarn', <String, Object>{'price': price});
+  String cashbackTrialBookingLabel(String price) =>
+      _fmt('cashbackTrialBookingLabel', <String, Object>{'price': price});
+  String cashbackTrialPendingBookingLabel(String price) => _fmt(
+        'cashbackTrialPendingBookingLabel',
+        <String, Object>{'price': price},
+      );
+  String cashbackAppliedBookingLabel(String price) =>
+      _fmt('cashbackAppliedBookingLabel', <String, Object>{'price': price});
+  String cashbackAppliedRefundedBookingLabel(String price) => _fmt(
+        'cashbackAppliedRefundedBookingLabel',
+        <String, Object>{'price': price},
+      );
+  String get cashbackTrialBalance => _text('cashbackTrialBalance');
+  String get cashbackHistoryTitle => _text('cashbackHistoryTitle');
+  String get cashbackHistorySubtitle => _text('cashbackHistorySubtitle');
+  String get cashbackHistoryEmpty => _text('cashbackHistoryEmpty');
+  String get cashbackTransactionEarned => _text('cashbackTransactionEarned');
+  String get cashbackTransactionRedeemed =>
+      _text('cashbackTransactionRedeemed');
+  String get cashbackTransactionRefunded =>
+      _text('cashbackTransactionRefunded');
+  String cashbackBalanceAfterLabel(String price) => _fmt(
+        'cashbackBalanceAfterLabel',
+        <String, Object>{'price': price},
+      );
   String get bookingTimeRequired => _text('bookingTimeRequired');
   String get chatWithWorkshop => _text('chatWithWorkshop');
   String get chatOpen => _text('chatOpen');

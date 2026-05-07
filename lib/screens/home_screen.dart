@@ -20,9 +20,11 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.onOpenSalon,
+    required this.onOpenService,
   });
 
   final ValueChanged<Salon> onOpenSalon;
+  final void Function(Salon salon, String serviceId) onOpenService;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -121,7 +123,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 22),
             AppReveal(
-              delay: const Duration(milliseconds: 120),
+              delay: const Duration(milliseconds: 110),
+              beginOffset: const Offset(0, 0.04),
+              beginScale: 0.985,
+              child: _EmergencyServicesPanel(
+                l10n: l10n,
+                workshops: workshopProvider.allWorkshops,
+                onSelected: _openEmergencyService,
+              ),
+            ),
+            const SizedBox(height: 22),
+            AppReveal(
+              delay: const Duration(milliseconds: 150),
               beginOffset: const Offset(0, 0.045),
               beginScale: 0.985,
               child: _HomeDiscoveryControls(
@@ -138,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
             AppReveal(
-              delay: const Duration(milliseconds: 140),
+              delay: const Duration(milliseconds: 170),
               beginOffset: const Offset(0, 0.05),
               beginScale: 0.985,
               child: _SectionHeader(
@@ -174,24 +187,24 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             else
               ...salons.asMap().entries.map(
-                (MapEntry<int, Salon> entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: AppReveal(
-                    delay: Duration(milliseconds: 180 + (entry.key * 55)),
-                    duration: const Duration(milliseconds: 240),
-                    beginOffset: const Offset(0, 0.08),
-                    beginScale: 0.975,
-                    child: _SalonCard(
-                      l10n: l10n,
-                      salon: entry.value,
-                      rank: entry.key + 1,
-                      isSaved: savedProvider.isSaved(entry.value.id),
-                      onTap: () => widget.onOpenSalon(entry.value),
-                      onToggleSaved: () => _toggleSaved(entry.value),
+                    (MapEntry<int, Salon> entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: AppReveal(
+                        delay: Duration(milliseconds: 180 + (entry.key * 55)),
+                        duration: const Duration(milliseconds: 240),
+                        beginOffset: const Offset(0, 0.08),
+                        beginScale: 0.975,
+                        child: _SalonCard(
+                          l10n: l10n,
+                          salon: entry.value,
+                          rank: entry.key + 1,
+                          isSaved: savedProvider.isSaved(entry.value.id),
+                          onTap: () => widget.onOpenSalon(entry.value),
+                          onToggleSaved: () => _toggleSaved(entry.value),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
           ],
         ),
       ),
@@ -228,6 +241,43 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _openEmergencyService(String serviceId) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final WorkshopProvider workshopProvider = context.read<WorkshopProvider>();
+    final List<Salon> candidates = workshopProvider.allWorkshops
+        .where(
+          (Salon salon) => salon.services.any(
+            (SalonService service) => service.id == serviceId,
+          ),
+        )
+        .toList(growable: false);
+
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.emergencyServiceUnavailable)),
+      );
+      return;
+    }
+
+    final List<Salon> sorted = List<Salon>.from(candidates);
+    sorted.sort((Salon a, Salon b) {
+      if (a.isOpen != b.isOpen) {
+        return a.isOpen ? -1 : 1;
+      }
+      final double aDistance =
+          a.distanceKm > 0 ? a.distanceKm : double.maxFinite;
+      final double bDistance =
+          b.distanceKm > 0 ? b.distanceKm : double.maxFinite;
+      final int distanceCompare = aDistance.compareTo(bDistance);
+      if (distanceCompare != 0) {
+        return distanceCompare;
+      }
+      return b.rating.compareTo(a.rating);
+    });
+
+    widget.onOpenService(sorted.first, serviceId);
+  }
+
   List<Salon> _applyFilter(
     List<Salon> salons,
     SavedWorkshopsProvider savedProvider,
@@ -245,7 +295,8 @@ class _HomeScreenState extends State<HomeScreen> {
             .toList(growable: false);
       case _HomeDiscoveryFilter.nearby:
         return salons
-            .where((Salon salon) => salon.distanceKm > 0 && salon.distanceKm <= 5)
+            .where(
+                (Salon salon) => salon.distanceKm > 0 && salon.distanceKm <= 5)
             .toList(growable: false);
       case _HomeDiscoveryFilter.saved:
         return salons
@@ -259,7 +310,8 @@ class _HomeScreenState extends State<HomeScreen> {
     sorted.sort((Salon a, Salon b) {
       switch (_activeSort) {
         case _HomeDiscoverySort.recommended:
-          final int openCompare = (b.isOpen ? 1 : 0).compareTo(a.isOpen ? 1 : 0);
+          final int openCompare =
+              (b.isOpen ? 1 : 0).compareTo(a.isOpen ? 1 : 0);
           if (openCompare != 0) {
             return openCompare;
           }
@@ -440,9 +492,9 @@ class _HomeHeroCard extends StatelessWidget {
                         l10n.appTitle,
                         style:
                             Theme.of(context).textTheme.displaySmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -620,6 +672,125 @@ class _QuickBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmergencyServicesPanel extends StatelessWidget {
+  const _EmergencyServicesPanel({
+    required this.l10n,
+    required this.workshops,
+    required this.onSelected,
+  });
+
+  static const String tireServiceId = 'emergency-tire-change';
+  static const String fuelServiceId = 'emergency-fuel-delivery';
+
+  final AppLocalizations l10n;
+  final List<Salon> workshops;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        _SectionHeader(
+          title: l10n.emergencyServicesTitle,
+          subtitle: l10n.emergencyServicesSubtitle,
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _EmergencyServiceButton(
+                icon: Icons.tire_repair_rounded,
+                title: l10n.emergencyTireChange,
+                subtitle: l10n.emergencyServiceProviders(
+                  _providerCount(tireServiceId),
+                ),
+                onTap: () => onSelected(tireServiceId),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _EmergencyServiceButton(
+                icon: Icons.local_gas_station_rounded,
+                title: l10n.emergencyFuelDelivery,
+                subtitle: l10n.emergencyServiceProviders(
+                  _providerCount(fuelServiceId),
+                ),
+                onTap: () => onSelected(fuelServiceId),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  int _providerCount(String serviceId) {
+    return workshops
+        .where(
+          (Salon salon) => salon.services.any(
+            (SalonService service) => service.id == serviceId,
+          ),
+        )
+        .length;
+  }
+}
+
+class _EmergencyServiceButton extends StatelessWidget {
+  const _EmergencyServiceButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderOf(context)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(icon, color: AppColors.primaryToneOf(context), size: 24),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.secondaryTextOf(context),
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -915,7 +1086,8 @@ class _SalonCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: AppColors.primarySoftOf(context),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.borderOf(context)),
+                          border:
+                              Border.all(color: AppColors.borderOf(context)),
                         ),
                         child: Icon(
                           Icons.north_east_rounded,
@@ -983,12 +1155,10 @@ class _SalonCard extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             l10n.durationMinutes(firstService.durationMinutes),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: AppColors.secondaryTextOf(context),
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.secondaryTextOf(context),
+                                    ),
                           ),
                         ],
                       ],
@@ -1003,7 +1173,8 @@ class _SalonCard extends StatelessWidget {
                       color: AppColors.accentSoftOf(context),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.accentOf(context).withValues(alpha: 0.12),
+                        color:
+                            AppColors.accentOf(context).withValues(alpha: 0.12),
                       ),
                     ),
                     child: Text(

@@ -24,6 +24,7 @@ class UstaTopBootstrapStorageCommand extends Command
             config('ustatop.users_file'),
             config('ustatop.workshops_file'),
             config('ustatop.bookings_file'),
+            config('ustatop.cashback_transactions_file'),
             config('ustatop.reviews_file'),
             config('ustatop.booking_messages_file'),
             config('ustatop.workshop_locations_file'),

@@ -27,6 +27,8 @@ class SalonDetailScreen extends StatefulWidget {
     this.autoOpenReviewComposer = false,
     this.reviewPromptBookingId = '',
     this.lockInitialReviewServiceSelection = false,
+    this.initialBookingServiceId = '',
+    this.autoOpenBooking = false,
   });
 
   final Salon salon;
@@ -35,6 +37,8 @@ class SalonDetailScreen extends StatefulWidget {
   final bool autoOpenReviewComposer;
   final String reviewPromptBookingId;
   final bool lockInitialReviewServiceSelection;
+  final String initialBookingServiceId;
+  final bool autoOpenBooking;
 
   @override
   State<SalonDetailScreen> createState() => _SalonDetailScreenState();
@@ -47,6 +51,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   final GlobalKey _reviewsSectionKey = GlobalKey();
   final Map<String, GlobalKey> _reviewCardKeys = <String, GlobalKey>{};
   bool _handledInitialReviewNavigation = false;
+  bool _handledInitialBookingNavigation = false;
 
   @override
   void initState() {
@@ -63,6 +68,10 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   Future<void> _initializeDetail() async {
     await _reloadWorkshop();
+    if (!mounted) {
+      return;
+    }
+    await _applyInitialBookingNavigation();
     if (!mounted) {
       return;
     }
@@ -102,6 +111,32 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     }
 
     Navigator.of(context).pop(booking);
+  }
+
+  Future<void> _applyInitialBookingNavigation() async {
+    if (_handledInitialBookingNavigation || !widget.autoOpenBooking) {
+      return;
+    }
+    _handledInitialBookingNavigation = true;
+
+    final String serviceId = widget.initialBookingServiceId.trim();
+    if (serviceId.isEmpty) {
+      return;
+    }
+
+    SalonService? service;
+    for (final SalonService item in _salon.services) {
+      if (item.id == serviceId) {
+        service = item;
+        break;
+      }
+    }
+
+    if (!mounted || service == null) {
+      return;
+    }
+
+    await _openBooking(context: context, preselected: service);
   }
 
   Future<void> _reloadWorkshop() async {
@@ -229,7 +264,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       return;
     }
 
-    final BuildContext? reviewContext = _reviewCardKeys[reviewId]?.currentContext;
+    final BuildContext? reviewContext =
+        _reviewCardKeys[reviewId]?.currentContext;
     if (reviewContext == null || !reviewContext.mounted) {
       return;
     }
@@ -423,25 +459,27 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   label: Text(l10n.writeReview),
                 ),
                 child: Column(
-                  children: _salon.services.map(
-                    (SalonService service) => Padding(
-                      padding: EdgeInsets.only(
-                        bottom: service == _salon.services.last ? 0 : 12,
-                      ),
-                      child: _ServiceActionCard(
-                        l10n: l10n,
-                        salon: _salon,
-                        service: service,
-                        onBook: () => _openBooking(
-                          context: context,
-                          preselected: service,
+                  children: _salon.services
+                      .map(
+                        (SalonService service) => Padding(
+                          padding: EdgeInsets.only(
+                            bottom: service == _salon.services.last ? 0 : 12,
+                          ),
+                          child: _ServiceActionCard(
+                            l10n: l10n,
+                            salon: _salon,
+                            service: service,
+                            onBook: () => _openBooking(
+                              context: context,
+                              preselected: service,
+                            ),
+                            onReview: () => _openReviewComposer(
+                              preselectedService: service,
+                            ),
+                          ),
                         ),
-                        onReview: () => _openReviewComposer(
-                          preselectedService: service,
-                        ),
-                      ),
-                    ),
-                  ).toList(),
+                      )
+                      .toList(),
                 ),
               ),
             ),
@@ -586,8 +624,10 @@ class _DetailHeroCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: isDark
               ? <Color>[
-                  Color.lerp(AppColors.primaryToneOf(context), Colors.black, 0.18)!,
-                  Color.lerp(AppColors.accentOf(context), AppColors.primaryToneOf(context), 0.42)!,
+                  Color.lerp(
+                      AppColors.primaryToneOf(context), Colors.black, 0.18)!,
+                  Color.lerp(AppColors.accentOf(context),
+                      AppColors.primaryToneOf(context), 0.42)!,
                 ]
               : <Color>[heroStart, heroEnd],
         ),
@@ -1085,7 +1125,8 @@ class _ReviewAnalyticsCard extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: analytics.topServices.map((ReviewServiceSummary item) {
+                children:
+                    analytics.topServices.map((ReviewServiceSummary item) {
                   return Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

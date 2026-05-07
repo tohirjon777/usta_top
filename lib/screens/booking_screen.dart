@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../models/booking_availability.dart';
 import '../models/booking_availability_calendar.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
+import '../models/saved_payment_card.dart';
 import '../models/saved_vehicle_profile.dart';
 import '../models/service_price_quote.dart';
 import '../models/vehicle_catalog.dart';
@@ -40,6 +42,7 @@ class _BookingScreenState extends State<BookingScreen> {
     'cash',
     'test_card',
   ];
+  static const int _trialCashbackPercent = 5;
 
   late String _selectedServiceId;
   late String _selectedVehicleTypeId;
@@ -165,9 +168,8 @@ class _BookingScreenState extends State<BookingScreen> {
   String get _brandDropdownValue =>
       _isOtherBrandSelected ? _otherBrandValue : _selectedCatalogBrand;
 
-  String? get _modelDropdownValue => _isOtherModelSelected
-      ? _otherModelValue
-      : _selectedCatalogVehicle?.id;
+  String? get _modelDropdownValue =>
+      _isOtherModelSelected ? _otherModelValue : _selectedCatalogVehicle?.id;
 
   String get _selectedVehicleBrand => _isOtherBrandSelected
       ? normalizeVehicleBrand(_customBrandController.text)
@@ -182,8 +184,6 @@ class _BookingScreenState extends State<BookingScreen> {
         model: _selectedVehicleModelName,
       );
 
-  int get _calculatedPrice => _quotedPrice;
-
   int get _quotedBasePrice => _priceQuote?.basePrice ?? _selectedService.price;
 
   int get _quotedPrice => _priceQuote?.price ?? _selectedService.price;
@@ -195,13 +195,40 @@ class _BookingScreenState extends State<BookingScreen> {
       _priceQuote?.prepaymentAmount ??
       _selectedService.calculatePrepaymentAmount(_quotedPrice);
 
-  int get _quotedRemainingAmount =>
-      _priceQuote?.remainingAmount ?? (_quotedPrice - _quotedPrepaymentAmount);
-
   bool get _requiresPrepayment =>
       _priceQuote?.requiresPrepayment ?? _quotedPrepaymentAmount > 0;
 
   bool get _isTestCardPayment => _selectedPaymentMethod == 'test_card';
+
+  int _cashbackDiscountForBalance(int balance) {
+    return math.min(math.max(0, balance), _quotedPrice);
+  }
+
+  int _payablePriceForBalance(int balance) {
+    return math.max(0, _quotedPrice - _cashbackDiscountForBalance(balance));
+  }
+
+  int _payablePrepaymentForBalance(int balance) {
+    final int payablePrice = _payablePriceForBalance(balance);
+    if (_quotedPrepaymentPercent <= 0) {
+      return 0;
+    }
+    return (payablePrice * _quotedPrepaymentPercent / 100).ceil();
+  }
+
+  int _payableRemainingForBalance(int balance) {
+    return math.max(
+      0,
+      _payablePriceForBalance(balance) - _payablePrepaymentForBalance(balance),
+    );
+  }
+
+  int _trialCashbackAmountForBalance(int balance) {
+    if (!_isTestCardPayment) {
+      return 0;
+    }
+    return (_payablePriceForBalance(balance) * _trialCashbackPercent) ~/ 100;
+  }
 
   List<String> get _availableSlots => _slotItems
       .where((BookingAvailabilitySlot slot) => slot.isAvailable)
@@ -225,9 +252,20 @@ class _BookingScreenState extends State<BookingScreen> {
     final List<SavedVehicleProfile> savedVehicles =
         authProvider.currentUser?.savedVehicles ??
             const <SavedVehicleProfile>[];
+    final int cashbackBalance = authProvider.currentUser?.cashbackBalance ?? 0;
+    final int cashbackDiscountAmount =
+        _cashbackDiscountForBalance(cashbackBalance);
+    final int payablePrice = _payablePriceForBalance(cashbackBalance);
+    final int payablePrepaymentAmount =
+        _payablePrepaymentForBalance(cashbackBalance);
+    final int payableRemainingAmount =
+        _payableRemainingForBalance(cashbackBalance);
+    final int trialCashbackAmount =
+        _trialCashbackAmountForBalance(cashbackBalance);
     final String selectedDateLabel =
         '${AppFormatters.shortDate(_selectedDate)} ${_selectedDate.year}';
-    final List<DropdownMenuItem<String>> brandItems = <DropdownMenuItem<String>>[
+    final List<DropdownMenuItem<String>> brandItems =
+        <DropdownMenuItem<String>>[
       ...vehicleCatalogBrands().map(
         (String brand) => DropdownMenuItem<String>(
           value: brand,
@@ -239,7 +277,8 @@ class _BookingScreenState extends State<BookingScreen> {
         child: Text(l10n.vehicleOtherOption),
       ),
     ];
-    final List<DropdownMenuItem<String>> modelItems = <DropdownMenuItem<String>>[
+    final List<DropdownMenuItem<String>> modelItems =
+        <DropdownMenuItem<String>>[
       ..._brandVehicles.map(
         (VehicleCatalogEntry vehicle) => DropdownMenuItem<String>(
           value: vehicle.id,
@@ -279,7 +318,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      AppFormatters.moneyK(_calculatedPrice),
+                      AppFormatters.moneyK(payablePrice),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: AppColors.primaryToneOf(context),
                             fontWeight: FontWeight.w800,
@@ -300,8 +339,9 @@ class _BookingScreenState extends State<BookingScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton(
-                  onPressed:
-                      _isSubmitting || _selectedTime == null ? null : _submitBooking,
+                  onPressed: _isSubmitting || _selectedTime == null
+                      ? null
+                      : _submitBooking,
                   child: _isSubmitting
                       ? const SizedBox(
                           width: 18,
@@ -398,158 +438,166 @@ class _BookingScreenState extends State<BookingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-          if (savedVehicles.isNotEmpty) ...<Widget>[
-            Text(
-              l10n.savedVehiclesTitle,
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: savedVehicles.map((SavedVehicleProfile vehicle) {
-                final bool isSelected = _isSavedVehicleSelected(vehicle);
-                return ChoiceChip(
-                  label: Text(vehicle.displayName),
-                  selected: isSelected,
-                  onSelected: (_) {
-                    setState(() {
-                      _applySavedVehicle(vehicle);
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 14),
-          ],
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue: _brandDropdownValue,
-            items: brandItems,
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              if (value == _otherBrandValue) {
-                setState(() {
-                  _isOtherBrandSelected = true;
-                  _isOtherModelSelected = true;
-                  if (_customBrandController.text.trim().isEmpty &&
-                      _selectedCatalogVehicle != null) {
-                    _customBrandController.text = _selectedCatalogVehicle!.brand;
-                  }
-                  if (_customModelController.text.trim().isEmpty &&
-                      _selectedCatalogVehicle != null) {
-                    _customModelController.text = _selectedCatalogVehicle!.model;
-                  }
-                  _selectedCatalogVehicleId = null;
-                });
-                _schedulePriceQuoteRefresh();
-                return;
-              }
+                  if (savedVehicles.isNotEmpty) ...<Widget>[
+                    Text(
+                      l10n.savedVehiclesTitle,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children:
+                          savedVehicles.map((SavedVehicleProfile vehicle) {
+                        final bool isSelected =
+                            _isSavedVehicleSelected(vehicle);
+                        return ChoiceChip(
+                          label: Text(vehicle.displayName),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            setState(() {
+                              _applySavedVehicle(vehicle);
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: _brandDropdownValue,
+                    items: brandItems,
+                    onChanged: (String? value) {
+                      if (value == null) {
+                        return;
+                      }
+                      if (value == _otherBrandValue) {
+                        setState(() {
+                          _isOtherBrandSelected = true;
+                          _isOtherModelSelected = true;
+                          if (_customBrandController.text.trim().isEmpty &&
+                              _selectedCatalogVehicle != null) {
+                            _customBrandController.text =
+                                _selectedCatalogVehicle!.brand;
+                          }
+                          if (_customModelController.text.trim().isEmpty &&
+                              _selectedCatalogVehicle != null) {
+                            _customModelController.text =
+                                _selectedCatalogVehicle!.model;
+                          }
+                          _selectedCatalogVehicleId = null;
+                        });
+                        _schedulePriceQuoteRefresh();
+                        return;
+                      }
 
-              final List<VehicleCatalogEntry> vehicles =
-                  vehicleCatalogByBrand(value);
-              if (vehicles.isEmpty) {
-                return;
-              }
-              setState(() {
-                _isOtherBrandSelected = false;
-                _selectedCatalogBrand = value;
-                _isOtherModelSelected = false;
-                _selectCatalogVehicle(vehicles.first);
-              });
-            },
-            decoration: InputDecoration(labelText: l10n.vehicleBrandField),
-          ),
-          if (_isOtherBrandSelected) ...<Widget>[
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _customBrandController,
-              textCapitalization: TextCapitalization.words,
-              onChanged: (_) {
-                setState(() {});
-                _schedulePriceQuoteRefresh();
-              },
-              decoration: InputDecoration(
-                labelText: l10n.vehicleBrandField,
-                hintText: l10n.vehicleBrandHint,
-              ),
-            ),
-          ],
-          if (!_isOtherBrandSelected) ...<Widget>[
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _modelDropdownValue,
-              items: modelItems,
-              onChanged: (String? value) {
-                if (value == null) {
-                  return;
-                }
-                if (value == _otherModelValue) {
-                  setState(() {
-                    _isOtherModelSelected = true;
-                    if (_customModelController.text.trim().isEmpty &&
-                        _selectedCatalogVehicle != null) {
-                      _customModelController.text = _selectedCatalogVehicle!.model;
-                    }
-                  });
-                  _schedulePriceQuoteRefresh();
-                  return;
-                }
-
-                final VehicleCatalogEntry? vehicle = vehicleCatalogEntryById(value);
-                if (vehicle == null) {
-                  return;
-                }
-                setState(() {
-                  _isOtherModelSelected = false;
-                  _selectCatalogVehicle(vehicle);
-                });
-              },
-              decoration:
-                  InputDecoration(labelText: l10n.vehicleCatalogModelField),
-            ),
-          ],
-          if (_isCustomVehicle) ...<Widget>[
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _customModelController,
-              textCapitalization: TextCapitalization.words,
-              onChanged: (_) {
-                setState(() {});
-                _schedulePriceQuoteRefresh();
-              },
-              decoration: InputDecoration(
-                labelText: l10n.vehicleModelField,
-                hintText: l10n.vehicleModelHint,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue: _selectedVehicleTypeId,
-            items: vehicleTypes
-                .map(
-                  (VehicleTypeOption type) => DropdownMenuItem<String>(
-                    value: type.id,
-                    child: Text(type.label(l10n)),
+                      final List<VehicleCatalogEntry> vehicles =
+                          vehicleCatalogByBrand(value);
+                      if (vehicles.isEmpty) {
+                        return;
+                      }
+                      setState(() {
+                        _isOtherBrandSelected = false;
+                        _selectedCatalogBrand = value;
+                        _isOtherModelSelected = false;
+                        _selectCatalogVehicle(vehicles.first);
+                      });
+                    },
+                    decoration:
+                        InputDecoration(labelText: l10n.vehicleBrandField),
                   ),
-                )
-                .toList(),
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              setState(() {
-                _selectedVehicleTypeId = value;
-              });
-              _schedulePriceQuoteRefresh();
-            },
-            decoration: InputDecoration(labelText: l10n.vehicleTypeField),
-          ),
+                  if (_isOtherBrandSelected) ...<Widget>[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _customBrandController,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) {
+                        setState(() {});
+                        _schedulePriceQuoteRefresh();
+                      },
+                      decoration: InputDecoration(
+                        labelText: l10n.vehicleBrandField,
+                        hintText: l10n.vehicleBrandHint,
+                      ),
+                    ),
+                  ],
+                  if (!_isOtherBrandSelected) ...<Widget>[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _modelDropdownValue,
+                      items: modelItems,
+                      onChanged: (String? value) {
+                        if (value == null) {
+                          return;
+                        }
+                        if (value == _otherModelValue) {
+                          setState(() {
+                            _isOtherModelSelected = true;
+                            if (_customModelController.text.trim().isEmpty &&
+                                _selectedCatalogVehicle != null) {
+                              _customModelController.text =
+                                  _selectedCatalogVehicle!.model;
+                            }
+                          });
+                          _schedulePriceQuoteRefresh();
+                          return;
+                        }
+
+                        final VehicleCatalogEntry? vehicle =
+                            vehicleCatalogEntryById(value);
+                        if (vehicle == null) {
+                          return;
+                        }
+                        setState(() {
+                          _isOtherModelSelected = false;
+                          _selectCatalogVehicle(vehicle);
+                        });
+                      },
+                      decoration: InputDecoration(
+                          labelText: l10n.vehicleCatalogModelField),
+                    ),
+                  ],
+                  if (_isCustomVehicle) ...<Widget>[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _customModelController,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) {
+                        setState(() {});
+                        _schedulePriceQuoteRefresh();
+                      },
+                      decoration: InputDecoration(
+                        labelText: l10n.vehicleModelField,
+                        hintText: l10n.vehicleModelHint,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: _selectedVehicleTypeId,
+                    items: vehicleTypes
+                        .map(
+                          (VehicleTypeOption type) => DropdownMenuItem<String>(
+                            value: type.id,
+                            child: Text(type.label(l10n)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (String? value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _selectedVehicleTypeId = value;
+                      });
+                      _schedulePriceQuoteRefresh();
+                    },
+                    decoration:
+                        InputDecoration(labelText: l10n.vehicleTypeField),
+                  ),
                 ],
               ),
             ),
@@ -636,7 +684,8 @@ class _BookingScreenState extends State<BookingScreen> {
                             color: AppColors.secondaryTextOf(context),
                           ),
                     ),
-                    if (_dateKey(_selectedDate) != _dateKey(_nearestAvailableDate!) ||
+                    if (_dateKey(_selectedDate) !=
+                            _dateKey(_nearestAvailableDate!) ||
                         _selectedTime != _nearestAvailableTime) ...<Widget>[
                       const SizedBox(height: 10),
                       FilledButton.tonal(
@@ -696,7 +745,8 @@ class _BookingScreenState extends State<BookingScreen> {
                               child: SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2.2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2.2),
                               ),
                             ),
                           )
@@ -715,17 +765,20 @@ class _BookingScreenState extends State<BookingScreen> {
                                         : l10n.availableTimesEmptyHint,
                                   )
                                 : Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: <Widget>[
                                       if (_availableSlots.isEmpty)
                                         Padding(
-                                          padding: const EdgeInsets.only(bottom: 10),
+                                          padding:
+                                              const EdgeInsets.only(bottom: 10),
                                           child: _AvailabilityMessageCard(
                                             title: _isClosedDay
                                                 ? l10n.availableTimesClosedDay
                                                 : l10n.availableTimesEmpty,
                                             subtitle: _isClosedDay
-                                                ? l10n.availableTimesClosedDayHint
+                                                ? l10n
+                                                    .availableTimesClosedDayHint
                                                 : l10n.availableTimesEmptyHint,
                                           ),
                                         ),
@@ -734,9 +787,14 @@ class _BookingScreenState extends State<BookingScreen> {
                                         runSpacing: 8,
                                         children: _slotItems
                                             .map(
-                                              (BookingAvailabilitySlot slot) => AnimatedScale(
-                                                scale: slot.time == _selectedTime ? 1 : 0.97,
-                                                duration: const Duration(milliseconds: 180),
+                                              (BookingAvailabilitySlot slot) =>
+                                                  AnimatedScale(
+                                                scale:
+                                                    slot.time == _selectedTime
+                                                        ? 1
+                                                        : 0.97,
+                                                duration: const Duration(
+                                                    milliseconds: 180),
                                                 curve: Curves.easeOutCubic,
                                                 child: ChoiceChip(
                                                   label: Text(
@@ -744,23 +802,33 @@ class _BookingScreenState extends State<BookingScreen> {
                                                     style: TextStyle(
                                                       color: slot.isAvailable
                                                           ? null
-                                                          : AppColors.secondaryTextOf(context),
+                                                          : AppColors
+                                                              .secondaryTextOf(
+                                                                  context),
                                                     ),
                                                   ),
-                                                  selected: slot.time == _selectedTime,
-                                                  backgroundColor: slot.isAvailable
-                                                      ? null
-                                                      : AppColors.chipBackgroundOf(context),
+                                                  selected: slot.time ==
+                                                      _selectedTime,
+                                                  backgroundColor:
+                                                      slot.isAvailable
+                                                          ? null
+                                                          : AppColors
+                                                              .chipBackgroundOf(
+                                                                  context),
                                                   side: BorderSide(
                                                     color: slot.isAvailable
-                                                        ? AppColors.borderOf(context)
-                                                        : AppColors.borderOf(context)
-                                                            .withValues(alpha: 0.6),
+                                                        ? AppColors.borderOf(
+                                                            context)
+                                                        : AppColors.borderOf(
+                                                                context)
+                                                            .withValues(
+                                                                alpha: 0.6),
                                                   ),
                                                   onSelected: slot.isAvailable
                                                       ? (_) {
                                                           setState(() {
-                                                            _selectedTime = slot.time;
+                                                            _selectedTime =
+                                                                slot.time;
                                                           });
                                                         }
                                                       : null,
@@ -829,13 +897,23 @@ class _BookingScreenState extends State<BookingScreen> {
                       Text(
                         l10n.prepaymentSummaryLabel(
                           _quotedPrepaymentPercent,
-                          AppFormatters.moneyK(_quotedPrepaymentAmount),
+                          AppFormatters.moneyK(payablePrepaymentAmount),
                         ),
                       ),
                     if (_requiresPrepayment)
                       Text(
                         l10n.remainingPaymentLabel(
-                          AppFormatters.moneyK(_quotedRemainingAmount),
+                          AppFormatters.moneyK(payableRemainingAmount),
+                        ),
+                      ),
+                    if (cashbackDiscountAmount > 0)
+                      Text(
+                        l10n.cashbackAutoApplySummary(
+                          AppFormatters.moneyK(cashbackDiscountAmount),
+                        ),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryToneOf(context),
                         ),
                       ),
                     if (_priceQuote?.matchedRule == true &&
@@ -855,13 +933,27 @@ class _BookingScreenState extends State<BookingScreen> {
                     const SizedBox(height: 6),
                     Text(
                       l10n.totalLabel(
-                        AppFormatters.moneyK(_calculatedPrice),
+                        AppFormatters.moneyK(payablePrice),
                       ),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: AppColors.primaryToneOf(context),
                       ),
                     ),
+                    if (_isTestCardPayment &&
+                        trialCashbackAmount > 0) ...<Widget>[
+                      const SizedBox(height: 6),
+                      Text(
+                        l10n.cashbackTrialSummary(
+                          _trialCashbackPercent,
+                          AppFormatters.moneyK(trialCashbackAmount),
+                        ),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryToneOf(context),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Text(
                       l10n.paymentMethodLabel,
@@ -881,7 +973,8 @@ class _BookingScreenState extends State<BookingScreen> {
                       children: _paymentMethods
                           .map(
                             (String method) => AnimatedScale(
-                              scale: method == _selectedPaymentMethod ? 1 : 0.98,
+                              scale:
+                                  method == _selectedPaymentMethod ? 1 : 0.98,
                               duration: const Duration(milliseconds: 180),
                               curve: Curves.easeOutCubic,
                               child: ChoiceChip(
@@ -1032,9 +1125,8 @@ class _BookingScreenState extends State<BookingScreen> {
           await context.read<BookingProvider>().loadPriceQuote(
                 workshopId: widget.salon.id,
                 serviceId: _selectedService.id,
-                catalogVehicleId: _isCustomVehicle
-                    ? ''
-                    : (_selectedCatalogVehicle?.id ?? ''),
+                catalogVehicleId:
+                    _isCustomVehicle ? '' : (_selectedCatalogVehicle?.id ?? ''),
                 vehicleBrand: _selectedVehicleBrand,
                 vehicleModelName: _selectedVehicleModelName,
                 vehicleTypeId: _selectedVehicleTypeId,
@@ -1109,11 +1201,13 @@ class _BookingScreenState extends State<BookingScreen> {
         for (final BookingAvailabilityDay item in calendar.days)
           _dateKey(item.date): item,
       };
-      final DateTime? resolvedNearestDate = calendar.nearestAvailableDate == null
-          ? null
-          : _normalizedDate(calendar.nearestAvailableDate!);
+      final DateTime? resolvedNearestDate =
+          calendar.nearestAvailableDate == null
+              ? null
+              : _normalizedDate(calendar.nearestAvailableDate!);
       DateTime nextSelectedDate = _selectedDate;
-      if (forceAdjustSelection || !_isSelectableFromMap(daysByKey, _selectedDate)) {
+      if (forceAdjustSelection ||
+          !_isSelectableFromMap(daysByKey, _selectedDate)) {
         final DateTime? fallbackDate =
             resolvedNearestDate ?? _firstSelectableDateFromMap(daysByKey);
         if (fallbackDate != null) {
@@ -1196,7 +1290,8 @@ class _BookingScreenState extends State<BookingScreen> {
           _selectedTime = preferredTime;
         } else if (_selectedTime == null ||
             !_availableSlots.contains(_selectedTime)) {
-          _selectedTime = _availableSlots.isEmpty ? null : _availableSlots.first;
+          _selectedTime =
+              _availableSlots.isEmpty ? null : _availableSlots.first;
         }
       });
     } on ApiException catch (error) {
@@ -1313,8 +1408,16 @@ class _BookingScreenState extends State<BookingScreen> {
       int.parse(parts.last),
     );
 
-    if (_isTestCardPayment) {
-      final bool shouldContinue = await _showTestPaymentSheet();
+    final int cashbackBalance =
+        context.read<AuthProvider>().currentUser?.cashbackBalance ?? 0;
+    final int payablePrice = _payablePriceForBalance(cashbackBalance);
+
+    if (_isTestCardPayment && payablePrice > 0) {
+      final bool hasCard = await _ensureTestPaymentCard();
+      if (!hasCard || !mounted) {
+        return;
+      }
+      final bool shouldContinue = await _showTestPaymentSheet(cashbackBalance);
       if (!shouldContinue || !mounted) {
         return;
       }
@@ -1334,9 +1437,8 @@ class _BookingScreenState extends State<BookingScreen> {
                 serviceName: _selectedService.name,
                 vehicleBrand: vehicleBrand,
                 vehicleModelName: vehicleModelName,
-                catalogVehicleId: _isCustomVehicle
-                    ? ''
-                    : (_selectedCatalogVehicle?.id ?? ''),
+                catalogVehicleId:
+                    _isCustomVehicle ? '' : (_selectedCatalogVehicle?.id ?? ''),
                 isCustomVehicle: _isCustomVehicle,
                 vehicleTypeId: _selectedVehicleTypeId,
                 dateTime: bookingDateTime,
@@ -1362,6 +1464,7 @@ class _BookingScreenState extends State<BookingScreen> {
               lastUsedAt: DateTime.now(),
             ),
           );
+      unawaited(context.read<AuthProvider>().loadCurrentUser());
       Navigator.of(context).pop(booking);
     } on ApiException catch (error) {
       if (!mounted) {
@@ -1386,11 +1489,15 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  Future<bool> _showTestPaymentSheet() async {
+  Future<bool> _showTestPaymentSheet(int cashbackBalance) async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final String payableAmount = AppFormatters.moneyK(
-      _requiresPrepayment ? _quotedPrepaymentAmount : _quotedPrice,
+      _requiresPrepayment
+          ? _payablePrepaymentForBalance(cashbackBalance)
+          : _payablePriceForBalance(cashbackBalance),
     );
+    final int trialCashbackAmount =
+        _trialCashbackAmountForBalance(cashbackBalance);
     final bool? result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -1485,6 +1592,18 @@ class _BookingScreenState extends State<BookingScreen> {
                 l10n.testPaymentAmountLabel(payableAmount),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
+              if (trialCashbackAmount > 0) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.cashbackTrialEarn(
+                    AppFormatters.moneyK(trialCashbackAmount),
+                  ),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.primaryToneOf(context),
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
               const SizedBox(height: 6),
               Text(
                 l10n.testPaymentHint,
@@ -1505,6 +1624,234 @@ class _BookingScreenState extends State<BookingScreen> {
     return result == true;
   }
 
+  Future<bool> _ensureTestPaymentCard() async {
+    final AuthProvider authProvider = context.read<AuthProvider>();
+    if (authProvider.currentUser == null && !authProvider.isLoadingProfile) {
+      await authProvider.loadCurrentUser();
+    }
+    if (!mounted) {
+      return false;
+    }
+
+    final List<SavedPaymentCard> cards =
+        authProvider.currentUser?.savedPaymentCards ??
+            const <SavedPaymentCard>[];
+    if (cards.isNotEmpty) {
+      return true;
+    }
+
+    final bool? added = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const _RequiredPaymentCardSheet(),
+    );
+
+    return added == true;
+  }
+}
+
+class _RequiredPaymentCardSheet extends StatefulWidget {
+  const _RequiredPaymentCardSheet();
+
+  @override
+  State<_RequiredPaymentCardSheet> createState() =>
+      _RequiredPaymentCardSheetState();
+}
+
+class _RequiredPaymentCardSheetState extends State<_RequiredPaymentCardSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _holderController;
+  final TextEditingController _numberController = TextEditingController();
+  final TextEditingController _expiryController = TextEditingController();
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _holderController = TextEditingController(
+      text: context.read<AuthProvider>().currentUser?.fullName ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _holderController.dispose();
+    _numberController.dispose();
+    _expiryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    l10n.paymentCardRequiredForTestPayment,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  onPressed:
+                      _isSaving ? null : () => Navigator.of(context).pop(false),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _holderController,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: l10n.paymentCardHolderName,
+                hintText: l10n.paymentCardHolderHint,
+              ),
+              validator: (String? value) {
+                final String normalized = (value ?? '').trim();
+                if (normalized.isEmpty) {
+                  return l10n.paymentCardHolderRequired;
+                }
+                if (normalized.length < 2) {
+                  return l10n.paymentCardHolderShort;
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _numberController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: l10n.paymentCardNumber,
+                hintText: l10n.paymentCardNumberHint,
+              ),
+              validator: (String? value) {
+                final String digits =
+                    SavedPaymentCard.normalizeDigits(value ?? '');
+                if (digits.isEmpty) {
+                  return l10n.paymentCardRequired;
+                }
+                if (digits.length < 12 || digits.length > 19) {
+                  return l10n.paymentCardInvalid;
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _expiryController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: l10n.paymentCardExpiry,
+                hintText: l10n.paymentCardExpiryHint,
+              ),
+              validator: (String? value) {
+                final _ParsedExpiry? expiry = _parseExpiry(value ?? '');
+                if ((value ?? '').trim().isEmpty) {
+                  return l10n.paymentCardExpiryRequired;
+                }
+                if (expiry == null) {
+                  return l10n.paymentCardExpiryInvalid;
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: _isSaving ? null : _save,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_card_rounded),
+              label: Text(l10n.addCardToPay),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final _ParsedExpiry expiry = _parseExpiry(_expiryController.text)!;
+    setState(() {
+      _isSaving = true;
+    });
+
+    final AuthProvider authProvider = context.read<AuthProvider>();
+    final bool saved = await authProvider.addPaymentCard(
+      holderName: _holderController.text.trim(),
+      cardNumber: _numberController.text,
+      expiryMonth: expiry.month,
+      expiryYear: expiry.year,
+      isDefault: true,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = false;
+    });
+
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            authProvider.errorMessage ??
+                AppLocalizations.of(context).paymentCardSaveFailed,
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).pop(true);
+  }
+
+  _ParsedExpiry? _parseExpiry(String raw) {
+    final String digits = raw.replaceAll(RegExp(r'\D+'), '');
+    if (digits.length != 4) {
+      return null;
+    }
+
+    final int month = int.tryParse(digits.substring(0, 2)) ?? 0;
+    final int year = int.tryParse(digits.substring(2, 4)) ?? 0;
+    if (month < 1 || month > 12 || year <= 0) {
+      return null;
+    }
+
+    return _ParsedExpiry(month: month, year: 2000 + year);
+  }
+}
+
+class _ParsedExpiry {
+  const _ParsedExpiry({required this.month, required this.year});
+
+  final int month;
+  final int year;
 }
 
 class _BookingHeroCard extends StatelessWidget {
@@ -1562,7 +1909,8 @@ class _BookingHeroCard extends StatelessWidget {
                     color: Theme.of(context).cardColor.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.7),
+                      color:
+                          Theme.of(context).dividerColor.withValues(alpha: 0.7),
                     ),
                   ),
                   child: Icon(

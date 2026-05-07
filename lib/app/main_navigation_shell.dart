@@ -10,6 +10,7 @@ import '../models/booking_cancellation_reason.dart';
 import '../models/booking_item.dart';
 import '../models/salon.dart';
 import '../providers/app_navigation_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 import '../providers/notification_settings_provider.dart';
 import '../providers/workshop_provider.dart';
@@ -132,6 +133,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     bool autoOpenReviewComposer = false,
     String reviewPromptBookingId = '',
     bool lockInitialReviewServiceSelection = false,
+    String initialBookingServiceId = '',
+    bool autoOpenBooking = false,
   }) {
     return Navigator.of(context).push<BookingItem>(
       _buildElevatedRoute<BookingItem>(
@@ -142,15 +145,23 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           autoOpenReviewComposer: autoOpenReviewComposer,
           reviewPromptBookingId: reviewPromptBookingId,
           lockInitialReviewServiceSelection: lockInitialReviewServiceSelection,
+          initialBookingServiceId: initialBookingServiceId,
+          autoOpenBooking: autoOpenBooking,
         ),
       ),
     );
   }
 
-  Future<void> _openSalonDetail(Salon salon) async {
+  Future<void> _openSalonDetail(
+    Salon salon, {
+    String initialBookingServiceId = '',
+    bool autoOpenBooking = false,
+  }) async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final BookingItem? booking = await _openSalonDetailRoute(
       salon: salon,
+      initialBookingServiceId: initialBookingServiceId,
+      autoOpenBooking: autoOpenBooking,
     );
 
     if (booking == null) {
@@ -294,6 +305,21 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           ),
         ),
       );
+
+    final bool shouldRefreshCashback = previousSnapshots.isNotEmpty &&
+        bookings.any((BookingItem item) {
+          final BookingItem? previous = previousSnapshots[item.id];
+          if (previous == null || previous.status == item.status) {
+            return false;
+          }
+          return (item.status == BookingStatus.completed &&
+                  item.cashbackAmount > 0) ||
+              (item.status == BookingStatus.cancelled &&
+                  item.cashbackAppliedAmount > 0);
+        });
+    if (shouldRefreshCashback) {
+      unawaited(context.read<AuthProvider>().loadCurrentUser());
+    }
 
     if (notifyOnTelegramCancellation &&
         previousSnapshots.isNotEmpty &&
@@ -467,7 +493,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     final List<Widget> pages = <Widget>[
-      HomeScreen(onOpenSalon: _openSalonDetail),
+      HomeScreen(
+        onOpenSalon: _openSalonDetail,
+        onOpenService: (Salon salon, String serviceId) => _openSalonDetail(
+          salon,
+          initialBookingServiceId: serviceId,
+          autoOpenBooking: true,
+        ),
+      ),
       MapScreen(onOpenSalon: _openSalonDetail),
       const MyBookingsScreen(),
       ProfileScreen(

@@ -1,5 +1,6 @@
 import '../models/saved_payment_card.dart';
 import '../models/saved_vehicle_profile.dart';
+import '../models/cashback_transaction.dart';
 
 class AuthUser {
   const AuthUser({
@@ -9,6 +10,9 @@ class AuthUser {
     this.avatarUrl,
     this.savedVehicles = const <SavedVehicleProfile>[],
     this.savedPaymentCards = const <SavedPaymentCard>[],
+    this.cashbackBalance = 0,
+    this.cashbackEarnedTotal = 0,
+    this.cashbackTransactions = const <CashbackTransaction>[],
   });
 
   final String id;
@@ -17,6 +21,9 @@ class AuthUser {
   final String? avatarUrl;
   final List<SavedVehicleProfile> savedVehicles;
   final List<SavedPaymentCard> savedPaymentCards;
+  final int cashbackBalance;
+  final int cashbackEarnedTotal;
+  final List<CashbackTransaction> cashbackTransactions;
 
   AuthUser copyWith({
     String? fullName,
@@ -24,6 +31,9 @@ class AuthUser {
     String? avatarUrl,
     List<SavedVehicleProfile>? savedVehicles,
     List<SavedPaymentCard>? savedPaymentCards,
+    int? cashbackBalance,
+    int? cashbackEarnedTotal,
+    List<CashbackTransaction>? cashbackTransactions,
   }) {
     return AuthUser(
       id: id,
@@ -32,6 +42,9 @@ class AuthUser {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       savedVehicles: savedVehicles ?? this.savedVehicles,
       savedPaymentCards: savedPaymentCards ?? this.savedPaymentCards,
+      cashbackBalance: cashbackBalance ?? this.cashbackBalance,
+      cashbackEarnedTotal: cashbackEarnedTotal ?? this.cashbackEarnedTotal,
+      cashbackTransactions: cashbackTransactions ?? this.cashbackTransactions,
     );
   }
 
@@ -62,7 +75,26 @@ class AuthUser {
             item.expiryMonth > 0 &&
             item.expiryYear > 0;
       }).toList(growable: false),
+      cashbackBalance: _toInt(json['cashbackBalance']),
+      cashbackEarnedTotal: _toInt(json['cashbackEarnedTotal']),
+      cashbackTransactions: ((json['cashbackTransactions'] as List<dynamic>?) ??
+              const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(CashbackTransaction.fromJson)
+          .where((CashbackTransaction item) {
+        return item.id.isNotEmpty && item.amount != 0;
+      }).toList(growable: false),
     );
+  }
+
+  static int _toInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse('$value') ?? 0;
   }
 }
 

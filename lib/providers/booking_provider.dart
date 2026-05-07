@@ -204,6 +204,9 @@ class BookingProvider extends BookingController {
     try {
       if (_service == null) {
         final bool isTestCardPayment = paymentMethod.trim() == 'test_card';
+        final int cashbackPercent = isTestCardPayment ? 5 : 0;
+        final int cashbackAmount =
+            cashbackPercent > 0 ? (totalPrice * cashbackPercent) ~/ 100 : 0;
         final BookingItem localBooking = BookingItem(
           id: 'b-${DateTime.now().microsecondsSinceEpoch}',
           workshopId: workshopId,
@@ -216,6 +219,7 @@ class BookingProvider extends BookingController {
           dateTime: dateTime,
           basePrice: basePrice,
           price: totalPrice,
+          originalPrice: totalPrice,
           prepaymentPercent: prepaymentPercent,
           prepaymentAmount: ((totalPrice * prepaymentPercent) / 100).ceil(),
           remainingAmount:
@@ -224,10 +228,15 @@ class BookingProvider extends BookingController {
               ? (isTestCardPayment
                   ? BookingPaymentStatus.paid
                   : BookingPaymentStatus.pending)
-              : BookingPaymentStatus.notRequired,
+              : (isTestCardPayment
+                  ? BookingPaymentStatus.paid
+                  : BookingPaymentStatus.notRequired),
           paymentMethod: paymentMethod,
-          paidAt:
-              prepaymentPercent > 0 && isTestCardPayment ? DateTime.now() : null,
+          paidAt: isTestCardPayment ? DateTime.now() : null,
+          cashbackPercent: cashbackPercent,
+          cashbackAmount: cashbackAmount,
+          cashbackStatus:
+              cashbackAmount > 0 ? 'pending_completion' : 'not_eligible',
         );
         upsertBooking(localBooking);
         return localBooking;
@@ -677,7 +686,8 @@ class BookingProvider extends BookingController {
     required DateTime fromDate,
     required int days,
   }) {
-    final DateTime normalized = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    final DateTime normalized =
+        DateTime(fromDate.year, fromDate.month, fromDate.day);
     final String month = normalized.month.toString().padLeft(2, '0');
     final String day = normalized.day.toString().padLeft(2, '0');
     return '$workshopId|$serviceId|calendar|${normalized.year}-$month-$day|$days';
@@ -745,7 +755,8 @@ class BookingProvider extends BookingController {
       '18:30',
     ];
     final DateTime now = DateTime.now();
-    final List<BookingAvailabilitySlot> slots = fallbackSlots.map((String item) {
+    final List<BookingAvailabilitySlot> slots =
+        fallbackSlots.map((String item) {
       final List<String> parts = item.split(':');
       final DateTime slotDate = DateTime(
         normalized.year,
@@ -778,7 +789,8 @@ class BookingProvider extends BookingController {
     DateTime fromDate, {
     required int days,
   }) {
-    final DateTime start = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    final DateTime start =
+        DateTime(fromDate.year, fromDate.month, fromDate.day);
     final List<BookingAvailabilityDay> items = <BookingAvailabilityDay>[];
     DateTime? nearestDate;
     String nearestTime = '';
@@ -790,7 +802,8 @@ class BookingProvider extends BookingController {
         isClosedDay: availability.isClosedDay,
         slotCount: availability.slotTimes.length,
         activeBookingCount: 0,
-        isFullyBooked: !availability.isClosedDay && availability.slotTimes.isEmpty,
+        isFullyBooked:
+            !availability.isClosedDay && availability.slotTimes.isEmpty,
         firstSlot:
             availability.slotTimes.isEmpty ? '' : availability.slotTimes.first,
       );

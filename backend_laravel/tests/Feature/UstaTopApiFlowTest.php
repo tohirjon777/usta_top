@@ -158,6 +158,139 @@ class UstaTopApiFlowTest extends TestCase
         );
     }
 
+    public function test_emergency_services_and_trial_cashback_flow(): void
+    {
+        $workshopsResponse = $this->getJson('/workshops')->assertOk();
+        $serviceIds = collect($workshopsResponse->json('data.0.services'))
+            ->pluck('id')
+            ->all();
+        $this->assertContains('emergency-tire-change', $serviceIds);
+        $this->assertContains('emergency-fuel-delivery', $serviceIds);
+
+        $phone = '+99890'.random_int(1000000, 9999999);
+        $token = $this->registerCustomerViaOtp('Cashback Flow', $phone);
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $calendarResponse = $this->getJson('/workshops/w-1/availability/calendar?serviceId=emergency-tire-change&from=2026-03-30&days=7');
+        $calendarResponse->assertOk();
+        $date = (string) $calendarResponse->json('data.nearestAvailableDate');
+        $time = (string) $calendarResponse->json('data.nearestAvailableTime');
+        $bookingDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i',
+            $date.' '.$time,
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
+
+        $payload = [
+            'workshopId' => 'w-1',
+            'serviceId' => 'emergency-tire-change',
+            'vehicleBrand' => 'Chevrolet',
+            'vehicleModelName' => 'Cobalt',
+            'vehicleModel' => 'Chevrolet Cobalt',
+            'catalogVehicleId' => 'chevrolet_cobalt',
+            'isCustomVehicle' => false,
+            'vehicleTypeId' => 'sedan',
+            'dateTime' => $bookingDateTime,
+            'paymentMethod' => 'test_card',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/bookings', $payload)
+            ->assertStatus(400)
+            ->assertJsonPath('error', 'Test karta bilan to‘lash uchun avval kartani kiriting');
+
+        $this->withHeaders($headers)
+            ->postJson('/auth/me/cards', [
+                'holderName' => 'Cashback Flow',
+                'cardNumber' => '8600123412341234',
+                'expiryMonth' => 12,
+                'expiryYear' => 2030,
+                'isDefault' => true,
+            ])
+            ->assertOk();
+
+        $bookingResponse = $this->withHeaders($headers)->postJson('/bookings', $payload);
+        $bookingResponse
+            ->assertCreated()
+            ->assertJsonPath('data.serviceId', 'emergency-tire-change')
+            ->assertJsonPath('data.paymentStatus', 'paid')
+            ->assertJsonPath('data.cashbackPercent', 5)
+            ->assertJsonPath('data.cashbackStatus', 'pending_completion');
+
+        $bookingId = (string) $bookingResponse->json('data.id');
+        $cashbackAmount = (int) $bookingResponse->json('data.cashbackAmount');
+        $this->assertGreaterThan(0, $cashbackAmount);
+
+        $this->withHeaders($headers)
+            ->getJson('/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.cashbackBalance', 0)
+            ->assertJsonPath('data.cashbackEarnedTotal', 0)
+            ->assertJsonCount(0, 'data.cashbackTransactions');
+
+        app(UstaTopRepository::class)->updateBookingStatus($bookingId, 'completed', [
+            'actorRole' => 'owner',
+        ]);
+
+        $this->withHeaders($headers)
+            ->getJson('/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.cashbackBalance', $cashbackAmount)
+            ->assertJsonPath('data.cashbackEarnedTotal', $cashbackAmount)
+            ->assertJsonPath('data.cashbackTransactions.0.type', 'earned')
+            ->assertJsonPath('data.cashbackTransactions.0.amount', $cashbackAmount)
+            ->assertJsonPath('data.cashbackTransactions.0.bookingId', $bookingId);
+
+        $nextCalendarResponse = $this->getJson('/workshops/w-1/availability/calendar?serviceId=emergency-fuel-delivery&from=2026-03-30&days=7');
+        $nextCalendarResponse->assertOk();
+        $nextDate = (string) $nextCalendarResponse->json('data.nearestAvailableDate');
+        $nextTime = (string) $nextCalendarResponse->json('data.nearestAvailableTime');
+        $nextBookingDateTime = CarbonImmutable::createFromFormat(
+            'Y-m-d H:i',
+            $nextDate.' '.$nextTime,
+            'Asia/Tashkent'
+        )->utc()->toIso8601String();
+
+        $nextPayload = $payload;
+        $nextPayload['serviceId'] = 'emergency-fuel-delivery';
+        $nextPayload['dateTime'] = $nextBookingDateTime;
+        $nextPayload['paymentMethod'] = 'cash';
+
+        $nextBookingResponse = $this->withHeaders($headers)->postJson('/bookings', $nextPayload);
+        $nextBookingResponse
+            ->assertCreated()
+            ->assertJsonPath('data.serviceId', 'emergency-fuel-delivery')
+            ->assertJsonPath('data.cashbackAppliedAmount', $cashbackAmount)
+            ->assertJsonPath('data.cashbackAppliedStatus', 'applied');
+        $this->assertSame(
+            (int) $nextBookingResponse->json('data.originalPrice') - $cashbackAmount,
+            (int) $nextBookingResponse->json('data.price')
+        );
+
+        $this->withHeaders($headers)
+            ->getJson('/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.cashbackBalance', 0)
+            ->assertJsonPath('data.cashbackEarnedTotal', $cashbackAmount)
+            ->assertJsonPath('data.cashbackTransactions.0.type', 'redeemed')
+            ->assertJsonPath('data.cashbackTransactions.0.amount', -$cashbackAmount)
+            ->assertJsonPath('data.cashbackTransactions.0.bookingId', (string) $nextBookingResponse->json('data.id'));
+
+        $this->withHeaders($headers)
+            ->patchJson('/bookings/'.((string) $nextBookingResponse->json('data.id')).'/cancel')
+            ->assertOk()
+            ->assertJsonPath('data.cashbackAppliedStatus', 'refunded');
+
+        $this->withHeaders($headers)
+            ->getJson('/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.cashbackBalance', $cashbackAmount)
+            ->assertJsonPath('data.cashbackEarnedTotal', $cashbackAmount)
+            ->assertJsonPath('data.cashbackTransactions.0.type', 'refunded')
+            ->assertJsonPath('data.cashbackTransactions.0.amount', $cashbackAmount)
+            ->assertJsonCount(3, 'data.cashbackTransactions');
+    }
+
     public function test_today_availability_hides_past_slots_and_old_booking_is_rejected(): void
     {
         Carbon::setTestNow('2026-03-30 14:10:00');

@@ -9,6 +9,7 @@ return [
     'users_file' => env('USTATOP_USERS_FILE', base_path('data/users.json')),
     'workshops_file' => env('USTATOP_WORKSHOPS_FILE', base_path('data/workshops.json')),
     'bookings_file' => env('USTATOP_BOOKINGS_FILE', base_path('data/bookings.json')),
+    'cashback_transactions_file' => env('USTATOP_CASHBACK_TRANSACTIONS_FILE', base_path('data/cashback_transactions.json')),
     'reviews_file' => env('USTATOP_REVIEWS_FILE', base_path('data/reviews.json')),
     'booking_messages_file' => env('USTATOP_BOOKING_MESSAGES_FILE', base_path('data/booking_messages.json')),
     'workshop_locations_file' => env('USTATOP_WORKSHOP_LOCATIONS_FILE', base_path('data/workshop_locations.json')),
