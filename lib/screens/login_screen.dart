@@ -414,6 +414,7 @@ class _LoginScreenState extends State<LoginScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (BuildContext sheetContext) {
+        final NavigatorState sheetNavigator = Navigator.of(sheetContext);
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             Future<void> sendCode() async {
@@ -480,20 +481,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 password: passwordController.text,
                 code: codeController.text.trim(),
               );
+
+              if (success) {
+                if (mounted) {
+                  _phoneController.text = phoneController.text.trim();
+                  _passwordController.text = passwordController.text;
+                }
+                if (sheetNavigator.canPop()) {
+                  sheetNavigator.pop();
+                }
+                return;
+              }
+
               if (!mounted) {
                 return;
               }
 
               final String? providerError = authProvider.errorMessage;
-              if (success) {
-                _phoneController.text = phoneController.text.trim();
-                _passwordController.text = passwordController.text;
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                }
-                return;
-              }
-
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
@@ -772,6 +776,7 @@ class _LoginScreenState extends State<LoginScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (BuildContext sheetContext) {
+        final NavigatorState sheetNavigator = Navigator.of(sheetContext);
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             Future<void> sendCode() async {
@@ -839,31 +844,35 @@ class _LoginScreenState extends State<LoginScreen> {
                 newPassword: newPassword,
                 code: codeController.text.trim(),
               );
+
+              final String? providerError = authProvider.errorMessage;
+              if (success) {
+                if (mounted) {
+                  _phoneController.text = phone;
+                  _passwordController.text = newPassword;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(l10n.passwordResetSuccess)),
+                  );
+                }
+                if (sheetNavigator.canPop()) {
+                  sheetNavigator.pop();
+                }
+                return;
+              }
+
               if (!mounted) {
                 return;
               }
 
-              final String? providerError = authProvider.errorMessage;
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    success
-                        ? l10n.passwordResetSuccess
-                        : (providerError?.trim().isNotEmpty ?? false)
-                            ? providerError!
-                            : l10n.passwordResetVerifyFailed,
+                    (providerError?.trim().isNotEmpty ?? false)
+                        ? providerError!
+                        : l10n.passwordResetVerifyFailed,
                   ),
                 ),
               );
-
-              if (success) {
-                _phoneController.text = phone;
-                _passwordController.text = newPassword;
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                }
-                return;
-              }
 
               if (context.mounted) {
                 setModalState(() {
