@@ -445,6 +445,82 @@ class UstaTopApiFlowTest extends TestCase
             ->assertJsonPath('data.savedPaymentCards', []);
     }
 
+    public function test_customer_can_delete_account_and_personal_data_is_anonymized(): void
+    {
+        $loginResponse = $this->postJson('/auth/login', [
+            'phone' => '+998900000111',
+            'password' => 'secret123',
+        ]);
+        $loginResponse->assertOk();
+
+        $token = (string) $loginResponse->json('data.token');
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $this->withHeaders($headers)->postJson('/auth/me/cards', [
+            'holderName' => 'Seed Customer',
+            'cardNumber' => '8600123456789012',
+            'expiryMonth' => 12,
+            'expiryYear' => 2028,
+            'isDefault' => true,
+        ])->assertOk();
+
+        $this->withHeaders($headers)
+            ->postJson('/bookings/b-seed-1/messages', [
+                'text' => 'Mening telefonim +998900000111',
+            ])
+            ->assertCreated();
+
+        app(UstaTopRepository::class)->updateBookingStatus('b-seed-1', 'completed', [
+            'actorRole' => 'admin',
+        ]);
+
+        $this->withHeaders($headers)->postJson('/workshops/w-1/reviews', [
+            'serviceId' => 'srv-1',
+            'rating' => 5,
+            'comment' => 'Mening ismim Seed Customer',
+            'bookingId' => 'b-seed-1',
+        ])->assertOk();
+
+        $this->withHeaders($headers)
+            ->deleteJson('/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $this->withHeaders($headers)
+            ->getJson('/auth/me')
+            ->assertUnauthorized();
+
+        $this->postJson('/auth/login', [
+            'phone' => '+998900000111',
+            'password' => 'secret123',
+        ])->assertUnauthorized();
+
+        $store = app(JsonFileStore::class);
+        $users = $store->readArray((string) config('ustatop.users_file'), []);
+        $this->assertNull(collect($users)->first(fn (array $user): bool => ($user['id'] ?? '') === 'u-seed-1'));
+
+        $bookings = $store->readArray((string) config('ustatop.bookings_file'), []);
+        $booking = collect($bookings)->first(fn (array $item): bool => ($item['id'] ?? '') === 'b-seed-1');
+        $this->assertSame('', $booking['userId'] ?? null);
+        $this->assertSame('Deleted customer', $booking['customerName'] ?? null);
+        $this->assertSame('', $booking['customerPhone'] ?? null);
+
+        $messages = $store->readArray((string) config('ustatop.booking_messages_file'), []);
+        $message = collect($messages)->first(fn (array $item): bool => ($item['bookingId'] ?? '') === 'b-seed-1');
+        $this->assertSame('Deleted customer', $message['senderName'] ?? null);
+        $this->assertSame('[deleted]', $message['text'] ?? null);
+
+        $reviews = $store->readArray((string) config('ustatop.reviews_file'), []);
+        $review = collect($reviews)->first(fn (array $item): bool => ($item['bookingId'] ?? '') === 'b-seed-1');
+        $this->assertSame('', $review['userId'] ?? null);
+        $this->assertSame('Deleted customer', $review['customerName'] ?? null);
+        $this->assertSame('', $review['comment'] ?? null);
+        $this->assertTrue($review['isHidden'] ?? false);
+
+        $sessions = $store->readArray((string) config('ustatop.auth_sessions_file'), []);
+        $this->assertNull(collect($sessions)->first(fn (array $session): bool => ($session['userId'] ?? '') === 'u-seed-1'));
+    }
+
     public function test_sms_verification_flow_works_for_register_and_password_reset(): void
     {
         $phone = '+99890'.random_int(1000000, 9999999);

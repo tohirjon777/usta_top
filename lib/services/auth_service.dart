@@ -231,6 +231,10 @@ abstract interface class AuthService {
     required String newPassword,
   });
 
+  Future<void> deleteAccount({
+    required String accessToken,
+  });
+
   Future<void> registerPushToken({
     required String accessToken,
     required String token,

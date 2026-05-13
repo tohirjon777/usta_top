@@ -577,6 +577,37 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> deleteAccount() async {
+    final String? token = _accessToken;
+    if (!_isLoggedIn || token == null || token.isEmpty) {
+      return false;
+    }
+
+    _isLoadingProfile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.deleteAccount(accessToken: token);
+      await _tokenStorage.clearSession();
+      _clearAuthState();
+      return true;
+    } on AuthException catch (error) {
+      _errorMessage = error.message;
+      if (error.statusCode == 401) {
+        await _tokenStorage.clearSession();
+        _clearAuthState();
+      }
+      return false;
+    } catch (_) {
+      _errorMessage = 'Akkauntni o\'chirishda xatolik yuz berdi';
+      return false;
+    } finally {
+      _isLoadingProfile = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> signOut() async {
     await _tokenStorage.clearSession();
     _clearAuthState();

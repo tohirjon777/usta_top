@@ -342,6 +342,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: Text(l10n.signOut),
             ),
           ),
+          const SizedBox(height: 10),
+          AppReveal(
+            delay: const Duration(milliseconds: 650),
+            child: OutlinedButton.icon(
+              onPressed: isLoadingProfile ? null : _confirmDeleteAccount,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.warning,
+                side: const BorderSide(color: AppColors.warning),
+              ),
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: Text(l10n.deleteAccount),
+            ),
+          ),
         ],
       ),
     );
@@ -1179,6 +1192,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     await context.read<AuthProvider>().signOut();
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final AuthProvider authProvider = context.read<AuthProvider>();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.deleteAccountTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(l10n.deleteAccountConfirm),
+              const SizedBox(height: 10),
+              Text(
+                l10n.deleteAccountWarning,
+                style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.deleteAccount),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    final bool success = await authProvider.deleteAccount();
+    final String? providerError = authProvider.errorMessage;
+    final String message = success
+        ? l10n.deleteAccountSuccess
+        : (providerError?.trim().isNotEmpty ?? false)
+            ? providerError!
+            : l10n.deleteAccountFailed;
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _displayValue(String? value, String fallback) {

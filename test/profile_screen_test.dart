@@ -41,10 +41,9 @@ void main() {
   Widget buildTestApp(AuthProvider authProvider, AuthService authService) {
     final NotificationSettingsProvider notificationSettingsProvider =
         NotificationSettingsProvider(
-          storage: const NotificationSettingsStorage(),
-        )..restorePreference();
-    final AppNavigationProvider appNavigationProvider =
-        AppNavigationProvider();
+      storage: const NotificationSettingsStorage(),
+    )..restorePreference();
+    final AppNavigationProvider appNavigationProvider = AppNavigationProvider();
 
     return MultiProvider(
       providers: [
@@ -141,7 +140,6 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.widgetWithText(FilledButton, 'Saqlash'), findsOneWidget);
   });
-
 }
 
 class FakeAuthService implements AuthService {
@@ -210,9 +208,14 @@ class FakeAuthService implements AuthService {
     final String digits = SavedPaymentCard.normalizeDigits(cardNumber);
     final SavedPaymentCard updatedCard = existing.copyWith(
       holderName: holderName.trim(),
-      brand: digits.isEmpty ? existing.brand : SavedPaymentCard.detectBrand(digits),
-      maskedNumber: digits.isEmpty ? existing.maskedNumber : SavedPaymentCard.maskDigits(digits),
-      last4: digits.isEmpty ? existing.last4 : digits.substring(digits.length - 4),
+      brand: digits.isEmpty
+          ? existing.brand
+          : SavedPaymentCard.detectBrand(digits),
+      maskedNumber: digits.isEmpty
+          ? existing.maskedNumber
+          : SavedPaymentCard.maskDigits(digits),
+      last4:
+          digits.isEmpty ? existing.last4 : digits.substring(digits.length - 4),
       expiryMonth: expiryMonth,
       expiryYear: expiryYear,
       isDefault: isDefault,
@@ -233,6 +236,17 @@ class FakeAuthService implements AuthService {
           .toList(growable: false),
     );
     return user;
+  }
+
+  @override
+  Future<void> deleteAccount({
+    required String accessToken,
+  }) async {
+    user = const AuthUser(
+      id: 'deleted',
+      fullName: '',
+      phone: '',
+    );
   }
 
   @override

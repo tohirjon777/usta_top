@@ -346,6 +346,20 @@ class LocalAuthService implements AuthService {
   }
 
   @override
+  Future<void> deleteAccount({
+    required String accessToken,
+  }) async {
+    final AuthUser current = _requireUserByToken(accessToken);
+    _usersById.remove(current.id);
+    _userIdByPhone.remove(_normalizePhone(current.phone));
+    _passwordByUserId.remove(current.id);
+    _sessionToUserId.removeWhere((_, String userId) => userId == current.id);
+    if (_activeUserId == current.id) {
+      _activeUserId = null;
+    }
+  }
+
+  @override
   Future<void> registerPushToken({
     required String accessToken,
     required String token,

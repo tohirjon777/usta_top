@@ -15,8 +15,7 @@ class AuthController extends Controller
         private readonly UstaTopRepository $repository,
         private readonly SmsVerificationService $smsVerificationService,
         private readonly CustomerAvatarStorage $avatarStorage,
-    ) {
-    }
+    ) {}
 
     public function login(Request $request)
     {
@@ -192,6 +191,23 @@ class AuthController extends Controller
                     $avatarUrl
                 ),
             ]);
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    public function deleteMe(Request $request)
+    {
+        $user = $this->userFromRequest($request);
+        if (! $user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $this->avatarStorage->deleteByUrl((string) ($user['avatarUrl'] ?? ''));
+            $this->repository->deleteUserAccount((string) $user['id']);
+
+            return response()->json(['data' => ['ok' => true]]);
         } catch (RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 400);
         }

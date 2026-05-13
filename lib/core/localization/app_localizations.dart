@@ -388,6 +388,14 @@ class AppLocalizations {
       'signOut': 'Sign out',
       'signOutTitle': 'Sign out',
       'signOutConfirm': 'Are you sure you want to sign out?',
+      'deleteAccount': 'Delete account',
+      'deleteAccountSubtitle': 'Permanently remove your profile and login',
+      'deleteAccountTitle': 'Delete account',
+      'deleteAccountConfirm':
+          'Your profile, saved cards, push tokens, cashback balance, and login session will be deleted. Booking history will be anonymized for service records.',
+      'deleteAccountWarning': 'This action cannot be undone.',
+      'deleteAccountSuccess': 'Account deleted',
+      'deleteAccountFailed': 'Account could not be deleted',
       'cancel': 'Cancel',
       'login': 'Login',
       'welcomeBack': 'Welcome back',
@@ -811,6 +819,15 @@ class AppLocalizations {
       'signOut': 'Chiqish',
       'signOutTitle': 'Chiqish',
       'signOutConfirm': 'Rostdan ham akkauntdan chiqmoqchimisiz?',
+      'deleteAccount': 'Akkauntni o\'chirish',
+      'deleteAccountSubtitle':
+          'Profil va login ma\'lumotlarini butunlay olib tashlash',
+      'deleteAccountTitle': 'Akkauntni o\'chirish',
+      'deleteAccountConfirm':
+          'Profilingiz, saqlangan kartalar, push tokenlar, cashback balansi va login sessiya o\'chiriladi. Buyurtmalar tarixi servis yozuvlari uchun anonimlashtiriladi.',
+      'deleteAccountWarning': 'Bu amalni ortga qaytarib bo\'lmaydi.',
+      'deleteAccountSuccess': 'Akkaunt o\'chirildi',
+      'deleteAccountFailed': 'Akkauntni o\'chirib bo\'lmadi',
       'cancel': 'Bekor qilish',
       'login': 'Kirish',
       'welcomeBack': 'Xush kelibsiz',
@@ -1227,6 +1244,14 @@ class AppLocalizations {
       'signOut': 'Выйти',
       'signOutTitle': 'Выход',
       'signOutConfirm': 'Вы уверены, что хотите выйти?',
+      'deleteAccount': 'Удалить аккаунт',
+      'deleteAccountSubtitle': 'Полностью удалить профиль и данные входа',
+      'deleteAccountTitle': 'Удалить аккаунт',
+      'deleteAccountConfirm':
+          'Ваш профиль, сохраненные карты, push-токены, баланс кешбэка и сессия входа будут удалены. История заявок будет обезличена для сервисных записей.',
+      'deleteAccountWarning': 'Это действие нельзя отменить.',
+      'deleteAccountSuccess': 'Аккаунт удален',
+      'deleteAccountFailed': 'Не удалось удалить аккаунт',
       'cancel': 'Отмена',
       'login': 'Вход',
       'welcomeBack': 'С возвращением',
@@ -1756,6 +1781,13 @@ class AppLocalizations {
   String get signOut => _text('signOut');
   String get signOutTitle => _text('signOutTitle');
   String get signOutConfirm => _text('signOutConfirm');
+  String get deleteAccount => _text('deleteAccount');
+  String get deleteAccountSubtitle => _text('deleteAccountSubtitle');
+  String get deleteAccountTitle => _text('deleteAccountTitle');
+  String get deleteAccountConfirm => _text('deleteAccountConfirm');
+  String get deleteAccountWarning => _text('deleteAccountWarning');
+  String get deleteAccountSuccess => _text('deleteAccountSuccess');
+  String get deleteAccountFailed => _text('deleteAccountFailed');
   String get cancel => _text('cancel');
 
   String get login => _text('login');

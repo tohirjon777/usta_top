@@ -31,8 +31,7 @@ class UstaTopRepository
 
     public function __construct(
         private readonly JsonFileStore $store,
-    ) {
-    }
+    ) {}
 
     public function listWorkshops(): array
     {
@@ -390,6 +389,35 @@ class UstaTopRepository
         }
 
         throw new RuntimeException('Foydalanuvchi topilmadi');
+    }
+
+    public function deleteUserAccount(string $userId): void
+    {
+        $users = $this->users();
+        $deletedUser = null;
+        $remainingUsers = [];
+
+        foreach ($users as $user) {
+            if (($user['id'] ?? '') === $userId) {
+                $deletedUser = $user;
+
+                continue;
+            }
+
+            $remainingUsers[] = $user;
+        }
+
+        if ($deletedUser === null) {
+            throw new RuntimeException('Foydalanuvchi topilmadi');
+        }
+
+        $bookingIds = $this->anonymizeBookingsForDeletedUser($userId);
+        $this->anonymizeBookingMessagesForDeletedUser($bookingIds);
+        $this->anonymizeReviewsForDeletedUser($userId);
+        $this->deleteCashbackTransactionsForUser($userId);
+        $this->deleteSmsVerificationsForPhone((string) ($deletedUser['phone'] ?? ''));
+        $this->dropSessionsForUser($userId);
+        $this->saveUsers($remainingUsers);
     }
 
     public function registerPushToken(string $userId, string $token, string $platform): void
@@ -2273,6 +2301,113 @@ class UstaTopRepository
         ));
 
         $this->saveAuthSessions($sessions);
+    }
+
+    private function anonymizeBookingsForDeletedUser(string $userId): array
+    {
+        $bookings = $this->rawBookings();
+        $bookingIds = [];
+        $deletedAt = now()->toIso8601String();
+
+        foreach ($bookings as $index => $booking) {
+            if (($booking['userId'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $bookingIds[] = (string) ($booking['id'] ?? '');
+            $bookings[$index]['userId'] = '';
+            $bookings[$index]['customerName'] = 'Deleted customer';
+            $bookings[$index]['customerPhone'] = '';
+            $bookings[$index]['customerDeletedAt'] = $deletedAt;
+        }
+
+        if ($bookingIds !== []) {
+            $this->saveBookings($bookings);
+        }
+
+        return array_values(array_filter(
+            $bookingIds,
+            fn (string $bookingId): bool => $bookingId !== ''
+        ));
+    }
+
+    private function anonymizeBookingMessagesForDeletedUser(array $bookingIds): void
+    {
+        if ($bookingIds === []) {
+            return;
+        }
+
+        $bookingIdLookup = array_fill_keys($bookingIds, true);
+        $messages = $this->rawBookingMessages();
+        $changed = false;
+
+        foreach ($messages as $index => $message) {
+            if (! isset($bookingIdLookup[(string) ($message['bookingId'] ?? '')])) {
+                continue;
+            }
+            if (($message['senderRole'] ?? '') !== 'customer') {
+                continue;
+            }
+
+            $messages[$index]['senderName'] = 'Deleted customer';
+            $messages[$index]['text'] = '[deleted]';
+            $messages[$index]['deletedWithAccountAt'] = now()->toIso8601String();
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->saveBookingMessages($messages);
+        }
+    }
+
+    private function anonymizeReviewsForDeletedUser(string $userId): void
+    {
+        $reviews = $this->rawReviews();
+        $changed = false;
+
+        foreach ($reviews as $index => $review) {
+            if (($review['userId'] ?? '') !== $userId) {
+                continue;
+            }
+
+            $reviews[$index]['userId'] = '';
+            $reviews[$index]['customerName'] = 'Deleted customer';
+            $reviews[$index]['comment'] = '';
+            $reviews[$index]['isHidden'] = true;
+            $reviews[$index]['deletedWithAccountAt'] = now()->toIso8601String();
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->saveReviews($reviews);
+        }
+    }
+
+    private function deleteCashbackTransactionsForUser(string $userId): void
+    {
+        $transactions = array_values(array_filter(
+            $this->rawCashbackTransactions(),
+            fn (array $transaction): bool => ($transaction['userId'] ?? '') !== $userId
+        ));
+
+        $this->saveCashbackTransactions($transactions);
+    }
+
+    private function deleteSmsVerificationsForPhone(string $phone): void
+    {
+        $phoneKey = $this->normalizePhoneKey($phone);
+        if ($phoneKey === '') {
+            return;
+        }
+
+        $verifications = array_values(array_filter(
+            $this->store->readArray(config('ustatop.sms_verifications_file')),
+            fn (array $verification): bool => $this->normalizePhoneKey(
+                (string) ($verification['phone'] ?? '')
+            ) !== $phoneKey
+        ));
+
+        $this->store->writeArray(config('ustatop.sms_verifications_file'), $verifications);
     }
 
     private function normalizePhoneKey(string $phone): string

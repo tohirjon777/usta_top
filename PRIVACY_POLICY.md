@@ -150,7 +150,8 @@ Foydalanuvchi quyidagi huquqlarga ega:
 - bildirishnomalarni o'chirish;
 - joylashuv ruxsatini telefon sozlamalaridan bekor qilish;
 - o'z ma'lumotlari bo'yicha tushuntirish so'rash;
-- akkauntni yoki shaxsiy ma'lumotlarni o'chirishni so'rash, agar qonuniy yoki xizmat majburiyatlari bunga to'sqinlik qilmasa.
+- ilova ichida `Kabinet` bo'limi oxiridagi `Akkauntni o'chirish` tugmasi orqali akkauntni o'chirish;
+- operatorga murojaat qilib shaxsiy ma'lumotlarni o'chirishni so'rash, agar qonuniy yoki xizmat majburiyatlari bunga to'sqinlik qilmasa.
 
 Ma'lumotlarni o'chirish so'rovi bajarilganda ayrim zakaz, hisob-kitob, xavfsizlik yoki qonuniy yozuvlar belgilangan muddatgacha saqlanishi mumkin.
 

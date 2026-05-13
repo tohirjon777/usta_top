@@ -447,6 +447,11 @@ class FakeAuthService implements AuthService {
   }
 
   @override
+  Future<void> deleteAccount({
+    required String accessToken,
+  }) async {}
+
+  @override
   Future<AuthUser> getCurrentUser({
     required String accessToken,
   }) async {

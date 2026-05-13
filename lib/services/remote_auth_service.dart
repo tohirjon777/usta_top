@@ -808,6 +808,52 @@ class RemoteAuthService implements AuthService {
   }
 
   @override
+  Future<void> deleteAccount({
+    required String accessToken,
+  }) async {
+    final Uri uri = Uri.parse('$baseUrl${ApiEndpoints.authMe}');
+    final http.Client httpClient = client ?? http.Client();
+    final bool shouldCloseClient = client == null;
+
+    try {
+      final http.Response response = await httpClient.delete(
+        uri,
+        headers: <String, String>{
+          'authorization': 'Bearer $accessToken',
+          'content-type': 'application/json; charset=utf-8',
+        },
+      ).timeout(timeout);
+
+      final Map<String, dynamic> body = _decodeObject(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      final String message = _errorMessage(
+        body,
+        fallback: 'Akkauntni o\'chirib bo\'lmadi',
+      );
+      throw AuthException(message, statusCode: response.statusCode);
+    } on TimeoutException {
+      throw const AuthException(
+        'Akkauntni o\'chirish vaqti tugadi. Qayta urinib ko\'ring.',
+      );
+    } on SocketException {
+      throw const AuthException(
+        'Backendga ulanib bo\'lmadi. Backend serverni ishga tushiring.',
+      );
+    } on http.ClientException {
+      throw const AuthException('Tarmoq xatoligi yuz berdi');
+    } on FormatException {
+      throw const AuthException('Server javobini o\'qib bo\'lmadi');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  @override
   Future<void> registerPushToken({
     required String accessToken,
     required String token,
@@ -980,13 +1026,15 @@ class RemoteAuthService implements AuthService {
       throw const AuthException('Server javobi noto\'g\'ri formatda');
     }
 
-    final String token = (data['token'] ?? data['accessToken'] ?? '').toString();
+    final String token =
+        (data['token'] ?? data['accessToken'] ?? '').toString();
     if (token.isEmpty) {
       throw const AuthException('Server token qaytarmadi');
     }
 
     final String refreshToken = (data['refreshToken'] ?? '').toString();
-    final DateTime? expiresAt = DateTime.tryParse((data['expiresAt'] ?? '').toString());
+    final DateTime? expiresAt =
+        DateTime.tryParse((data['expiresAt'] ?? '').toString());
     return AuthSession(
       accessToken: token,
       refreshToken: refreshToken.isEmpty ? null : refreshToken,
