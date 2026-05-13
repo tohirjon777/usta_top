@@ -2,6 +2,10 @@
 
 Flutter frontend va Laravel backend bilan avto-servis ilovasi.
 
+## Maxfiylik siyosati
+
+- [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+
 ## Frontend
 
 ```bash
