@@ -167,9 +167,5 @@ Ushbu Maxfiylik siyosati vaqti-vaqti bilan yangilanishi mumkin. Muhim o'zgarishl
 Maxfiylik, shaxsga doir ma'lumotlar yoki akkauntni o'chirish bo'yicha savollar uchun AutoMaster operatoriga murojaat qiling:
 
 - Ilova nomi: AutoMaster
-- Operator: [operator nomini kiriting]
-- Email: [support email manzilini kiriting]
-- Telefon: [aloqa telefonini kiriting]
-- Manzil: [operator manzilini kiriting]
 
 Ushbu aloqa ma'lumotlari Play Market, App Store, veb-sayt yoki ilova ichidagi qo'llab-quvvatlash bo'limidagi ma'lumotlar bilan bir xil bo'lishi kerak.
