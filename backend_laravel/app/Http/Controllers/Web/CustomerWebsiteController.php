@@ -9,8 +9,8 @@ use App\Support\UstaTop\SmsVerificationService;
 use App\Support\UstaTop\UstaTopRepository;
 use App\Support\UstaTop\WorkshopNotificationsService;
 use Carbon\CarbonImmutable;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -18,6 +18,7 @@ use RuntimeException;
 class CustomerWebsiteController extends Controller
 {
     private const CUSTOMER_SESSION_TOKEN = 'ustatop_customer_token';
+
     private const CUSTOMER_PENDING_REGISTRATION = 'ustatop_customer_pending_registration';
 
     public function __construct(
@@ -25,8 +26,7 @@ class CustomerWebsiteController extends Controller
         private readonly WorkshopNotificationsService $notifications,
         private readonly CustomerAvatarStorage $avatarStorage,
         private readonly SmsVerificationService $smsVerificationService,
-    ) {
-    }
+    ) {}
 
     public function home(Request $request)
     {
@@ -118,6 +118,15 @@ class CustomerWebsiteController extends Controller
             'currentCustomer' => null,
             'yandexMapsApiKey' => $this->yandexMapsApiKey(),
             'pendingRegistration' => $this->pendingRegistration($request),
+        ]);
+    }
+
+    public function accountDeletionPage(Request $request)
+    {
+        return view('ustatop.customer.delete-account', [
+            'title' => 'Akkauntni o‘chirish | AutoMaster',
+            'currentCustomer' => $this->presentCustomer($this->currentCustomer($request)),
+            'yandexMapsApiKey' => '',
         ]);
     }
 
@@ -231,6 +240,29 @@ class CustomerWebsiteController extends Controller
             'vehicleTypes' => $this->vehicleTypes(),
             'paymentMethods' => $this->paymentMethods(),
         ]);
+    }
+
+    public function deleteAccount(Request $request)
+    {
+        $customer = $this->currentCustomer($request);
+        if (! $customer) {
+            return $this->redirectToLogin($request, '/account/delete');
+        }
+
+        if ($request->input('confirm_delete') !== '1') {
+            return redirect('/account/delete')->with('error', 'Akkauntni o‘chirish uchun tasdiqlash belgilang');
+        }
+
+        try {
+            $this->avatarStorage->deleteByUrl((string) ($customer['avatarUrl'] ?? ''));
+            $this->repository->deleteUserAccount((string) $customer['id']);
+            $request->session()->forget(self::CUSTOMER_SESSION_TOKEN);
+            $request->session()->forget('ustatop_customer_intended');
+
+            return redirect('/account/delete')->with('success', 'Akkauntingiz va shaxsiy ma’lumotlaringiz o‘chirildi');
+        } catch (RuntimeException $exception) {
+            return redirect('/account/delete')->with('error', $exception->getMessage());
+        }
     }
 
     public function updateProfile(Request $request)

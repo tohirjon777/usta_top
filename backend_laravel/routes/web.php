@@ -1,19 +1,22 @@
 <?php
 
 use App\Http\Controllers\Web\AdminController;
-use App\Http\Controllers\Web\CustomerWebsiteController;
 use App\Http\Controllers\Web\CustomerMediaController;
+use App\Http\Controllers\Web\CustomerWebsiteController;
 use App\Http\Controllers\Web\OwnerController;
 use App\Http\Controllers\Web\WorkshopMediaController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [CustomerWebsiteController::class, 'home']);
+Route::get('/account/delete', [CustomerWebsiteController::class, 'accountDeletionPage']);
+Route::get('/delete-account', [CustomerWebsiteController::class, 'accountDeletionPage']);
 Route::get('/workshop/{id}', [CustomerWebsiteController::class, 'workshop']);
 Route::get('/customer/login', [CustomerWebsiteController::class, 'loginPage']);
 Route::post('/customer/login', [CustomerWebsiteController::class, 'login']);
 Route::post('/customer/register', [CustomerWebsiteController::class, 'register']);
 Route::post('/customer/logout', [CustomerWebsiteController::class, 'logout']);
 Route::get('/customer/account', [CustomerWebsiteController::class, 'accountPage']);
+Route::post('/customer/account/delete', [CustomerWebsiteController::class, 'deleteAccount']);
 Route::post('/customer/profile', [CustomerWebsiteController::class, 'updateProfile']);
 Route::post('/customer/avatar', [CustomerWebsiteController::class, 'updateAvatar']);
 Route::post('/customer/password', [CustomerWebsiteController::class, 'updatePassword']);

@@ -1304,19 +1304,23 @@ class _MetaPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderOf(context)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: 14, color: color ?? AppColors.starOf(context)),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              color: color ?? AppColors.secondaryTextOf(context),
-              fontWeight: FontWeight.w500,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 14, color: color ?? AppColors.starOf(context)),
+            const SizedBox(width: 4),
+            Text(
+              text,
+              style: TextStyle(
+                color: color ?? AppColors.secondaryTextOf(context),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

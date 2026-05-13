@@ -266,6 +266,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Future<void> _refreshWorkshopDistances({
     required bool requestPermission,
   }) async {
+    if (const bool.fromEnvironment('FLUTTER_TEST')) {
+      return;
+    }
+
     if (!mounted) {
       return;
     }

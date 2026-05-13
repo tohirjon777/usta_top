@@ -64,6 +64,11 @@ class UstaTopWebPanelTest extends TestCase
             ->assertSee('Turbo Usta Servis')
             ->assertSee('To‘liq sahifa')
             ->assertSee('Marshrut');
+
+        $this->get('/account/delete')
+            ->assertOk()
+            ->assertSee('AutoMaster akkauntini o‘chirish')
+            ->assertSee('Kirish va o‘chirish');
     }
 
     public function test_customer_can_register_manage_cards_and_book_from_website(): void
@@ -175,6 +180,34 @@ class UstaTopWebPanelTest extends TestCase
             ->assertSee('Web sayt orqali yozilgan test xabar')
             ->assertSee('Ko‘chirdi: Mijoz')
             ->assertSee('Oldingi vaqt:');
+    }
+
+    public function test_customer_can_delete_account_from_public_web_page(): void
+    {
+        $this->post('/customer/login', [
+            'phone' => '+998900000111',
+            'password' => 'secret123',
+        ])->assertRedirect();
+
+        $this->get('/account/delete')
+            ->assertOk()
+            ->assertSee('Web orqali o‘chirish')
+            ->assertSee('Akkauntni butunlay o‘chirish');
+
+        $this->post('/customer/account/delete', [
+            'confirm_delete' => '1',
+        ])->assertRedirect('/account/delete');
+
+        $this->followingRedirects()
+            ->get('/account/delete')
+            ->assertOk()
+            ->assertSee('Akkauntingiz va shaxsiy ma’lumotlaringiz o‘chirildi')
+            ->assertSee('Kirish va o‘chirish');
+
+        $this->post('/customer/login', [
+            'phone' => '+998900000111',
+            'password' => 'secret123',
+        ])->assertRedirect('/customer/login');
     }
 
     public function test_owner_can_update_workshop_location_from_panel_with_yandex_map(): void

@@ -41,6 +41,7 @@
                 <a class="feature" href="#bookings"><strong>Bronlar:</strong> vaqtni ko‘chirish, bekor qilish, tasdiqlash.</a>
                 <a class="feature" href="#cards"><strong>Kartalar:</strong> test karta qo‘shish va tahrirlash.</a>
                 <a class="feature" href="#profile"><strong>Profil:</strong> ism, telefon va parolni yangilash.</a>
+                <a class="feature" href="/account/delete"><strong>Akkaunt:</strong> account va shaxsiy ma’lumotlarni o‘chirish.</a>
             </div>
         </div>
     </section>
