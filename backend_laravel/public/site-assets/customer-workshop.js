@@ -9,7 +9,7 @@
     const savedVehicles = Array.isArray(payload.savedVehicles) ? payload.savedVehicles : [];
     const hasCustomer = !!payload.currentCustomer;
     const defaultCenter = [41.3111, 69.2797];
-    const shared = window.UstaTopCustomer || {};
+    const shared = window.AutoMasterCustomer || {};
 
     function formatUzs(value) {
         return typeof shared.formatMoney === 'function'

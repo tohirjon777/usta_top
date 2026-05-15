@@ -8,7 +8,7 @@
     const workshopApiEndpoint = payload.apiEndpoint || '/workshops';
     const fallbackWorkshops = Array.isArray(payload.initialWorkshops) ? payload.initialWorkshops : [];
     const defaultCenter = [41.3111, 69.2797];
-    const shared = window.UstaTopCustomer || {};
+    const shared = window.AutoMasterCustomer || {};
 
     let workshops = fallbackWorkshops;
     let selectedWorkshopId = null;
@@ -16,6 +16,59 @@
     let geoObjectCollection = null;
     let mapReadyPromise = null;
     let hasFittedInitialBounds = false;
+
+    function initRevealAnimations() {
+        const revealNodes = Array.from(document.querySelectorAll('.reveal'));
+        if (!revealNodes.length) {
+            return;
+        }
+
+        if (!('IntersectionObserver' in window)) {
+            revealNodes.forEach((node) => node.classList.add('is-visible'));
+            return;
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            });
+        }, { threshold: 0.14 });
+
+        revealNodes.forEach((node, index) => {
+            node.style.transitionDelay = `${Math.min(index * 45, 220)}ms`;
+            observer.observe(node);
+        });
+    }
+
+    function animateStatNumbers() {
+        const statNodes = Array.from(document.querySelectorAll('[data-count]'));
+        if (!statNodes.length || !('requestAnimationFrame' in window)) {
+            return;
+        }
+
+        statNodes.forEach((node) => {
+            const target = Number(node.dataset.count || 0);
+            if (!Number.isFinite(target)) {
+                return;
+            }
+
+            const duration = 900;
+            const start = performance.now();
+            const tick = (now) => {
+                const progress = Math.min((now - start) / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                node.textContent = String(Math.round(target * eased));
+                if (progress < 1) {
+                    requestAnimationFrame(tick);
+                }
+            };
+            requestAnimationFrame(tick);
+        });
+    }
 
     function yandexRouteUrl(latitude, longitude) {
         return typeof shared.yandexRouteUrl === 'function'
@@ -40,7 +93,7 @@
     function cardTemplate(workshop) {
         const image = workshop.imageUrl
             ? `<img src="${workshop.imageUrl}" alt="${workshop.name}">`
-            : `${(workshop.name || 'UT').slice(0, 2).toUpperCase()}`;
+            : `${(workshop.name || 'AM').slice(0, 2).toUpperCase()}`;
         const services = (workshop.serviceNames || []).map((item) => `<span class="pill muted">${item}</span>`).join('');
 
         return `
@@ -303,6 +356,9 @@
     }
 
     async function bootstrap() {
+        initRevealAnimations();
+        animateStatNumbers();
+
         try {
             const response = await fetch(workshopApiEndpoint, { headers: { Accept: 'application/json' } });
             if (response.ok) {

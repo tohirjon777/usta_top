@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'AutoMaster' }}</title>
     <meta name="description" content="AutoMaster orqali yaqin ustaxonalarni toping, xaritada ko‘ring va xizmatlarni solishtiring.">
+    <link rel="icon" type="image/png" href="{{ asset('site-assets/automaster-logo.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -19,10 +20,14 @@
         <header class="topbar">
             <div class="topbar-inner">
                 <a class="brand" href="/">
-                    <span class="brand-mark">UT</span>
+                    <span class="brand-mark">
+                        <img src="{{ asset('site-assets/automaster-logo.png') }}" alt="AutoMaster">
+                    </span>
                     <span>AutoMaster</span>
                 </a>
                 <nav class="nav-links">
+                    <a href="/#emergency">Tezkor yordam</a>
+                    <a href="/#cashback">Cashback</a>
                     <a href="/#discover">Ustaxonalar</a>
                     <a href="/#map">Xarita</a>
                     @if(!empty($currentCustomer))

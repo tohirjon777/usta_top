@@ -31,7 +31,7 @@
         return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     }
 
-    window.UstaTopCustomer = {
+    window.AutoMasterCustomer = {
         formatMoney,
         yandexRouteUrl,
         garageMarkerDataUrl,
