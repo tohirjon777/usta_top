@@ -69,6 +69,13 @@ class UstaTopWebPanelTest extends TestCase
             ->assertOk()
             ->assertSee('AutoMaster akkauntini o‘chirish')
             ->assertSee('Kirish va o‘chirish');
+
+        $this->get('/privacy-policy')
+            ->assertOk()
+            ->assertSee('AutoMaster maxfiylik siyosati')
+            ->assertSee('AutoMaster Privacy Policy')
+            ->assertSee('Политика конфиденциальности AutoMaster')
+            ->assertSee('/account/delete');
     }
 
     public function test_customer_can_register_manage_cards_and_book_from_website(): void

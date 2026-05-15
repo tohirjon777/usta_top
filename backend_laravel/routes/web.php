@@ -8,6 +8,8 @@ use App\Http\Controllers\Web\WorkshopMediaController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [CustomerWebsiteController::class, 'home']);
+Route::get('/privacy-policy', [CustomerWebsiteController::class, 'privacyPolicyPage']);
+Route::get('/privacy', [CustomerWebsiteController::class, 'privacyPolicyPage']);
 Route::get('/account/delete', [CustomerWebsiteController::class, 'accountDeletionPage']);
 Route::get('/delete-account', [CustomerWebsiteController::class, 'accountDeletionPage']);
 Route::get('/workshop/{id}', [CustomerWebsiteController::class, 'workshop']);

@@ -121,6 +121,15 @@ class CustomerWebsiteController extends Controller
         ]);
     }
 
+    public function privacyPolicyPage(Request $request)
+    {
+        return view('ustatop.customer.privacy-policy', [
+            'title' => 'Maxfiylik siyosati | AutoMaster',
+            'currentCustomer' => $this->presentCustomer($this->currentCustomer($request)),
+            'yandexMapsApiKey' => '',
+        ]);
+    }
+
     public function accountDeletionPage(Request $request)
     {
         return view('ustatop.customer.delete-account', [
